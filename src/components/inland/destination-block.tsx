@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { MapPin, Navigation, Trash2, Plus } from 'lucide-react'
 import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
 import { LoadBlockCard } from './load-block'
+import { SavedLanes } from './saved-lanes'
 import { formatCurrency } from '@/lib/utils'
 
 interface DestinationBlockProps {
@@ -77,6 +78,14 @@ export function DestinationBlock({
     onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal })
   }
 
+  const handleSelectLane = (pickup: string, dropoff: string) => {
+    onUpdate({
+      ...block,
+      pickup_address: pickup,
+      dropoff_address: dropoff,
+    })
+  }
+
   return (
     <Card className="border-l-4 border-l-primary">
       <CardHeader className="pb-3">
@@ -86,6 +95,11 @@ export function DestinationBlock({
               {block.label}
             </Badge>
             <CardTitle className="text-lg">Destination</CardTitle>
+            <SavedLanes
+              onSelectLane={handleSelectLane}
+              currentPickup={block.pickup_address}
+              currentDropoff={block.dropoff_address}
+            />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">

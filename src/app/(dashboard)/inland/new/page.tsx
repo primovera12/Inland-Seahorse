@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,10 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { DestinationBlock } from '@/components/inland/destination-block'
+import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, Building2, Search, X } from 'lucide-react'
+import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2 } from 'lucide-react'
 import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
 import {
   downloadInlandQuotePDF,
@@ -66,6 +67,12 @@ export default function NewInlandQuotePage() {
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+
+  // Live PDF Preview
+  const [showLivePdfPreview, setShowLivePdfPreview] = useState(false)
+  const [livePdfUrl, setLivePdfUrl] = useState<string | null>(null)
+  const [isGeneratingLivePdf, setIsGeneratingLivePdf] = useState(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Generate quote number on mount
   useEffect(() => {
@@ -147,6 +154,85 @@ export default function NewInlandQuotePage() {
     }
   }
 
+  // Create a stable hash of the PDF data to detect changes
+  const pdfDataHash = useMemo(() => {
+    return JSON.stringify({
+      quoteNumber,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerCompany,
+      destinationBlocks: destinationBlocks.map((d) => ({
+        label: d.label,
+        pickup_address: d.pickup_address,
+        dropoff_address: d.dropoff_address,
+        subtotal: d.subtotal,
+        load_blocks: d.load_blocks.map((lb) => ({
+          truck_type_id: lb.truck_type_id,
+          subtotal: lb.subtotal,
+        })),
+      })),
+      subtotal,
+      marginPercentage,
+      quoteNotes,
+    })
+  }, [
+    quoteNumber,
+    customerName,
+    customerEmail,
+    customerPhone,
+    customerCompany,
+    destinationBlocks,
+    subtotal,
+    marginPercentage,
+    quoteNotes,
+  ])
+
+  // Live PDF preview with debouncing
+  useEffect(() => {
+    if (!showLivePdfPreview) return
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    setIsGeneratingLivePdf(true)
+
+    debounceTimerRef.current = setTimeout(() => {
+      try {
+        const pdfData = buildPdfData()
+        const dataUrl = getInlandQuotePDFDataUrl(pdfData)
+        setLivePdfUrl(dataUrl)
+      } catch (error) {
+        console.error('Failed to generate live PDF preview:', error)
+      } finally {
+        setIsGeneratingLivePdf(false)
+      }
+    }, 800)
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [pdfDataHash, showLivePdfPreview, buildPdfData])
+
+  // Toggle live preview
+  const handleToggleLivePreview = useCallback(() => {
+    setShowLivePdfPreview((prev) => {
+      if (!prev) {
+        try {
+          const pdfData = buildPdfData()
+          const dataUrl = getInlandQuotePDFDataUrl(pdfData)
+          setLivePdfUrl(dataUrl)
+        } catch (error) {
+          console.error('Failed to generate initial PDF preview:', error)
+        }
+      }
+      return !prev
+    })
+  }, [buildPdfData])
+
   // Destination management
   const addDestination = () => {
     if (destinationBlocks.length >= 6) {
@@ -223,6 +309,14 @@ export default function NewInlandQuotePage() {
           <p className="text-muted-foreground">Quote #{quoteNumber}</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant={showLivePdfPreview ? 'default' : 'outline'}
+            size="icon"
+            title={showLivePdfPreview ? 'Hide Live Preview' : 'Show Live Preview'}
+            onClick={handleToggleLivePreview}
+          >
+            <MonitorPlay className="h-4 w-4" />
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -403,10 +497,13 @@ export default function NewInlandQuotePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Route Map */}
+          <RouteMap destinationBlocks={destinationBlocks} />
         </div>
 
         {/* Summary Sidebar */}
-        <div>
+        <div className="space-y-4">
           <Card className="sticky top-20">
             <CardHeader>
               <CardTitle>Quote Summary</CardTitle>
@@ -471,6 +568,40 @@ export default function NewInlandQuotePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Live PDF Preview Panel */}
+          {showLivePdfPreview && (
+            <Card className="overflow-hidden">
+              <CardHeader className="py-3 px-4 border-b">
+                <CardTitle className="text-sm font-medium flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <MonitorPlay className="h-4 w-4" />
+                    Live Preview
+                  </span>
+                  {isGeneratingLivePdf && (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Updating...
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <div className="h-[600px] bg-muted/30">
+                {livePdfUrl ? (
+                  <iframe
+                    src={livePdfUrl}
+                    className="w-full h-full"
+                    title="Live Inland Quote PDF Preview"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    Generating preview...
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 
