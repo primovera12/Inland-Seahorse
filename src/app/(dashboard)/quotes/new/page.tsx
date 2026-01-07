@@ -1,17 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EquipmentSelector } from '@/components/quotes/equipment-selector'
 import { CustomerForm } from '@/components/quotes/customer-form'
 import { CostBreakdown } from '@/components/quotes/cost-breakdown'
 import { QuoteSummary } from '@/components/quotes/quote-summary'
 import { trpc } from '@/lib/trpc/client'
-import { LOCATIONS, COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
-import { generateQuoteNumber } from '@/lib/utils'
+import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
+import { generateQuoteNumber, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+import { FileDown, Eye, X } from 'lucide-react'
+import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
 
 type CostState = Record<CostField, number>
 type EnabledState = Record<CostField, boolean>
@@ -64,6 +67,10 @@ export default function NewQuotePage() {
   const [quoteNumber, setQuoteNumber] = useState('')
   const [notes, setNotes] = useState('')
 
+  // PDF Preview
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
+
   // Generate quote number on mount
   useEffect(() => {
     setQuoteNumber(generateQuoteNumber())
@@ -113,6 +120,59 @@ export default function NewQuotePage() {
 
   const marginAmount = Math.round(subtotal * (marginPercentage / 100))
   const total = subtotal + marginAmount
+
+  // Build PDF data object
+  const buildPdfData = useCallback((): QuotePDFData => {
+    return {
+      quoteNumber,
+      date: formatDate(new Date()),
+      customerName: customerName || 'N/A',
+      customerEmail: customerEmail || undefined,
+      customerPhone: customerPhone || undefined,
+      customerCompany: customerCompany || undefined,
+      makeName: makeName || 'Custom',
+      modelName: modelName || 'Equipment',
+      location: selectedLocation,
+      dimensions,
+      costs,
+      enabledCosts,
+      costOverrides,
+      subtotal,
+      marginPercentage,
+      marginAmount,
+      total,
+      notes: notes || undefined,
+      companyName: 'Dismantle Pro',
+      primaryColor: '#6366F1',
+    }
+  }, [
+    quoteNumber, customerName, customerEmail, customerPhone, customerCompany,
+    makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
+    costOverrides, subtotal, marginPercentage, marginAmount, total, notes
+  ])
+
+  // Generate PDF preview
+  const handlePreviewPdf = useCallback(() => {
+    try {
+      const pdfData = buildPdfData()
+      const dataUrl = getQuotePDFDataUrl(pdfData)
+      setPdfDataUrl(dataUrl)
+      setShowPdfPreview(true)
+    } catch {
+      toast.error('Failed to generate PDF preview')
+    }
+  }, [buildPdfData])
+
+  // Download PDF
+  const handleDownloadPdf = useCallback(() => {
+    try {
+      const pdfData = buildPdfData()
+      downloadQuotePDF(pdfData)
+      toast.success('PDF downloaded')
+    } catch {
+      toast.error('Failed to download PDF')
+    }
+  }, [buildPdfData])
 
   // Save quote mutation
   const createQuote = trpc.quotes.create.useMutation({
@@ -172,12 +232,44 @@ export default function NewQuotePage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={handlePreviewPdf} title="Preview PDF">
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleDownloadPdf} title="Download PDF">
+            <FileDown className="h-4 w-4" />
+          </Button>
           <Button variant="outline">Save Draft</Button>
           <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
             {createQuote.isPending ? 'Saving...' : 'Create Quote'}
           </Button>
         </div>
       </div>
+
+      {/* PDF Preview Modal */}
+      <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
+        <DialogContent className="max-w-4xl h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Quote Preview</span>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleDownloadPdf}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {pdfDataUrl && (
+              <iframe
+                src={pdfDataUrl}
+                className="w-full h-full rounded border"
+                title="Quote PDF Preview"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
