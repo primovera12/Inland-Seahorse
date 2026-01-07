@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
 
+const roleSchema = z.enum(['admin', 'manager', 'member', 'viewer'])
+
 export const userRouter = router({
   me: protectedProcedure.query(async ({ ctx }) => {
     return ctx.user
@@ -24,5 +26,113 @@ export const userRouter = router({
 
       if (error) throw error
       return data
+    }),
+
+  // Get all team members
+  getTeamMembers: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+        search: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      let query = ctx.supabase
+        .from('users')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(input.offset, input.offset + input.limit - 1)
+
+      if (input.search) {
+        query = query.or(
+          `first_name.ilike.%${input.search}%,last_name.ilike.%${input.search}%,email.ilike.%${input.search}%`
+        )
+      }
+
+      const { data, error, count } = await query
+      if (error) throw error
+      return { users: data, total: count }
+    }),
+
+  // Invite new team member
+  inviteTeamMember: protectedProcedure
+    .input(
+      z.object({
+        email: z.string().email(),
+        first_name: z.string().min(1),
+        last_name: z.string().min(1),
+        role: roleSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Create user record (they'll need to set password via email)
+      const { data, error } = await ctx.supabase
+        .from('users')
+        .insert({
+          email: input.email,
+          first_name: input.first_name,
+          last_name: input.last_name,
+          role: input.role,
+          status: 'invited',
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
+  // Update team member role
+  updateRole: protectedProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        role: roleSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('users')
+        .update({ role: input.role })
+        .eq('id', input.userId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
+  // Update team member status
+  updateStatus: protectedProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        status: z.enum(['active', 'inactive', 'invited']),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('users')
+        .update({ status: input.status })
+        .eq('id', input.userId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
+  // Remove team member
+  removeTeamMember: protectedProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('users')
+        .delete()
+        .eq('id', input.userId)
+
+      if (error) throw error
+      return { success: true }
     }),
 })

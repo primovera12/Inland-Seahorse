@@ -9,6 +9,10 @@ import { activityRouter } from './activity'
 import { remindersRouter } from './reminders'
 import { reportsRouter } from './reports'
 import { searchRouter } from './search'
+import { emailRouter } from './email'
+import { templatesRouter } from './templates'
+import { notificationsRouter } from './notifications'
+import { importRouter } from './import'
 
 export const appRouter = router({
   user: userRouter,
@@ -22,6 +26,10 @@ export const appRouter = router({
   reminders: remindersRouter,
   reports: reportsRouter,
   search: searchRouter,
+  email: emailRouter,
+  templates: templatesRouter,
+  notifications: notificationsRouter,
+  import: importRouter,
 })
 
 export type AppRouter = typeof appRouter

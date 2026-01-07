@@ -16,6 +16,9 @@ import {
   Activity,
   Bell,
   BarChart3,
+  LayoutTemplate,
+  Upload,
+  UsersRound,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -97,6 +100,24 @@ const crmItems = [
     title: 'Reminders',
     url: '/reminders',
     icon: Bell,
+  },
+]
+
+const adminItems = [
+  {
+    title: 'Team',
+    url: '/team',
+    icon: UsersRound,
+  },
+  {
+    title: 'Templates',
+    url: '/templates',
+    icon: LayoutTemplate,
+  },
+  {
+    title: 'Import Data',
+    url: '/import',
+    icon: Upload,
   },
 ]
 
@@ -183,6 +204,29 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {crmItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <Link
+                      href={item.url}
+                      className={cn(
+                        pathname === item.url && 'bg-sidebar-accent'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Admin</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {adminItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname === item.url}>
                     <Link
