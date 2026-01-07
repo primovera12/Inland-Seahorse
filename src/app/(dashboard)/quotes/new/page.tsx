@@ -18,8 +18,9 @@ import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipmen
 import type { EquipmentBlock } from '@/types/quotes'
 import { generateQuoteNumber, formatDate, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2 } from 'lucide-react'
+import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2, Mail, Save } from 'lucide-react'
 import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
+import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 
 type CostState = Record<CostField, number>
 type EnabledState = Record<CostField, boolean>
@@ -106,6 +107,10 @@ export default function NewQuotePage() {
   const [livePdfUrl, setLivePdfUrl] = useState<string | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Email & Template dialogs
+  const [showEmailDialog, setShowEmailDialog] = useState(false)
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
 
   // Generate quote number on mount
   useEffect(() => {
@@ -336,13 +341,42 @@ export default function NewQuotePage() {
 
   // Save quote mutation
   const createQuote = trpc.quotes.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Quote created successfully')
+      if (data?.id) {
+        setSavedQuoteId(data.id)
+      }
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
     },
   })
+
+  // Save as template mutation
+  const saveTemplate = trpc.templates.create.useMutation({
+    onSuccess: () => {
+      toast.success('Template saved successfully')
+    },
+    onError: (error) => {
+      toast.error(`Failed to save template: ${error.message}`)
+    },
+  })
+
+  const handleSaveAsTemplate = () => {
+    const templateName = `${makeName || 'Custom'} ${modelName || 'Equipment'} - ${selectedLocation}`
+    saveTemplate.mutate({
+      name: templateName,
+      description: `Quote template for ${makeName} ${modelName}`,
+      template_type: 'dismantle',
+      template_data: {
+        selectedLocation,
+        costs,
+        enabledCosts,
+        costOverrides,
+        marginPercentage,
+      },
+    })
+  }
 
   const handleSaveQuote = () => {
     if (!customerName) {
@@ -406,7 +440,24 @@ export default function NewQuotePage() {
           <Button variant="outline" size="icon" onClick={handleDownloadPdf} title="Download PDF">
             <FileDown className="h-4 w-4" />
           </Button>
-          <Button variant="outline">Save Draft</Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowEmailDialog(true)}
+            title="Send via Email"
+            disabled={!savedQuoteId}
+          >
+            <Mail className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleSaveAsTemplate}
+            title="Save as Template"
+            disabled={saveTemplate.isPending}
+          >
+            <Save className="h-4 w-4" />
+          </Button>
           <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
             {createQuote.isPending ? 'Saving...' : 'Create Quote'}
           </Button>
@@ -637,6 +688,17 @@ export default function NewQuotePage() {
           )}
         </div>
       </div>
+
+      {/* Email Quote Dialog */}
+      <EmailQuoteDialog
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        quoteId={savedQuoteId || ''}
+        quoteType="dismantle"
+        quoteNumber={quoteNumber}
+        customerName={customerName || undefined}
+        customerEmail={customerEmail || undefined}
+      />
     </div>
   )
 }

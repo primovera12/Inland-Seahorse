@@ -17,13 +17,14 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2 } from 'lucide-react'
+import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2, Mail, Save } from 'lucide-react'
 import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
 import {
   downloadInlandQuotePDF,
   getInlandQuotePDFDataUrl,
   type InlandQuotePDFData,
 } from '@/lib/pdf/inland-quote-generator'
+import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 
 const DESTINATION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -73,6 +74,10 @@ export default function NewInlandQuotePage() {
   const [livePdfUrl, setLivePdfUrl] = useState<string | null>(null)
   const [isGeneratingLivePdf, setIsGeneratingLivePdf] = useState(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Email & Template dialogs
+  const [showEmailDialog, setShowEmailDialog] = useState(false)
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
 
   // Generate quote number on mount
   useEffect(() => {
@@ -262,13 +267,43 @@ export default function NewInlandQuotePage() {
 
   // Create quote mutation
   const createQuote = trpc.inland.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Inland quote created successfully')
+      if (data?.id) {
+        setSavedQuoteId(data.id)
+      }
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
     },
   })
+
+  // Save as template mutation
+  const saveTemplate = trpc.templates.create.useMutation({
+    onSuccess: () => {
+      toast.success('Template saved successfully')
+    },
+    onError: (error) => {
+      toast.error(`Failed to save template: ${error.message}`)
+    },
+  })
+
+  const handleSaveAsTemplate = () => {
+    const firstDest = destinationBlocks[0]
+    const templateName = `Inland - ${firstDest?.pickup_address || 'Origin'} to ${firstDest?.dropoff_address || 'Destination'}`
+    saveTemplate.mutate({
+      name: templateName.slice(0, 100),
+      description: `Inland transportation template with ${destinationBlocks.length} destination(s)`,
+      template_type: 'inland',
+      template_data: {
+        marginPercentage,
+        destination_blocks: destinationBlocks.map((d) => ({
+          pickup_address: d.pickup_address,
+          dropoff_address: d.dropoff_address,
+        })),
+      },
+    })
+  }
 
   const handleSaveQuote = () => {
     if (!customerName) {
@@ -333,6 +368,24 @@ export default function NewInlandQuotePage() {
             onClick={handleDownloadPdf}
           >
             <FileDown className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowEmailDialog(true)}
+            title="Send via Email"
+            disabled={!savedQuoteId}
+          >
+            <Mail className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleSaveAsTemplate}
+            title="Save as Template"
+            disabled={saveTemplate.isPending}
+          >
+            <Save className="h-4 w-4" />
           </Button>
           <Button variant="outline">Save Draft</Button>
           <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
@@ -641,6 +694,17 @@ export default function NewInlandQuotePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Email Quote Dialog */}
+      <EmailQuoteDialog
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        quoteId={savedQuoteId || ''}
+        quoteType="inland"
+        quoteNumber={quoteNumber}
+        customerName={customerName || undefined}
+        customerEmail={customerEmail || undefined}
+      />
     </div>
   )
 }
