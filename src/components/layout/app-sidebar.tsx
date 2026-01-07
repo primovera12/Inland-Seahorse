@@ -14,6 +14,8 @@ import {
   Package,
   Building2,
   Activity,
+  Bell,
+  BarChart3,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -34,6 +36,11 @@ const equipmentItems = [
     title: 'Dashboard',
     url: '/dashboard',
     icon: Home,
+  },
+  {
+    title: 'Reports',
+    url: '/reports',
+    icon: BarChart3,
   },
   {
     title: 'Generate Quote',
@@ -85,6 +92,11 @@ const crmItems = [
     title: 'Activity Log',
     url: '/activity',
     icon: Activity,
+  },
+  {
+    title: 'Reminders',
+    url: '/reminders',
+    icon: Bell,
   },
 ]
 
