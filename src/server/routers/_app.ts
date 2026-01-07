@@ -8,6 +8,7 @@ import { dashboardRouter } from './dashboard'
 import { activityRouter } from './activity'
 import { remindersRouter } from './reminders'
 import { reportsRouter } from './reports'
+import { searchRouter } from './search'
 
 export const appRouter = router({
   user: userRouter,
@@ -20,6 +21,7 @@ export const appRouter = router({
   activity: activityRouter,
   reminders: remindersRouter,
   reports: reportsRouter,
+  search: searchRouter,
 })
 
 export type AppRouter = typeof appRouter

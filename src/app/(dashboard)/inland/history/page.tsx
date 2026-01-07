@@ -22,8 +22,30 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import { Plus, Search, Truck, Eye, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatCurrency, formatDate, exportToCSV } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { toast } from 'sonner'
+import {
+  Plus,
+  Search,
+  Truck,
+  Eye,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Send,
+  CheckCircle2,
+  XCircle,
+  Download,
+} from 'lucide-react'
 
 type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
 
@@ -47,9 +69,33 @@ export default function InlandHistoryPage() {
     status: statusFilter === 'all' ? undefined : statusFilter,
   })
 
+  const utils = trpc.useUtils()
+
   const deleteQuote = trpc.inland.delete.useMutation({
     onSuccess: () => {
-      // Refetch quotes
+      utils.inland.getHistory.invalidate()
+      toast.success('Quote deleted')
+    },
+  })
+
+  const markAsSent = trpc.inland.markAsSent.useMutation({
+    onSuccess: () => {
+      utils.inland.getHistory.invalidate()
+      toast.success('Quote marked as sent')
+    },
+  })
+
+  const markAsAccepted = trpc.inland.markAsAccepted.useMutation({
+    onSuccess: () => {
+      utils.inland.getHistory.invalidate()
+      toast.success('Quote marked as accepted')
+    },
+  })
+
+  const markAsRejected = trpc.inland.markAsRejected.useMutation({
+    onSuccess: () => {
+      utils.inland.getHistory.invalidate()
+      toast.success('Quote marked as rejected')
     },
   })
 
@@ -68,6 +114,26 @@ export default function InlandHistoryPage() {
     )
   })
 
+  const handleExportCSV = () => {
+    if (filteredQuotes.length === 0) {
+      toast.error('No quotes to export')
+      return
+    }
+    exportToCSV(
+      filteredQuotes,
+      [
+        { key: 'quote_number', header: 'Quote #' },
+        { key: 'customer_name', header: 'Customer Name' },
+        { key: 'customer_company', header: 'Company' },
+        { key: 'total', header: 'Total', formatter: (v) => (Number(v) / 100).toFixed(2) },
+        { key: 'status', header: 'Status' },
+        { key: 'created_at', header: 'Created', formatter: (v) => formatDate(v as string) },
+      ],
+      `inland-quotes-export-${new Date().toISOString().split('T')[0]}`
+    )
+    toast.success(`Exported ${filteredQuotes.length} quotes`)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -75,12 +141,18 @@ export default function InlandHistoryPage() {
           <h1 className="text-3xl font-bold tracking-tight">Inland History</h1>
           <p className="text-muted-foreground">View and manage inland transportation quotes</p>
         </div>
-        <Link href="/inland/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Inland Quote
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredQuotes.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
           </Button>
-        </Link>
+          <Link href="/inland/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Inland Quote
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card>
@@ -170,23 +242,60 @@ export default function InlandHistoryPage() {
                         </TableCell>
                         <TableCell>{formatDate(quote.created_at)}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" title="View quote">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Delete quote"
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this quote?')) {
-                                  deleteQuote.mutate({ id: quote.id })
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Quote
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                              {quote.status === 'draft' && (
+                                <DropdownMenuItem
+                                  onClick={() => markAsSent.mutate({ id: quote.id })}
+                                >
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Mark as Sent
+                                </DropdownMenuItem>
+                              )}
+                              {(quote.status === 'draft' || quote.status === 'sent') && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => markAsAccepted.mutate({ id: quote.id })}
+                                    className="text-green-600"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                    Mark as Accepted
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => markAsRejected.mutate({ id: quote.id })}
+                                    className="text-red-600"
+                                  >
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Mark as Rejected
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to delete this quote?')) {
+                                    deleteQuote.mutate({ id: quote.id })
+                                  }
+                                }}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Quote
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}

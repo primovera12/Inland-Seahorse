@@ -57,3 +57,50 @@ export function generateQuoteNumber(prefix = 'QT'): string {
 export function generateInlandQuoteNumber(): string {
   return generateQuoteNumber('IQ')
 }
+
+// CSV Export utilities
+function escapeCSVValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
+export function exportToCSV<T extends Record<string, unknown>>(
+  data: T[],
+  columns: { key: keyof T; header: string; formatter?: (value: unknown) => string }[],
+  filename: string
+): void {
+  if (data.length === 0) return
+
+  // Build header row
+  const headers = columns.map((col) => escapeCSVValue(col.header)).join(',')
+
+  // Build data rows
+  const rows = data.map((row) =>
+    columns
+      .map((col) => {
+        const value = row[col.key]
+        const formatted = col.formatter ? col.formatter(value) : value
+        return escapeCSVValue(formatted as string | number | null | undefined)
+      })
+      .join(',')
+  )
+
+  // Combine and create blob
+  const csvContent = [headers, ...rows].join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+
+  // Create download link
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', `${filename}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}

@@ -135,6 +135,92 @@ export const quotesRouter = router({
     return generateQuoteNumber(prefix)
   }),
 
+  // Update quote status
+  updateStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        status: z.enum(['draft', 'sent', 'accepted', 'rejected', 'expired']),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_history')
+        .update({
+          status: input.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
+  // Mark as sent
+  markAsSent: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_history')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
+  // Mark as accepted
+  markAsAccepted: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_history')
+        .update({
+          status: 'accepted',
+          accepted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
+  // Mark as rejected
+  markAsRejected: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        rejection_reason: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_history')
+        .update({
+          status: 'rejected',
+          rejection_reason: input.rejection_reason,
+          rejected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }),
+
   // Save draft
   saveDraft: protectedProcedure
     .input(z.object({ quote_data: z.record(z.string(), z.unknown()) }))

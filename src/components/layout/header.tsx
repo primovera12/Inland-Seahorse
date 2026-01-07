@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { createClient } from '@/lib/supabase/client'
+import { GlobalSearch } from '@/components/global-search'
 
 interface HeaderProps {
   user?: {
@@ -41,6 +42,7 @@ export function Header({ user }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background px-4">
       <SidebarTrigger />
+      <GlobalSearch />
       <div className="flex-1" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
