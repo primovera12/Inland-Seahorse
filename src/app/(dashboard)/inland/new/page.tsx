@@ -6,12 +6,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { DestinationBlock } from '@/components/inland/destination-block'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, Building2, Search } from 'lucide-react'
+import { Plus, FileDown, Eye, Building2, Search, X } from 'lucide-react'
 import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
+import {
+  downloadInlandQuotePDF,
+  getInlandQuotePDFDataUrl,
+  type InlandQuotePDFData,
+} from '@/lib/pdf/inland-quote-generator'
 
 const DESTINATION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -51,6 +62,11 @@ export default function NewInlandQuotePage() {
   const [showCompanySearch, setShowCompanySearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // PDF Preview
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+
   // Generate quote number on mount
   useEffect(() => {
     setQuoteNumber(generateInlandQuoteNumber())
@@ -70,6 +86,66 @@ export default function NewInlandQuotePage() {
   const subtotal = destinationBlocks.reduce((sum, block) => sum + block.subtotal, 0)
   const marginAmount = Math.round(subtotal * (marginPercentage / 100))
   const total = subtotal + marginAmount
+
+  // Build PDF data
+  const buildPdfData = useCallback((): InlandQuotePDFData => {
+    return {
+      quoteNumber,
+      date: formatDate(new Date()),
+      customerName,
+      customerEmail: customerEmail || undefined,
+      customerPhone: customerPhone || undefined,
+      customerCompany: customerCompany || undefined,
+      destinationBlocks,
+      subtotal,
+      marginPercentage,
+      marginAmount,
+      total,
+      quoteNotes: quoteNotes || undefined,
+      companyName: 'Dismantle Pro',
+      primaryColor: '#6366F1',
+    }
+  }, [
+    quoteNumber,
+    customerName,
+    customerEmail,
+    customerPhone,
+    customerCompany,
+    destinationBlocks,
+    subtotal,
+    marginPercentage,
+    marginAmount,
+    total,
+    quoteNotes,
+  ])
+
+  // PDF Preview
+  const handlePreviewPdf = async () => {
+    setIsGeneratingPdf(true)
+    try {
+      const pdfData = buildPdfData()
+      const dataUrl = getInlandQuotePDFDataUrl(pdfData)
+      setPdfDataUrl(dataUrl)
+      setShowPdfPreview(true)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      toast.error('Failed to generate PDF preview')
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
+  // PDF Download
+  const handleDownloadPdf = () => {
+    try {
+      const pdfData = buildPdfData()
+      downloadInlandQuotePDF(pdfData, `inland-quote-${quoteNumber}.pdf`)
+      toast.success('PDF downloaded successfully')
+    } catch (error) {
+      console.error('Error downloading PDF:', error)
+      toast.error('Failed to download PDF')
+    }
+  }
 
   // Destination management
   const addDestination = () => {
@@ -147,10 +223,21 @@ export default function NewInlandQuotePage() {
           <p className="text-muted-foreground">Quote #{quoteNumber}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" title="Preview PDF">
+          <Button
+            variant="outline"
+            size="icon"
+            title="Preview PDF"
+            onClick={handlePreviewPdf}
+            disabled={isGeneratingPdf}
+          >
             <Eye className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" title="Download PDF">
+          <Button
+            variant="outline"
+            size="icon"
+            title="Download PDF"
+            onClick={handleDownloadPdf}
+          >
             <FileDown className="h-4 w-4" />
           </Button>
           <Button variant="outline">Save Draft</Button>
@@ -386,6 +473,43 @@ export default function NewInlandQuotePage() {
           </Card>
         </div>
       </div>
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
+        <DialogContent className="max-w-4xl h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Quote Preview - {quoteNumber}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Download PDF
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowPdfPreview(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {pdfDataUrl ? (
+              <iframe
+                src={pdfDataUrl}
+                className="w-full h-full border rounded-lg"
+                title="PDF Preview"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Loading preview...
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

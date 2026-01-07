@@ -13,6 +13,7 @@ import {
   Wrench,
   Package,
   Building2,
+  Activity,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -79,6 +80,11 @@ const crmItems = [
     title: 'Contacts',
     url: '/contacts',
     icon: Users,
+  },
+  {
+    title: 'Activity Log',
+    url: '/activity',
+    icon: Activity,
   },
 ]
 
