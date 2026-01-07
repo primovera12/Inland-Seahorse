@@ -6,16 +6,18 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
 import type { LocationName } from '@/types/equipment'
+import type { EquipmentBlock } from '@/types/quotes'
 
 interface QuoteSummaryProps {
   makeName: string
   modelName: string
-  location: LocationName
+  location: LocationName | 'Multiple'
   subtotal: number
   marginPercentage: number
   marginAmount: number
   total: number
   onMarginChange: (value: number) => void
+  equipmentBlocks?: EquipmentBlock[]
 }
 
 export function QuoteSummary({
@@ -27,6 +29,7 @@ export function QuoteSummary({
   marginAmount,
   total,
   onMarginChange,
+  equipmentBlocks,
 }: QuoteSummaryProps) {
   return (
     <Card className="sticky top-20">
@@ -34,11 +37,42 @@ export function QuoteSummary({
         <CardTitle>Quote Summary</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {makeName && modelName ? (
+        {equipmentBlocks && equipmentBlocks.length > 0 ? (
+          /* Multi-Equipment Summary */
+          <div className="space-y-2">
+            {equipmentBlocks.map((block, index) => (
+              <div
+                key={block.id}
+                className="rounded-lg border p-2 bg-muted/30 text-sm"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-medium">
+                      {block.make_name && block.model_name
+                        ? `${block.make_name} ${block.model_name}`
+                        : `Equipment ${index + 1}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {block.location} • Qty: {block.quantity}
+                    </p>
+                  </div>
+                  <span className="font-mono text-sm">
+                    {formatCurrency(block.total_with_quantity)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : makeName && modelName ? (
           <div className="rounded-lg border p-3 bg-muted/30">
             <p className="font-medium">
               {makeName} {modelName}
             </p>
+            <p className="text-sm text-muted-foreground">{location}</p>
+          </div>
+        ) : makeName ? (
+          <div className="rounded-lg border p-3 bg-muted/30">
+            <p className="font-medium">{makeName}</p>
             <p className="text-sm text-muted-foreground">{location}</p>
           </div>
         ) : (
