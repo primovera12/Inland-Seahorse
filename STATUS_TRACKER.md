@@ -58,7 +58,10 @@
 - [x] Apply to search router (was silently failing)
 - [x] Apply to activity router
 - [x] Apply to templates router
-- [ ] Apply to remaining routers (quotes, inland, companies, etc.)
+- [x] Apply to companies router (including contacts)
+- [x] Apply to reminders router
+- [x] Apply to feedback router
+- [ ] Apply to remaining routers (quotes, inland, equipment, etc.)
 
 ---
 
@@ -169,10 +172,13 @@
 
 ### 2026-01-07
 
-- Applied error handling utility to tRPC routers:
+- Applied error handling utility to 6 tRPC routers:
   - search.ts: Fixed silent failures in global search (was ignoring errors)
   - activity.ts: Standardized error handling with checkSupabaseError
   - templates.ts: Added proper error checks including fallback scenarios
+  - companies.ts: Applied to all CRUD operations and contacts router
+  - reminders.ts: Standardized all error handling
+  - feedback.ts: Applied to ticket management procedures
 - Added error handling utility (src/lib/errors.ts):
   - handleSupabaseError: converts PostgrestError to TRPCError with proper codes
   - checkSupabaseError: helper for common error check pattern
