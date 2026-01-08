@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 const activityTypes = [
   'call',
@@ -40,7 +41,7 @@ export const activityRouter = router({
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Activity')
       return { activities: data || [], total: count || 0 }
     }),
 
@@ -68,7 +69,7 @@ export const activityRouter = router({
         .order('created_at', { ascending: false })
         .range(input.offset, input.offset + input.limit - 1)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Activity')
       return { activities: data || [], total: count || 0 }
     }),
 
@@ -96,7 +97,7 @@ export const activityRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Activity')
 
       // Update company's last_activity_at
       await ctx.supabase
@@ -116,7 +117,7 @@ export const activityRouter = router({
         .delete()
         .eq('id', input.id)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Activity')
       return { success: true }
     }),
 

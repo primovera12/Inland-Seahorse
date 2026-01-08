@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 export const templatesRouter = router({
   // Get all templates
@@ -22,7 +23,7 @@ export const templatesRouter = router({
       }
 
       const { data, error } = await query
-      if (error) throw error
+      checkSupabaseError(error, 'Template')
       return data
     }),
 
@@ -36,7 +37,8 @@ export const templatesRouter = router({
         .eq('id', input.id)
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Template')
+      assertDataExists(data, 'Template')
       return data
     }),
 
@@ -70,7 +72,7 @@ export const templatesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Template')
       return data
     }),
 
@@ -111,7 +113,7 @@ export const templatesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Template')
       return data
     }),
 
@@ -124,7 +126,7 @@ export const templatesRouter = router({
         .delete()
         .eq('id', input.id)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Template')
       return { success: true }
     }),
 
@@ -137,18 +139,21 @@ export const templatesRouter = router({
       })
 
       if (error) {
-        // Fallback if RPC doesn't exist
-        const { data: template } = await ctx.supabase
+        // Fallback if RPC doesn't exist - use manual increment
+        const { data: template, error: fetchError } = await ctx.supabase
           .from('quote_templates')
           .select('use_count')
           .eq('id', input.id)
           .single()
 
+        checkSupabaseError(fetchError, 'Template')
+
         if (template) {
-          await ctx.supabase
+          const { error: updateError } = await ctx.supabase
             .from('quote_templates')
             .update({ use_count: (template.use_count || 0) + 1 })
             .eq('id', input.id)
+          checkSupabaseError(updateError, 'Template')
         }
       }
 

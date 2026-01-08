@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 export const searchRouter = router({
   global: protectedProcedure
@@ -20,6 +21,7 @@ export const searchRouter = router({
         )
         .order('created_at', { ascending: false })
         .limit(5)
+      checkSupabaseError(quotesResult.error, 'Quotes search')
 
       // Search inland quotes
       const inlandResult = await ctx.supabase
@@ -30,6 +32,7 @@ export const searchRouter = router({
         )
         .order('created_at', { ascending: false })
         .limit(5)
+      checkSupabaseError(inlandResult.error, 'Inland quotes search')
 
       // Search companies
       const companiesResult = await ctx.supabase
@@ -38,6 +41,7 @@ export const searchRouter = router({
         .or(`name.ilike.${searchTerm}`)
         .order('name')
         .limit(5)
+      checkSupabaseError(companiesResult.error, 'Companies search')
 
       // Search contacts
       const contactsResult = await ctx.supabase
@@ -46,6 +50,7 @@ export const searchRouter = router({
         .or(`name.ilike.${searchTerm},email.ilike.${searchTerm}`)
         .order('name')
         .limit(5)
+      checkSupabaseError(contactsResult.error, 'Contacts search')
 
       return {
         quotes: quotesResult.data || [],
