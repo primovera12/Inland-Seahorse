@@ -3,6 +3,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { CostField } from '@/types/equipment'
+import type { MiscellaneousFee } from '@/types/quotes'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
 
@@ -24,10 +25,19 @@ const COST_LABELS: Record<CostField, string> = {
 export interface QuotePDFData {
   quoteNumber: string
   date: string
+  expiresAt?: string
   customerName: string
   customerEmail?: string
   customerPhone?: string
   customerCompany?: string
+  customerAddress?: string
+  // Billing info
+  billingAddress?: string
+  billingCity?: string
+  billingState?: string
+  billingZip?: string
+  paymentTerms?: string
+  // Equipment
   makeName: string
   modelName: string
   location: string
@@ -40,16 +50,24 @@ export interface QuotePDFData {
   costs: Record<CostField, number>
   enabledCosts: Record<CostField, boolean>
   costOverrides: Record<CostField, number | null>
+  miscFees?: MiscellaneousFee[]
+  costsSubtotal?: number
+  miscFeesTotal?: number
   subtotal: number
   marginPercentage: number
   marginAmount: number
   total: number
   notes?: string
+  termsAndConditions?: string
   companyName?: string
   companyAddress?: string
   companyPhone?: string
   companyEmail?: string
+  companyWebsite?: string
   primaryColor?: string
+  secondaryColor?: string
+  companyLogoUrl?: string
+  logoSizePercentage?: number
 }
 
 // Convert hex to RGB
@@ -64,39 +82,92 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     : { r: 99, g: 102, b: 241 } // Default indigo
 }
 
-export function generateQuotePDF(data: QuotePDFData): jsPDF {
+// Helper to load image as base64
+async function loadImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function generateQuotePDFAsync(data: QuotePDFData): Promise<jsPDF> {
+  // Load logo if URL provided
+  let logoBase64: string | null = null
+  if (data.companyLogoUrl) {
+    logoBase64 = await loadImageAsBase64(data.companyLogoUrl)
+  }
+  return generateQuotePDFWithLogo(data, logoBase64)
+}
+
+function generateQuotePDFWithLogo(data: QuotePDFData, logoBase64: string | null): jsPDF {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
   let y = 20
 
   const primaryColor = hexToRgb(data.primaryColor || '#6366F1')
+  const secondaryColor = data.secondaryColor ? hexToRgb(data.secondaryColor) : primaryColor
 
   // Header
   doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
   doc.rect(0, 0, pageWidth, 40, 'F')
 
-  // Company name
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+  // Logo or Company name
+  if (logoBase64) {
+    const logoSize = ((data.logoSizePercentage || 100) / 100) * 30
+    try {
+      doc.addImage(logoBase64, 'PNG', margin, 5, logoSize, logoSize)
+    } catch {
+      // Fall back to text if image fails
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+    }
+  } else {
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+  }
 
-  // Quote number
+  // Quote number and date
+  doc.setTextColor(255, 255, 255)
   doc.setFontSize(12)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Quote #${data.quoteNumber}`, pageWidth - margin, 20, { align: 'right' })
-  doc.text(data.date, pageWidth - margin, 28, { align: 'right' })
+  doc.text(`Quote #${data.quoteNumber}`, pageWidth - margin, 15, { align: 'right' })
+  doc.text(data.date, pageWidth - margin, 23, { align: 'right' })
+
+  // Expiration date if set
+  if (data.expiresAt) {
+    doc.setFontSize(10)
+    doc.text(`Valid until: ${data.expiresAt}`, pageWidth - margin, 31, { align: 'right' })
+  }
 
   y = 55
 
   // Reset text color
   doc.setTextColor(0, 0, 0)
 
-  // Customer Info Section
+  // Customer & Billing Info Section (side by side)
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.text('Customer Information', margin, y)
+
+  // Billing header on right side
+  const hasBillingInfo = data.billingAddress || data.billingCity || data.billingState || data.billingZip
+  if (hasBillingInfo) {
+    doc.text('Billing Information', pageWidth / 2 + 10, y)
+  }
   y += 8
 
   doc.setFontSize(10)
@@ -110,13 +181,44 @@ export function generateQuotePDF(data: QuotePDFData): jsPDF {
     ['Phone:', data.customerPhone || '-'],
   ]
 
-  customerInfo.forEach(([label, value]) => {
-    doc.text(label, margin, y)
-    doc.setTextColor(0, 0, 0)
-    doc.text(value, margin + 30, y)
-    doc.setTextColor(100, 100, 100)
+  if (data.customerAddress) {
+    customerInfo.push(['Address:', data.customerAddress])
+  }
+
+  // Build billing info if present
+  const billingInfoLines: [string, string][] = []
+  if (hasBillingInfo) {
+    if (data.billingAddress) billingInfoLines.push(['Address:', data.billingAddress])
+    const cityStateZip = [data.billingCity, data.billingState, data.billingZip].filter(Boolean).join(', ')
+    if (cityStateZip) billingInfoLines.push(['', cityStateZip])
+    if (data.paymentTerms) {
+      const termsLabel = data.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      billingInfoLines.push(['Terms:', termsLabel])
+    }
+  }
+
+  const maxLines = Math.max(customerInfo.length, billingInfoLines.length)
+  for (let i = 0; i < maxLines; i++) {
+    // Customer info (left side)
+    if (i < customerInfo.length) {
+      const [label, value] = customerInfo[i]
+      doc.setTextColor(100, 100, 100)
+      doc.text(label, margin, y)
+      doc.setTextColor(0, 0, 0)
+      doc.text(value, margin + 30, y)
+    }
+
+    // Billing info (right side)
+    if (i < billingInfoLines.length) {
+      const [label, value] = billingInfoLines[i]
+      doc.setTextColor(100, 100, 100)
+      if (label) doc.text(label, pageWidth / 2 + 10, y)
+      doc.setTextColor(0, 0, 0)
+      doc.text(value, pageWidth / 2 + (label ? 40 : 10), y)
+    }
+
     y += 6
-  })
+  }
 
   y += 10
 
@@ -165,7 +267,7 @@ export function generateQuotePDF(data: QuotePDFData): jsPDF {
   y += 5
 
   // Build table data
-  const tableData: string[][] = []
+  const tableData: (string | { content: string; styles?: object })[][] = []
   Object.entries(COST_LABELS).forEach(([field, label]) => {
     const costField = field as CostField
     if (data.enabledCosts[costField]) {
@@ -173,6 +275,43 @@ export function generateQuotePDF(data: QuotePDFData): jsPDF {
       tableData.push([label, formatCurrency(cost)])
     }
   })
+
+  // Add misc fees if present
+  if (data.miscFees && data.miscFees.length > 0) {
+    // Add a separator row for costs subtotal if we have misc fees
+    if (data.costsSubtotal !== undefined) {
+      tableData.push([
+        { content: 'Services Subtotal', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+        { content: formatCurrency(data.costsSubtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      ])
+    }
+
+    // Add misc fees section header
+    tableData.push([
+      { content: 'Additional Fees', styles: { fontStyle: 'bold', fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b], textColor: [255, 255, 255] } },
+      { content: '', styles: { fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b] } },
+    ])
+
+    // Add each misc fee
+    data.miscFees.forEach((fee) => {
+      const feeLabel = fee.description ? `${fee.title} - ${fee.description}` : fee.title
+      const feeAmount = fee.is_percentage && data.costsSubtotal
+        ? Math.round(data.costsSubtotal * (fee.amount / 10000))
+        : fee.amount
+      tableData.push([
+        feeLabel || 'Miscellaneous Fee',
+        fee.is_percentage ? `${formatCurrency(feeAmount)} (${(fee.amount / 100).toFixed(1)}%)` : formatCurrency(feeAmount),
+      ])
+    })
+
+    // Add misc fees subtotal
+    if (data.miscFeesTotal !== undefined && data.miscFeesTotal > 0) {
+      tableData.push([
+        { content: 'Additional Fees Subtotal', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+        { content: formatCurrency(data.miscFeesTotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      ])
+    }
+  }
 
   autoTable(doc, {
     startY: y,
@@ -186,7 +325,7 @@ export function generateQuotePDF(data: QuotePDFData): jsPDF {
     },
     columnStyles: {
       0: { cellWidth: 'auto' },
-      1: { cellWidth: 50, halign: 'right' },
+      1: { cellWidth: 60, halign: 'right' },
     },
     margin: { left: margin, right: margin },
     styles: {
@@ -239,20 +378,63 @@ export function generateQuotePDF(data: QuotePDFData): jsPDF {
 
     const splitNotes = doc.splitTextToSize(data.notes, pageWidth - margin * 2)
     doc.text(splitNotes, margin, y)
+    y += splitNotes.length * 5 + 10
   }
 
-  // Footer
-  const footerY = doc.internal.pageSize.getHeight() - 15
+  // Terms & Conditions Section
+  if (data.termsAndConditions) {
+    // Check if we need a new page
+    if (y > pageHeight - 80) {
+      doc.addPage()
+      y = 20
+    }
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Terms & Conditions', margin, y)
+    y += 6
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+
+    const splitTerms = doc.splitTextToSize(data.termsAndConditions, pageWidth - margin * 2)
+    // Limit terms display to avoid overflow
+    const maxTermsLines = Math.min(splitTerms.length, 20)
+    doc.text(splitTerms.slice(0, maxTermsLines), margin, y)
+    if (splitTerms.length > maxTermsLines) {
+      y += maxTermsLines * 3.5 + 3
+      doc.text('... (see full terms in attached document)', margin, y)
+    }
+  }
+
+  // Footer with company info
+  const footerY = pageHeight - 20
   doc.setFontSize(8)
   doc.setTextColor(150, 150, 150)
-  doc.text(
-    `Generated on ${new Date().toLocaleDateString()} | ${data.companyName || 'Dismantle Pro'}`,
-    pageWidth / 2,
-    footerY,
-    { align: 'center' }
-  )
+
+  const footerLines: string[] = []
+  if (data.companyName) footerLines.push(data.companyName)
+
+  const contactParts: string[] = []
+  if (data.companyPhone) contactParts.push(data.companyPhone)
+  if (data.companyEmail) contactParts.push(data.companyEmail)
+  if (data.companyWebsite) contactParts.push(data.companyWebsite)
+  if (contactParts.length > 0) footerLines.push(contactParts.join(' | '))
+
+  if (data.companyAddress) footerLines.push(data.companyAddress)
+
+  footerLines.forEach((line, index) => {
+    doc.text(line, pageWidth / 2, footerY + (index * 4), { align: 'center' })
+  })
 
   return doc
+}
+
+// Synchronous version (without logo support for backwards compatibility)
+export function generateQuotePDF(data: QuotePDFData): jsPDF {
+  return generateQuotePDFWithLogo(data, null)
 }
 
 export function downloadQuotePDF(data: QuotePDFData, filename?: string): void {
@@ -267,5 +449,21 @@ export function getQuotePDFBlob(data: QuotePDFData): Blob {
 
 export function getQuotePDFDataUrl(data: QuotePDFData): string {
   const doc = generateQuotePDF(data)
+  return doc.output('dataurlstring')
+}
+
+// Async versions with logo support
+export async function downloadQuotePDFAsync(data: QuotePDFData, filename?: string): Promise<void> {
+  const doc = await generateQuotePDFAsync(data)
+  doc.save(filename || `quote-${data.quoteNumber}.pdf`)
+}
+
+export async function getQuotePDFBlobAsync(data: QuotePDFData): Promise<Blob> {
+  const doc = await generateQuotePDFAsync(data)
+  return doc.output('blob')
+}
+
+export async function getQuotePDFDataUrlAsync(data: QuotePDFData): Promise<string> {
+  const doc = await generateQuotePDFAsync(data)
   return doc.output('dataurlstring')
 }

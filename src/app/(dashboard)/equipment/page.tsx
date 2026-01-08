@@ -30,8 +30,10 @@ import {
 } from '@/components/ui/select'
 import { trpc } from '@/lib/trpc/client'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
-import { Search, Plus, Package, ChevronRight } from 'lucide-react'
+import { Search, Plus, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
+import { ImageUpload } from '@/components/ui/image-upload'
+import Image from 'next/image'
 
 export default function EquipmentPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -135,11 +137,13 @@ export default function EquipmentPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8"></TableHead>
                       <TableHead>Model</TableHead>
                       <TableHead>Length</TableHead>
                       <TableHead>Width</TableHead>
                       <TableHead>Height</TableHead>
                       <TableHead>Weight</TableHead>
+                      <TableHead className="text-center">Images</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -158,26 +162,98 @@ export default function EquipmentPage() {
 }
 
 function ModelRow({ model }: { model: { id: string; name: string } }) {
+  const [expanded, setExpanded] = useState(false)
+  const utils = trpc.useUtils()
+
   const { data: dimensions } = trpc.equipment.getDimensions.useQuery(
     { modelId: model.id },
     { enabled: !!model.id }
   )
 
+  const updateImagesMutation = trpc.equipment.updateImages.useMutation({
+    onSuccess: () => {
+      utils.equipment.getDimensions.invalidate({ modelId: model.id })
+      toast.success('Image updated successfully')
+    },
+    onError: (error) => {
+      toast.error('Failed to update image: ' + error.message)
+    },
+  })
+
+  const hasImages = dimensions?.front_image_url || dimensions?.side_image_url
+  const imageCount = [dimensions?.front_image_url, dimensions?.side_image_url].filter(Boolean).length
+
+  const handleFrontImageChange = (url: string | null) => {
+    updateImagesMutation.mutate({ modelId: model.id, frontImageUrl: url })
+  }
+
+  const handleSideImageChange = (url: string | null) => {
+    updateImagesMutation.mutate({ modelId: model.id, sideImageUrl: url })
+  }
+
   return (
-    <TableRow>
-      <TableCell className="font-medium">{model.name}</TableCell>
-      <TableCell className="font-mono">
-        {dimensions ? formatDimension(dimensions.length_inches) : '-'}
-      </TableCell>
-      <TableCell className="font-mono">
-        {dimensions ? formatDimension(dimensions.width_inches) : '-'}
-      </TableCell>
-      <TableCell className="font-mono">
-        {dimensions ? formatDimension(dimensions.height_inches) : '-'}
-      </TableCell>
-      <TableCell className="font-mono">
-        {dimensions ? formatWeight(dimensions.weight_lbs) : '-'}
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow className={expanded ? 'border-b-0' : ''}>
+        <TableCell className="w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        </TableCell>
+        <TableCell className="font-medium">{model.name}</TableCell>
+        <TableCell className="font-mono">
+          {dimensions ? formatDimension(dimensions.length_inches) : '-'}
+        </TableCell>
+        <TableCell className="font-mono">
+          {dimensions ? formatDimension(dimensions.width_inches) : '-'}
+        </TableCell>
+        <TableCell className="font-mono">
+          {dimensions ? formatDimension(dimensions.height_inches) : '-'}
+        </TableCell>
+        <TableCell className="font-mono">
+          {dimensions ? formatWeight(dimensions.weight_lbs) : '-'}
+        </TableCell>
+        <TableCell className="text-center">
+          <div className="flex items-center justify-center gap-1">
+            <ImageIcon className={`h-4 w-4 ${hasImages ? 'text-green-500' : 'text-muted-foreground'}`} />
+            <span className="text-sm text-muted-foreground">{imageCount}/2</span>
+          </div>
+        </TableCell>
+      </TableRow>
+      {expanded && (
+        <TableRow>
+          <TableCell colSpan={7} className="bg-muted/30 p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Front View</Label>
+                <ImageUpload
+                  value={dimensions?.front_image_url}
+                  onChange={handleFrontImageChange}
+                  folder={`equipment/${model.id}`}
+                  label="Upload Front Image"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Side View</Label>
+                <ImageUpload
+                  value={dimensions?.side_image_url}
+                  onChange={handleSideImageChange}
+                  folder={`equipment/${model.id}`}
+                  label="Upload Side Image"
+                />
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   )
 }

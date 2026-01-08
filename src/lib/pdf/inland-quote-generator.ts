@@ -9,6 +9,7 @@ import { formatDimension, formatWeight } from '@/lib/dimensions'
 export interface InlandQuotePDFData {
   quoteNumber: string
   date: string
+  expiresAt?: string
   customerName: string
   customerEmail?: string
   customerPhone?: string
@@ -19,11 +20,16 @@ export interface InlandQuotePDFData {
   marginAmount: number
   total: number
   quoteNotes?: string
+  termsAndConditions?: string
   companyName?: string
   companyAddress?: string
   companyPhone?: string
   companyEmail?: string
+  companyWebsite?: string
   primaryColor?: string
+  secondaryColor?: string
+  companyLogoUrl?: string
+  logoSizePercentage?: number
 }
 
 // Convert hex to RGB
@@ -38,9 +44,34 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     : { r: 99, g: 102, b: 241 } // Default indigo
 }
 
-export function generateInlandQuotePDF(data: InlandQuotePDFData): jsPDF {
+// Helper to load image as base64
+async function loadImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function generateInlandQuotePDFAsync(data: InlandQuotePDFData): Promise<jsPDF> {
+  let logoBase64: string | null = null
+  if (data.companyLogoUrl) {
+    logoBase64 = await loadImageAsBase64(data.companyLogoUrl)
+  }
+  return generateInlandQuotePDFWithLogo(data, logoBase64)
+}
+
+function generateInlandQuotePDFWithLogo(data: InlandQuotePDFData, logoBase64: string | null): jsPDF {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
   let y = 20
 
@@ -50,17 +81,36 @@ export function generateInlandQuotePDF(data: InlandQuotePDFData): jsPDF {
   doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
   doc.rect(0, 0, pageWidth, 40, 'F')
 
-  // Company name
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+  // Logo or Company name
+  if (logoBase64) {
+    const logoSize = ((data.logoSizePercentage || 100) / 100) * 30
+    try {
+      doc.addImage(logoBase64, 'PNG', margin, 5, logoSize, logoSize)
+    } catch {
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+    }
+  } else {
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+  }
 
-  // Quote number
+  // Quote number and date
+  doc.setTextColor(255, 255, 255)
   doc.setFontSize(12)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Inland Quote #${data.quoteNumber}`, pageWidth - margin, 20, { align: 'right' })
-  doc.text(data.date, pageWidth - margin, 28, { align: 'right' })
+  doc.text(`Inland Quote #${data.quoteNumber}`, pageWidth - margin, 15, { align: 'right' })
+  doc.text(data.date, pageWidth - margin, 23, { align: 'right' })
+
+  // Expiration date if set
+  if (data.expiresAt) {
+    doc.setFontSize(10)
+    doc.text(`Valid until: ${data.expiresAt}`, pageWidth - margin, 31, { align: 'right' })
+  }
 
   y = 55
 
@@ -278,20 +328,61 @@ export function generateInlandQuotePDF(data: InlandQuotePDFData): jsPDF {
 
     const splitNotes = doc.splitTextToSize(data.quoteNotes, pageWidth - margin * 2)
     doc.text(splitNotes, margin, y)
+    y += splitNotes.length * 5 + 10
   }
 
-  // Footer
-  const footerY = doc.internal.pageSize.getHeight() - 15
+  // Terms & Conditions Section
+  if (data.termsAndConditions) {
+    if (y > pageHeight - 80) {
+      doc.addPage()
+      y = 20
+    }
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Terms & Conditions', margin, y)
+    y += 6
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+
+    const splitTerms = doc.splitTextToSize(data.termsAndConditions, pageWidth - margin * 2)
+    const maxTermsLines = Math.min(splitTerms.length, 20)
+    doc.text(splitTerms.slice(0, maxTermsLines), margin, y)
+    if (splitTerms.length > maxTermsLines) {
+      y += maxTermsLines * 3.5 + 3
+      doc.text('... (see full terms in attached document)', margin, y)
+    }
+  }
+
+  // Footer with company info
+  const footerY = pageHeight - 20
   doc.setFontSize(8)
   doc.setTextColor(150, 150, 150)
-  doc.text(
-    `Generated on ${new Date().toLocaleDateString()} | ${data.companyName || 'Dismantle Pro'}`,
-    pageWidth / 2,
-    footerY,
-    { align: 'center' }
-  )
+
+  const footerLines: string[] = []
+  if (data.companyName) footerLines.push(data.companyName)
+
+  const contactParts: string[] = []
+  if (data.companyPhone) contactParts.push(data.companyPhone)
+  if (data.companyEmail) contactParts.push(data.companyEmail)
+  if (data.companyWebsite) contactParts.push(data.companyWebsite)
+  if (contactParts.length > 0) footerLines.push(contactParts.join(' | '))
+
+  if (data.companyAddress) footerLines.push(data.companyAddress)
+
+  footerLines.forEach((line, index) => {
+    doc.text(line, pageWidth / 2, footerY + (index * 4), { align: 'center' })
+  })
 
   return doc
+}
+
+// Synchronous version (without logo support for backwards compatibility)
+export function generateInlandQuotePDF(data: InlandQuotePDFData): jsPDF {
+  return generateInlandQuotePDFWithLogo(data, null)
 }
 
 export function downloadInlandQuotePDF(data: InlandQuotePDFData, filename?: string): void {
@@ -306,5 +397,21 @@ export function getInlandQuotePDFBlob(data: InlandQuotePDFData): Blob {
 
 export function getInlandQuotePDFDataUrl(data: InlandQuotePDFData): string {
   const doc = generateInlandQuotePDF(data)
+  return doc.output('dataurlstring')
+}
+
+// Async versions with logo support
+export async function downloadInlandQuotePDFAsync(data: InlandQuotePDFData, filename?: string): Promise<void> {
+  const doc = await generateInlandQuotePDFAsync(data)
+  doc.save(filename || `inland-quote-${data.quoteNumber}.pdf`)
+}
+
+export async function getInlandQuotePDFBlobAsync(data: InlandQuotePDFData): Promise<Blob> {
+  const doc = await generateInlandQuotePDFAsync(data)
+  return doc.output('blob')
+}
+
+export async function getInlandQuotePDFDataUrlAsync(data: InlandQuotePDFData): Promise<string> {
+  const doc = await generateInlandQuotePDFAsync(data)
   return doc.output('dataurlstring')
 }

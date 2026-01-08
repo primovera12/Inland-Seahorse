@@ -45,7 +45,20 @@ import {
   CheckCircle2,
   XCircle,
   Download,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react'
+
+// Helper to check if quote is expiring soon (within 7 days)
+function getExpirationStatus(expiresAt: string | null | undefined): 'expired' | 'expiring-soon' | 'valid' | null {
+  if (!expiresAt) return null
+  const now = new Date()
+  const expires = new Date(expiresAt)
+  if (expires < now) return 'expired'
+  const daysUntilExpiry = Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  if (daysUntilExpiry <= 7) return 'expiring-soon'
+  return 'valid'
+}
 
 type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
 
@@ -228,6 +241,7 @@ export default function QuoteHistoryPage() {
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Expires</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -261,6 +275,29 @@ export default function QuoteHistoryPage() {
                         </TableCell>
                         <TableCell>
                           {formatDate(quote.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          {quote.expires_at ? (
+                            <div className="flex items-center gap-1">
+                              {getExpirationStatus(quote.expires_at) === 'expired' && (
+                                <AlertTriangle className="h-3 w-3 text-red-500" />
+                              )}
+                              {getExpirationStatus(quote.expires_at) === 'expiring-soon' && (
+                                <Clock className="h-3 w-3 text-yellow-500" />
+                              )}
+                              <span className={
+                                getExpirationStatus(quote.expires_at) === 'expired'
+                                  ? 'text-red-500'
+                                  : getExpirationStatus(quote.expires_at) === 'expiring-soon'
+                                  ? 'text-yellow-600'
+                                  : ''
+                              }>
+                                {formatDate(quote.expires_at)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>

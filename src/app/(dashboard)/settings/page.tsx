@@ -7,8 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { Settings, Building2, Palette, FileText, Bell, Save } from 'lucide-react'
+import { Slider } from '@/components/ui/slider'
+import { ImageUpload } from '@/components/ui/image-upload'
+import { Settings, Building2, Palette, FileText, Bell, Save, ChevronRight, Scale, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { trpc } from '@/lib/trpc/client'
+import Link from 'next/link'
+import Image from 'next/image'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -20,7 +25,10 @@ export default function SettingsPage() {
     company_phone: '',
     company_email: '',
     company_website: '',
+    company_logo_url: null as string | null,
+    logo_size_percentage: 100,
     primary_color: '#6366F1',
+    secondary_color: null as string | null,
     default_payment_terms: 'Net 30',
     quote_validity_days: 30,
     default_margin_percentage: 15,
@@ -29,8 +37,69 @@ export default function SettingsPage() {
     notification_email: '',
   })
 
+  const utils = trpc.useUtils()
+
+  // Load settings from database
+  const { data: savedSettings, isLoading } = trpc.settings.get.useQuery()
+
+  // Update mutation
+  const updateMutation = trpc.settings.update.useMutation({
+    onSuccess: () => {
+      utils.settings.get.invalidate()
+      toast.success('Settings saved successfully')
+    },
+    onError: (error) => {
+      toast.error('Failed to save settings: ' + error.message)
+    },
+  })
+
+  // Load saved settings into state
+  useEffect(() => {
+    if (savedSettings) {
+      setSettings({
+        company_name: savedSettings.company_name || 'Dismantle Pro',
+        company_address: savedSettings.company_address || '',
+        company_city: savedSettings.company_city || '',
+        company_state: savedSettings.company_state || '',
+        company_zip: savedSettings.company_zip || '',
+        company_phone: savedSettings.company_phone || '',
+        company_email: savedSettings.company_email || '',
+        company_website: savedSettings.company_website || '',
+        company_logo_url: savedSettings.company_logo_url || null,
+        logo_size_percentage: savedSettings.logo_size_percentage || 100,
+        primary_color: savedSettings.primary_color || '#6366F1',
+        secondary_color: savedSettings.secondary_color || null,
+        default_payment_terms: savedSettings.default_payment_terms || 'Net 30',
+        quote_validity_days: savedSettings.quote_validity_days || 30,
+        default_margin_percentage: savedSettings.default_margin_percentage || 15,
+        quote_prefix: savedSettings.quote_prefix || 'QT',
+        email_notifications_enabled: savedSettings.email_notifications_enabled ?? true,
+        notification_email: savedSettings.notification_email || '',
+      })
+    }
+  }, [savedSettings])
+
   const handleSave = () => {
-    toast.success('Settings saved successfully')
+    updateMutation.mutate({
+      company_name: settings.company_name,
+      company_address: settings.company_address,
+      company_city: settings.company_city,
+      company_state: settings.company_state,
+      company_zip: settings.company_zip,
+      company_phone: settings.company_phone,
+      company_email: settings.company_email || undefined,
+      company_website: settings.company_website,
+      company_logo_url: settings.company_logo_url,
+      logo_size_percentage: settings.logo_size_percentage,
+      primary_color: settings.primary_color,
+      secondary_color: settings.secondary_color,
+      default_payment_terms: settings.default_payment_terms,
+      quote_validity_days: settings.quote_validity_days,
+      default_margin_percentage: settings.default_margin_percentage,
+      quote_prefix: settings.quote_prefix,
+      email_notifications_enabled: settings.email_notifications_enabled,
+      notification_email: settings.notification_email || undefined,
+    })
   }
 
   return (
@@ -40,9 +109,9 @@ export default function SettingsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Company Settings</h1>
           <p className="text-muted-foreground">Manage your company information and preferences</p>
         </div>
-        <Button onClick={handleSave}>
+        <Button onClick={handleSave} disabled={updateMutation.isPending}>
           <Save className="h-4 w-4 mr-2" />
-          Save Changes
+          {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
 
@@ -140,9 +209,44 @@ export default function SettingsPage() {
               <Palette className="h-5 w-5" />
               Branding
             </CardTitle>
-            <CardDescription>Customize the look of your quotes</CardDescription>
+            <CardDescription>Customize the look of your quotes and PDFs</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Company Logo */}
+            <div className="space-y-2">
+              <Label>Company Logo</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Upload your company logo to display on quote PDFs
+              </p>
+              <ImageUpload
+                value={settings.company_logo_url}
+                onChange={(url) => setSettings({ ...settings, company_logo_url: url })}
+                bucket="company-assets"
+                folder="logos"
+                label="Upload Logo"
+                maxSizeMB={2}
+              />
+            </div>
+
+            {settings.company_logo_url && (
+              <div className="space-y-2">
+                <Label>Logo Size: {settings.logo_size_percentage}%</Label>
+                <Slider
+                  value={[settings.logo_size_percentage]}
+                  onValueChange={([value]) => setSettings({ ...settings, logo_size_percentage: value })}
+                  min={30}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Adjust the size of your logo in the PDF header
+                </p>
+              </div>
+            )}
+
+            <Separator />
+
             <div className="space-y-2">
               <Label htmlFor="primary_color">Primary Color</Label>
               <div className="flex gap-2">
@@ -159,17 +263,58 @@ export default function SettingsPage() {
                   className="flex-1 font-mono"
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Used for PDF headers, buttons, and accents
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="secondary_color">Secondary Color (Optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="secondary_color"
+                  type="color"
+                  value={settings.secondary_color || '#6366F1'}
+                  onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
+                  className="w-16 h-10 p-1"
+                />
+                <Input
+                  value={settings.secondary_color || ''}
+                  onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value || null })}
+                  placeholder="Leave empty to use primary"
+                  className="flex-1 font-mono"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Used for secondary highlights in PDFs
+              </p>
             </div>
 
             <Separator />
 
             <div className="p-4 rounded-lg border">
-              <p className="text-sm text-muted-foreground mb-2">Preview</p>
+              <p className="text-sm text-muted-foreground mb-2">PDF Header Preview</p>
               <div
-                className="h-10 rounded flex items-center justify-center text-white font-medium"
+                className="h-12 rounded flex items-center px-4 gap-3 text-white font-medium"
                 style={{ backgroundColor: settings.primary_color }}
               >
-                {settings.company_name}
+                {settings.company_logo_url ? (
+                  <div
+                    className="relative bg-white rounded p-1"
+                    style={{
+                      width: `${(settings.logo_size_percentage / 100) * 40}px`,
+                      height: `${(settings.logo_size_percentage / 100) * 40}px`,
+                    }}
+                  >
+                    <Image
+                      src={settings.company_logo_url}
+                      alt="Logo preview"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                ) : null}
+                <span>{settings.company_name}</span>
               </div>
             </div>
           </CardContent>
@@ -287,6 +432,28 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Terms & Conditions Link */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scale className="h-5 w-5" />
+            Terms & Conditions
+          </CardTitle>
+          <CardDescription>Manage terms and conditions for different quote types</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/settings/terms">
+            <Button variant="outline" className="w-full justify-between">
+              <span>Manage Terms & Conditions</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-2">
+            Set different terms for Dismantle and Inland quotes. Terms are versioned for compliance tracking.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }

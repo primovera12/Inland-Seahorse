@@ -49,6 +49,56 @@ export interface Rate {
   updated_at: string
 }
 
+// Popular equipment makes (sorted by industry usage)
+export const POPULAR_MAKES = [
+  'Caterpillar',
+  'CAT',
+  'Komatsu',
+  'John Deere',
+  'Hitachi',
+  'Volvo',
+  'Liebherr',
+  'Case',
+  'Kobelco',
+  'Doosan',
+  'JCB',
+  'Kubota',
+  'Bobcat',
+  'Terex',
+  'Hyundai',
+] as const
+
+// Helper to check if a make is popular
+export function isPopularMake(makeName: string): boolean {
+  const normalized = makeName.toLowerCase().trim()
+  return POPULAR_MAKES.some(
+    (popular) => popular.toLowerCase() === normalized
+  )
+}
+
+// Sort makes with popular first, then alphabetically
+export function sortMakesByPopularity<T extends { name: string; popularity_rank?: number }>(
+  makes: T[]
+): T[] {
+  return [...makes].sort((a, b) => {
+    // First sort by popularity_rank if set
+    if (a.popularity_rank !== undefined && b.popularity_rank !== undefined) {
+      return a.popularity_rank - b.popularity_rank
+    }
+    if (a.popularity_rank !== undefined) return -1
+    if (b.popularity_rank !== undefined) return 1
+
+    // Then by popular makes list
+    const aPopular = isPopularMake(a.name)
+    const bPopular = isPopularMake(b.name)
+    if (aPopular && !bPopular) return -1
+    if (!aPopular && bPopular) return 1
+
+    // Finally alphabetically
+    return a.name.localeCompare(b.name)
+  })
+}
+
 // 6 company locations
 export const LOCATIONS = [
   'New Jersey',

@@ -13,6 +13,8 @@ import { emailRouter } from './email'
 import { templatesRouter } from './templates'
 import { notificationsRouter } from './notifications'
 import { importRouter } from './import'
+import { settingsRouter } from './settings'
+import { feedbackRouter } from './feedback'
 
 export const appRouter = router({
   user: userRouter,
@@ -30,6 +32,8 @@ export const appRouter = router({
   templates: templatesRouter,
   notifications: notificationsRouter,
   import: importRouter,
+  settings: settingsRouter,
+  feedback: feedbackRouter,
 })
 
 export type AppRouter = typeof appRouter

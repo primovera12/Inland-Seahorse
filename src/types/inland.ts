@@ -45,11 +45,24 @@ export interface InlandQuote {
   expires_at?: string
 }
 
+export interface Waypoint {
+  id: string
+  address: string
+  city?: string
+  state?: string
+  zip?: string
+  lat?: number
+  lng?: number
+  place_id?: string
+  stop_type: 'pickup' | 'dropoff' | 'both' // What happens at this stop
+  notes?: string
+}
+
 export interface InlandDestinationBlock {
   id: string
   label: string // A, B, C, etc.
 
-  // Pickup location
+  // Pickup location (origin)
   pickup_address: string
   pickup_city?: string
   pickup_state?: string
@@ -58,7 +71,10 @@ export interface InlandDestinationBlock {
   pickup_lng?: number
   pickup_place_id?: string
 
-  // Dropoff location
+  // Intermediate stops/waypoints
+  waypoints?: Waypoint[]
+
+  // Dropoff location (final destination)
   dropoff_address: string
   dropoff_city?: string
   dropoff_state?: string
@@ -67,7 +83,7 @@ export interface InlandDestinationBlock {
   dropoff_lng?: number
   dropoff_place_id?: string
 
-  // Route info from Google
+  // Route info from Google (total for all legs)
   distance_miles?: number
   duration_minutes?: number
   route_polyline?: string
@@ -113,6 +129,17 @@ export interface CargoItem {
   weight_lbs: number
   is_oversize: boolean
   is_overweight: boolean
+  // Equipment mode fields
+  is_equipment?: boolean
+  is_custom_equipment?: boolean // True when manually entering equipment not in database
+  equipment_make_id?: string
+  equipment_model_id?: string
+  equipment_make_name?: string
+  equipment_model_name?: string
+  custom_make_name?: string // Manual make name entry
+  custom_model_name?: string // Manual model name entry
+  // Cargo image
+  image_url?: string
 }
 
 export interface ServiceItem {

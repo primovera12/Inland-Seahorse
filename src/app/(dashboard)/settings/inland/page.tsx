@@ -21,6 +21,9 @@ import {
   Route,
   Plus,
   Trash2,
+  TrendingUp,
+  Calendar,
+  History,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
@@ -64,6 +67,52 @@ export default function InlandSettingsPage() {
 
   // Accessorials
   const [accessorials, setAccessorials] = useState(DEFAULT_ACCESSORIALS)
+
+  // Fuel Surcharge Index
+  const [currentFuelPrice, setCurrentFuelPrice] = useState(3.85)
+  const [baseFuelPrice, setBaseFuelPrice] = useState(2.50)
+  const [fuelSurchargeFormula, setFuelSurchargeFormula] = useState('linear') // linear, tiered
+  const [fuelPriceEffectiveDate, setFuelPriceEffectiveDate] = useState(
+    new Date().toISOString().split('T')[0]
+  )
+
+  // Historical fuel prices
+  interface FuelPriceEntry {
+    id: string
+    date: string
+    price: number
+    surchargePercent: number
+  }
+
+  const [fuelHistory, setFuelHistory] = useState<FuelPriceEntry[]>([
+    { id: '1', date: '2026-01-01', price: 3.85, surchargePercent: 15 },
+    { id: '2', date: '2025-12-15', price: 3.72, surchargePercent: 14 },
+    { id: '3', date: '2025-12-01', price: 3.65, surchargePercent: 13 },
+  ])
+
+  // Calculate surcharge based on formula
+  const calculateSurcharge = (fuelPrice: number): number => {
+    if (fuelSurchargeFormula === 'linear') {
+      // Linear: 1% surcharge for every $0.10 above base price
+      const diff = fuelPrice - baseFuelPrice
+      return Math.max(0, Math.round((diff / 0.10) * 1))
+    }
+    // Tiered formula could be added here
+    return 0
+  }
+
+  const calculatedSurcharge = calculateSurcharge(currentFuelPrice)
+
+  const addFuelPriceEntry = () => {
+    const newEntry: FuelPriceEntry = {
+      id: crypto.randomUUID(),
+      date: fuelPriceEffectiveDate,
+      price: currentFuelPrice,
+      surchargePercent: calculatedSurcharge,
+    }
+    setFuelHistory([newEntry, ...fuelHistory])
+    toast.success('Fuel price recorded')
+  }
 
   // Fetch equipment types
   const { data: equipmentTypes } = trpc.inland.getEquipmentTypes.useQuery()
@@ -297,8 +346,147 @@ export default function InlandSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Fuel Surcharge Index */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Fuel className="h-5 w-5" />
+              Fuel Surcharge Index
+            </CardTitle>
+            <CardDescription>
+              Track fuel prices and automatically calculate surcharges based on DOE index
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Current Fuel Price */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentFuelPrice" className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Current DOE Diesel Price ($/gal)
+                  </Label>
+                  <Input
+                    id="currentFuelPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={currentFuelPrice}
+                    onChange={(e) => setCurrentFuelPrice(Number(e.target.value))}
+                    className="max-w-[150px]"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="baseFuelPrice" className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Base Fuel Price ($/gal)
+                  </Label>
+                  <Input
+                    id="baseFuelPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={baseFuelPrice}
+                    onChange={(e) => setBaseFuelPrice(Number(e.target.value))}
+                    className="max-w-[150px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Surcharges are calculated above this baseline
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="effectiveDate" className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Effective Date
+                  </Label>
+                  <Input
+                    id="effectiveDate"
+                    type="date"
+                    value={fuelPriceEffectiveDate}
+                    onChange={(e) => setFuelPriceEffectiveDate(e.target.value)}
+                    className="max-w-[180px]"
+                  />
+                </div>
+              </div>
+
+              {/* Calculated Surcharge */}
+              <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Calculated Surcharge</p>
+                  <p className="text-4xl font-bold text-primary">{calculatedSurcharge}%</p>
+                </div>
+
+                <div className="text-sm space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">Current price:</span>{' '}
+                    ${currentFuelPrice.toFixed(2)}/gal
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Base price:</span>{' '}
+                    ${baseFuelPrice.toFixed(2)}/gal
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Difference:</span>{' '}
+                    ${(currentFuelPrice - baseFuelPrice).toFixed(2)}/gal
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t text-xs text-muted-foreground">
+                  Formula: 1% surcharge for every $0.10 above base price
+                </div>
+
+                <Button onClick={addFuelPriceEntry} className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Record Current Price
+                </Button>
+              </div>
+            </div>
+
+            {/* Price History */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Price History
+              </Label>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">Date</th>
+                      <th className="px-4 py-2 text-right font-medium">Price</th>
+                      <th className="px-4 py-2 text-right font-medium">Surcharge</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fuelHistory.slice(0, 5).map((entry, index) => (
+                      <tr key={entry.id} className={index === 0 ? 'bg-primary/5' : ''}>
+                        <td className="px-4 py-2">
+                          {new Date(entry.date).toLocaleDateString()}
+                          {index === 0 && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              Current
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono">
+                          ${entry.price.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono">
+                          {entry.surchargePercent}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Accessorial Charges */}
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />

@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { trpc } from '@/lib/trpc/client'
 import { toast } from 'sonner'
-import { Wrench, Save, DollarSign, Percent, MapPin, Calculator } from 'lucide-react'
+import { Wrench, Save, DollarSign, Percent, MapPin, Calculator, Ruler, Scale, FileText, Plus, Trash2, Copy } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 // Cost fields that can be enabled/disabled
 const COST_FIELDS = [
@@ -51,6 +52,85 @@ export default function DismantleSettingsPage() {
   const [quoteValidityDays, setQuoteValidityDays] = useState(30)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const [showDimensions, setShowDimensions] = useState(true)
+
+  // Dimension thresholds for oversize detection
+  const [lengthThreshold, setLengthThreshold] = useState(636) // 53 feet in inches
+  const [widthThreshold, setWidthThreshold] = useState(102)   // 8.5 feet in inches
+  const [heightThreshold, setHeightThreshold] = useState(162) // 13.5 feet in inches
+  const [weightThreshold, setWeightThreshold] = useState(48000) // lbs
+
+  // Location templates with default costs
+  interface LocationTemplate {
+    id: string
+    location: string
+    isDefault: boolean
+    costs: Record<string, number>
+  }
+
+  const [locationTemplates, setLocationTemplates] = useState<LocationTemplate[]>([
+    {
+      id: '1',
+      location: 'New Jersey',
+      isDefault: true,
+      costs: {
+        dismantling_loading_cost: 2500,
+        blocking_bracing_cost: 500,
+        processing_cost: 150,
+      },
+    },
+    {
+      id: '2',
+      location: 'Houston',
+      isDefault: false,
+      costs: {
+        dismantling_loading_cost: 2200,
+        blocking_bracing_cost: 450,
+        processing_cost: 125,
+      },
+    },
+  ])
+
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null)
+
+  const addLocationTemplate = () => {
+    const newTemplate: LocationTemplate = {
+      id: crypto.randomUUID(),
+      location: '',
+      isDefault: false,
+      costs: {},
+    }
+    setLocationTemplates([...locationTemplates, newTemplate])
+    setEditingTemplate(newTemplate.id)
+  }
+
+  const removeLocationTemplate = (id: string) => {
+    setLocationTemplates(locationTemplates.filter((t) => t.id !== id))
+  }
+
+  const updateLocationTemplate = (id: string, updates: Partial<LocationTemplate>) => {
+    setLocationTemplates(
+      locationTemplates.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    )
+  }
+
+  const setDefaultTemplate = (id: string) => {
+    setLocationTemplates(
+      locationTemplates.map((t) => ({
+        ...t,
+        isDefault: t.id === id,
+      }))
+    )
+  }
+
+  const duplicateTemplate = (template: LocationTemplate) => {
+    const newTemplate: LocationTemplate = {
+      ...template,
+      id: crypto.randomUUID(),
+      location: `${template.location} (Copy)`,
+      isDefault: false,
+    }
+    setLocationTemplates([...locationTemplates, newTemplate])
+  }
 
   // Initialize enabled costs
   useEffect(() => {
@@ -203,6 +283,97 @@ export default function DismantleSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Dimension Thresholds */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ruler className="h-5 w-5" />
+              Dimension Thresholds
+            </CardTitle>
+            <CardDescription>
+              Configure legal limits for oversize/overweight detection. Equipment exceeding these thresholds will be flagged.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="lengthThreshold" className="flex items-center gap-2">
+                  <Ruler className="h-4 w-4" />
+                  Max Length (inches)
+                </Label>
+                <Input
+                  id="lengthThreshold"
+                  type="number"
+                  min="0"
+                  value={lengthThreshold}
+                  onChange={(e) => setLengthThreshold(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {Math.floor(lengthThreshold / 12)}'-{lengthThreshold % 12}" ({(lengthThreshold * 2.54 / 100).toFixed(1)}m)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="widthThreshold" className="flex items-center gap-2">
+                  <Ruler className="h-4 w-4" />
+                  Max Width (inches)
+                </Label>
+                <Input
+                  id="widthThreshold"
+                  type="number"
+                  min="0"
+                  value={widthThreshold}
+                  onChange={(e) => setWidthThreshold(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {Math.floor(widthThreshold / 12)}'-{widthThreshold % 12}" ({(widthThreshold * 2.54 / 100).toFixed(1)}m)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="heightThreshold" className="flex items-center gap-2">
+                  <Ruler className="h-4 w-4" />
+                  Max Height (inches)
+                </Label>
+                <Input
+                  id="heightThreshold"
+                  type="number"
+                  min="0"
+                  value={heightThreshold}
+                  onChange={(e) => setHeightThreshold(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {Math.floor(heightThreshold / 12)}'-{heightThreshold % 12}" ({(heightThreshold * 2.54 / 100).toFixed(1)}m)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="weightThreshold" className="flex items-center gap-2">
+                  <Scale className="h-4 w-4" />
+                  Max Weight (lbs)
+                </Label>
+                <Input
+                  id="weightThreshold"
+                  type="number"
+                  min="0"
+                  value={weightThreshold}
+                  onChange={(e) => setWeightThreshold(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(weightThreshold / 2000).toFixed(1)} tons ({(weightThreshold * 0.453592 / 1000).toFixed(1)} tonnes)
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 p-4 rounded-lg bg-muted/50">
+              <p className="text-sm text-muted-foreground">
+                <strong>Note:</strong> These thresholds are used to detect oversized and overweight equipment that may require special permits for transport.
+                Standard legal limits are typically 53' length, 8.5' width, 13.5' height, and 48,000 lbs for single-axle trailers.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Cost Fields */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -230,6 +401,111 @@ export default function DismantleSettingsPage() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Location Templates */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Location Templates
+            </CardTitle>
+            <CardDescription>
+              Pre-configured cost templates for each location. When creating a quote, selecting a location will auto-fill these default costs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {locationTemplates.map((template) => (
+              <div
+                key={template.id}
+                className="p-4 rounded-lg border space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={template.location}
+                      onChange={(e) =>
+                        updateLocationTemplate(template.id, { location: e.target.value })
+                      }
+                      className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium"
+                    >
+                      <option value="">Select location...</option>
+                      {LOCATIONS.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                    {template.isDefault && (
+                      <Badge variant="secondary">Default</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {!template.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDefaultTemplate(template.id)}
+                        className="text-xs"
+                      >
+                        Set Default
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => duplicateTemplate(template)}
+                      title="Duplicate template"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeLocationTemplate(template.id)}
+                      className="text-destructive"
+                      title="Delete template"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+                  {COST_FIELDS.slice(0, 6).map((field) => (
+                    <div key={field.id} className="space-y-1">
+                      <Label className="text-xs">{field.label}</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                          $
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={template.costs[field.id] || ''}
+                          onChange={(e) =>
+                            updateLocationTemplate(template.id, {
+                              costs: {
+                                ...template.costs,
+                                [field.id]: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="pl-6 h-8 text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <Button variant="outline" onClick={addLocationTemplate} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Location Template
+            </Button>
           </CardContent>
         </Card>
       </div>

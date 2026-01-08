@@ -64,6 +64,116 @@ export function formatDimension(inches: number): string {
 }
 
 /**
+ * Format dimension with both inches and feet display
+ * Example: 126 → "126\" (10'-6\")"
+ */
+export function formatDimensionDual(inches: number): string {
+  if (!inches || inches <= 0) return '-'
+
+  const feet = Math.floor(inches / 12)
+  const remainingInches = Math.round(inches % 12)
+
+  return `${inches}" (${feet}'-${remainingInches}")`
+}
+
+/**
+ * Convert inches to centimeters
+ */
+export function inchesToCm(inches: number): number {
+  return Math.round(inches * 2.54 * 10) / 10
+}
+
+/**
+ * Convert inches to meters
+ */
+export function inchesToMeters(inches: number): number {
+  return Math.round((inches * 2.54 / 100) * 100) / 100
+}
+
+/**
+ * Convert centimeters to inches
+ */
+export function cmToInches(cm: number): number {
+  return Math.round(cm / 2.54)
+}
+
+/**
+ * Convert meters to inches
+ */
+export function metersToInches(meters: number): number {
+  return Math.round(meters * 100 / 2.54)
+}
+
+export type DimensionUnit = 'inches' | 'feet' | 'cm' | 'meters'
+
+/**
+ * Format dimension in specified unit
+ */
+export function formatDimensionInUnit(inches: number, unit: DimensionUnit): string {
+  if (!inches || inches <= 0) return '-'
+
+  switch (unit) {
+    case 'inches':
+      return `${inches}"`
+    case 'feet':
+      const feet = Math.floor(inches / 12)
+      const remainingInches = Math.round(inches % 12)
+      return `${feet}'-${remainingInches}"`
+    case 'cm':
+      return `${inchesToCm(inches)} cm`
+    case 'meters':
+      return `${inchesToMeters(inches)} m`
+    default:
+      return `${inches}"`
+  }
+}
+
+/**
+ * Parse dimension from any unit to inches
+ */
+export function parseDimensionFromUnit(value: number, unit: DimensionUnit): number {
+  if (!value || value <= 0) return 0
+
+  switch (unit) {
+    case 'inches':
+      return Math.round(value)
+    case 'feet':
+      // Assume feet.inches format (e.g., 10.6 = 10 feet 6 inches)
+      const feet = Math.floor(value)
+      const decimalPart = value - feet
+      const remainingInches = Math.round(decimalPart * 10)
+      return feet * 12 + remainingInches
+    case 'cm':
+      return cmToInches(value)
+    case 'meters':
+      return metersToInches(value)
+    default:
+      return Math.round(value)
+  }
+}
+
+/**
+ * Format dimension with all units display
+ */
+export function formatDimensionAllUnits(inches: number): {
+  inches: string
+  feetInches: string
+  cm: string
+  meters: string
+} {
+  if (!inches || inches <= 0) {
+    return { inches: '-', feetInches: '-', cm: '-', meters: '-' }
+  }
+
+  return {
+    inches: `${inches}"`,
+    feetInches: formatDimension(inches),
+    cm: `${inchesToCm(inches)} cm`,
+    meters: `${inchesToMeters(inches)} m`,
+  }
+}
+
+/**
  * Convert various input formats to inches
  * Handles: "10'6\"", "10-6", "10.6", "126", etc.
  */

@@ -27,6 +27,51 @@ export const equipmentRouter = router({
       return data
     }),
 
+  // Get models with dimension and rate availability
+  getModelsWithAvailability: protectedProcedure
+    .input(z.object({ makeId: z.string().uuid(), location: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      // Get all models for the make
+      const { data: models, error: modelsError } = await ctx.supabase
+        .from('models')
+        .select('id, name, make_id')
+        .eq('make_id', input.makeId)
+        .order('name')
+
+      if (modelsError) throw modelsError
+      if (!models || models.length === 0) return []
+
+      // Get all dimensions for these models
+      const modelIds = models.map(m => m.id)
+      const { data: dimensions } = await ctx.supabase
+        .from('equipment_dimensions')
+        .select('model_id')
+        .in('model_id', modelIds)
+
+      const dimensionModelIds = new Set((dimensions || []).map(d => d.model_id))
+
+      // Get all rates for these models (optionally filtered by location)
+      let ratesQuery = ctx.supabase
+        .from('rates')
+        .select('model_id')
+        .in('model_id', modelIds)
+
+      if (input.location) {
+        ratesQuery = ratesQuery.eq('location', input.location)
+      }
+
+      const { data: rates } = await ratesQuery
+
+      const rateModelIds = new Set((rates || []).map(r => r.model_id))
+
+      // Combine the data
+      return models.map(model => ({
+        ...model,
+        has_dimensions: dimensionModelIds.has(model.id),
+        has_rates: rateModelIds.has(model.id),
+      }))
+    }),
+
   // Get dimensions for a model
   getDimensions: protectedProcedure
     .input(z.object({ modelId: z.string().uuid() }))
@@ -103,5 +148,37 @@ export const equipmentRouter = router({
         makes: makes || [],
         models: models || [],
       }
+    }),
+
+  // Update equipment images
+  updateImages: protectedProcedure
+    .input(
+      z.object({
+        modelId: z.string().uuid(),
+        frontImageUrl: z.string().url().nullable().optional(),
+        sideImageUrl: z.string().url().nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updates: Record<string, string | null> = {}
+
+      if (input.frontImageUrl !== undefined) {
+        updates.front_image_url = input.frontImageUrl
+      }
+      if (input.sideImageUrl !== undefined) {
+        updates.side_image_url = input.sideImageUrl
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return { success: true }
+      }
+
+      const { error } = await ctx.supabase
+        .from('equipment_dimensions')
+        .update(updates)
+        .eq('model_id', input.modelId)
+
+      if (error) throw error
+      return { success: true }
     }),
 })

@@ -36,6 +36,11 @@ export interface CompanySettings {
   email_notifications_enabled: boolean
   notification_email?: string
 
+  // Terms & Conditions
+  terms_dismantle?: string
+  terms_inland?: string
+  terms_version?: number
+
   // Timestamps
   created_at: string
   updated_at: string

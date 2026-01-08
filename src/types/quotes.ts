@@ -4,12 +4,43 @@ import type { LocationName, CostField } from './equipment'
 export const QUOTE_STATUSES = [
   'draft',
   'sent',
+  'viewed',
   'accepted',
   'rejected',
   'expired',
 ] as const
 
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number]
+
+export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  viewed: 'Viewed',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+  expired: 'Expired',
+}
+
+export const QUOTE_STATUS_COLORS: Record<QuoteStatus, string> = {
+  draft: 'text-gray-600 bg-gray-50 dark:bg-gray-900 dark:text-gray-400',
+  sent: 'text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-400',
+  viewed: 'text-purple-600 bg-purple-50 dark:bg-purple-950 dark:text-purple-400',
+  accepted: 'text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400',
+  rejected: 'text-red-600 bg-red-50 dark:bg-red-950 dark:text-red-400',
+  expired: 'text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400',
+}
+
+export interface QuoteStatusHistory {
+  id: string
+  quote_id: string
+  quote_type: 'dismantle' | 'inland'
+  previous_status: QuoteStatus | null
+  new_status: QuoteStatus
+  changed_by: string
+  changed_by_name?: string
+  notes?: string
+  created_at: string
+}
 
 export interface QuoteData {
   id?: string
@@ -82,6 +113,24 @@ export interface QuoteData {
   updated_at: string
   sent_at?: string
   expires_at?: string
+
+  // Versioning
+  version: number
+  parent_quote_id?: string
+  is_latest_version: boolean
+}
+
+export interface QuoteVersion {
+  id: string
+  quote_number: string
+  version: number
+  parent_quote_id?: string
+  is_latest_version: boolean
+  status: QuoteStatus
+  total: number
+  created_at: string
+  created_by_name?: string
+  change_notes?: string
 }
 
 export interface EquipmentBlock {
@@ -115,7 +164,8 @@ export interface EquipmentBlock {
 
 export interface MiscellaneousFee {
   id: string
-  description: string
+  title: string
+  description?: string
   amount: number // cents
   is_percentage: boolean
 }

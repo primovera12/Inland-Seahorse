@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { Header } from '@/components/layout/header'
 import { createClient } from '@/lib/supabase/server'
+import { FeedbackButton } from '@/components/feedback'
 
 export default async function DashboardLayout({
   children,
@@ -40,6 +41,7 @@ export default async function DashboardLayout({
         />
         <main className="flex-1 p-6">{children}</main>
       </SidebarInset>
+      <FeedbackButton />
     </SidebarProvider>
   )
 }

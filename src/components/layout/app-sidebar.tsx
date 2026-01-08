@@ -19,6 +19,8 @@ import {
   LayoutTemplate,
   Upload,
   UsersRound,
+  MessageSquare,
+  Kanban,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -54,6 +56,11 @@ const equipmentItems = [
     title: 'Quote History',
     url: '/quotes/history',
     icon: History,
+  },
+  {
+    title: 'Pipeline',
+    url: '/quotes/pipeline',
+    icon: Kanban,
   },
   {
     title: 'Equipment',
@@ -118,6 +125,11 @@ const adminItems = [
     title: 'Import Data',
     url: '/import',
     icon: Upload,
+  },
+  {
+    title: 'Feedback',
+    url: '/settings/tickets',
+    icon: MessageSquare,
   },
 ]
 

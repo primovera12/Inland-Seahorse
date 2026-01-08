@@ -12,7 +12,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import { DestinationBlock } from '@/components/inland/destination-block'
+import { SortableDestination } from '@/components/inland/sortable-destination'
 import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
@@ -40,6 +56,18 @@ function createEmptyDestination(label: string): InlandDestinationBlock {
 }
 
 export default function NewInlandQuotePage() {
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px of movement required before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
   // Quote data
   const [quoteNumber, setQuoteNumber] = useState('')
   const [destinationBlocks, setDestinationBlocks] = useState<InlandDestinationBlock[]>([
@@ -263,6 +291,59 @@ export default function NewInlandQuotePage() {
       label: DESTINATION_LABELS[i],
     }))
     setDestinationBlocks(relabeled)
+  }
+
+  const duplicateDestination = (index: number) => {
+    if (destinationBlocks.length >= 6) {
+      toast.error('Maximum 6 destinations allowed')
+      return
+    }
+    const blockToDuplicate = destinationBlocks[index]
+    // Create a deep copy with new IDs
+    const duplicatedBlock: InlandDestinationBlock = {
+      ...blockToDuplicate,
+      id: crypto.randomUUID(),
+      label: DESTINATION_LABELS[destinationBlocks.length],
+      load_blocks: blockToDuplicate.load_blocks.map((lb) => ({
+        ...lb,
+        id: crypto.randomUUID(),
+        cargo_items: lb.cargo_items.map((ci) => ({ ...ci, id: crypto.randomUUID() })),
+        service_items: lb.service_items.map((si) => ({ ...si, id: crypto.randomUUID() })),
+        accessorial_charges: lb.accessorial_charges.map((ac) => ({ ...ac, id: crypto.randomUUID() })),
+      })),
+    }
+    // Insert after current block
+    const newBlocks = [
+      ...destinationBlocks.slice(0, index + 1),
+      duplicatedBlock,
+      ...destinationBlocks.slice(index + 1),
+    ]
+    // Relabel all blocks
+    const relabeled = newBlocks.map((block, i) => ({
+      ...block,
+      label: DESTINATION_LABELS[i],
+    }))
+    setDestinationBlocks(relabeled)
+    toast.success(`Destination ${blockToDuplicate.label} duplicated`)
+  }
+
+  // Handle drag end for reordering
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setDestinationBlocks((blocks) => {
+        const oldIndex = blocks.findIndex((b) => b.id === active.id)
+        const newIndex = blocks.findIndex((b) => b.id === over.id)
+        const reordered = arrayMove(blocks, oldIndex, newIndex)
+        // Relabel after reordering
+        return reordered.map((block, i) => ({
+          ...block,
+          label: DESTINATION_LABELS[i],
+        }))
+      })
+      toast.success('Destinations reordered')
+    }
   }
 
   // Create quote mutation
@@ -503,23 +584,43 @@ export default function NewInlandQuotePage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Destinations</h2>
-              <Button onClick={addDestination} disabled={destinationBlocks.length >= 6}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Destination
-              </Button>
+              <div className="flex items-center gap-2">
+                {destinationBlocks.length > 1 && (
+                  <span className="text-xs text-muted-foreground">
+                    Drag to reorder
+                  </span>
+                )}
+                <Button onClick={addDestination} disabled={destinationBlocks.length >= 6}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Destination
+                </Button>
+              </div>
             </div>
 
-            {destinationBlocks.map((block, index) => (
-              <DestinationBlock
-                key={block.id}
-                block={block}
-                onUpdate={(b) => updateDestination(index, b)}
-                onRemove={() => removeDestination(index)}
-                canRemove={destinationBlocks.length > 1}
-                truckTypes={truckTypes || []}
-                accessorialTypes={accessorialTypes || []}
-              />
-            ))}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={destinationBlocks.map((b) => b.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {destinationBlocks.map((block, index) => (
+                  <SortableDestination key={block.id} id={block.id}>
+                    <DestinationBlock
+                      block={block}
+                      onUpdate={(b) => updateDestination(index, b)}
+                      onRemove={() => removeDestination(index)}
+                      onDuplicate={() => duplicateDestination(index)}
+                      canRemove={destinationBlocks.length > 1}
+                      truckTypes={truckTypes || []}
+                      accessorialTypes={accessorialTypes || []}
+                    />
+                  </SortableDestination>
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
 
           {/* Notes */}

@@ -9,18 +9,21 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { EquipmentSelector } from '@/components/quotes/equipment-selector'
-import { CustomerForm } from '@/components/quotes/customer-form'
+import { CustomerForm, type BillingInfo, type CustomerAddress } from '@/components/quotes/customer-form'
 import { CostBreakdown } from '@/components/quotes/cost-breakdown'
 import { QuoteSummary } from '@/components/quotes/quote-summary'
 import { EquipmentBlockCard } from '@/components/quotes/equipment-block-card'
+import { MiscFeesList, calculateMiscFeesTotal } from '@/components/quotes/misc-fees-list'
 import { trpc } from '@/lib/trpc/client'
 import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
-import type { EquipmentBlock } from '@/types/quotes'
+import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { generateQuoteNumber, formatDate, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2, Mail, Save } from 'lucide-react'
+import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2, Mail, Save, Cloud } from 'lucide-react'
 import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
+import { useAutoSave } from '@/hooks/use-auto-save'
+import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 
 type CostState = Record<CostField, number>
 type EnabledState = Record<CostField, boolean>
@@ -82,6 +85,9 @@ export default function NewQuotePage() {
   const [costOverrides, setCostOverrides] = useState<Record<CostField, number | null>>(
     COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, number | null>)
   )
+  const [descriptionOverrides, setDescriptionOverrides] = useState<Record<CostField, string | null>>(
+    COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>)
+  )
 
   // Margin
   const [marginPercentage, setMarginPercentage] = useState(15)
@@ -91,12 +97,30 @@ export default function NewQuotePage() {
   const [customerEmail, setCustomerEmail] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerCompany, setCustomerCompany] = useState('')
+  const [customerAddress, setCustomerAddress] = useState<CustomerAddress>({
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+  })
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+
+  // Billing Info
+  const [billingInfo, setBillingInfo] = useState<BillingInfo>({
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    paymentTerms: 'net_30',
+  })
 
   // Quote
   const [quoteNumber, setQuoteNumber] = useState('')
   const [notes, setNotes] = useState('')
+
+  // Miscellaneous Fees
+  const [miscFees, setMiscFees] = useState<MiscellaneousFee[]>([])
 
   // PDF Preview
   const [showPdfPreview, setShowPdfPreview] = useState(false)
@@ -111,6 +135,50 @@ export default function NewQuotePage() {
   // Email & Template dialogs
   const [showEmailDialog, setShowEmailDialog] = useState(false)
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
+
+  // Auto-save draft data
+  const draftData = useMemo(() => ({
+    quoteNumber,
+    isMultiEquipment,
+    equipmentBlocks,
+    selectedMakeId,
+    selectedModelId,
+    selectedLocation,
+    makeName,
+    modelName,
+    dimensions,
+    costs,
+    enabledCosts,
+    costOverrides,
+    descriptionOverrides,
+    marginPercentage,
+    customerName,
+    customerEmail,
+    customerPhone,
+    customerCompany,
+    customerAddress,
+    billingInfo,
+    notes,
+    miscFees,
+  }), [
+    quoteNumber, isMultiEquipment, equipmentBlocks, selectedMakeId, selectedModelId,
+    selectedLocation, makeName, modelName, dimensions, costs, enabledCosts, costOverrides,
+    descriptionOverrides, marginPercentage, customerName, customerEmail, customerPhone,
+    customerCompany, customerAddress, billingInfo, notes, miscFees
+  ])
+
+  // Save draft mutation
+  const saveDraftMutation = trpc.quotes.saveDraft.useMutation()
+
+  // Auto-save hook
+  const autoSave = useAutoSave({
+    data: draftData,
+    onSave: async (data) => {
+      await saveDraftMutation.mutateAsync({ quote_data: data })
+    },
+    debounceMs: 3000,
+    enabled: true,
+  })
 
   // Generate quote number on mount
   useEffect(() => {
@@ -193,14 +261,23 @@ export default function NewQuotePage() {
   }, [modelDimensions])
 
   // Calculate totals
-  const subtotal = COST_FIELDS.reduce((total, field) => {
+  const costsSubtotal = COST_FIELDS.reduce((total, field) => {
     if (!enabledCosts[field]) return total
     const cost = costOverrides[field] ?? costs[field]
     return total + cost
   }, 0)
 
+  const miscFeesTotal = calculateMiscFeesTotal(miscFees, costsSubtotal)
+  const subtotal = costsSubtotal + miscFeesTotal
+
   const marginAmount = Math.round(subtotal * (marginPercentage / 100))
   const total = subtotal + marginAmount
+
+  // Helper to get full address string
+  const getFullAddressString = (addr: CustomerAddress): string | undefined => {
+    const parts = [addr.address, addr.city, addr.state, addr.zip].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : undefined
+  }
 
   // Build PDF data object
   const buildPdfData = useCallback((): QuotePDFData => {
@@ -211,6 +288,12 @@ export default function NewQuotePage() {
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
       customerCompany: customerCompany || undefined,
+      customerAddress: getFullAddressString(customerAddress),
+      billingAddress: billingInfo.address || undefined,
+      billingCity: billingInfo.city || undefined,
+      billingState: billingInfo.state || undefined,
+      billingZip: billingInfo.zip || undefined,
+      paymentTerms: billingInfo.paymentTerms || undefined,
       makeName: makeName || 'Custom',
       modelName: modelName || 'Equipment',
       location: selectedLocation,
@@ -218,6 +301,9 @@ export default function NewQuotePage() {
       costs,
       enabledCosts,
       costOverrides,
+      miscFees,
+      costsSubtotal,
+      miscFeesTotal,
       subtotal,
       marginPercentage,
       marginAmount,
@@ -227,9 +313,9 @@ export default function NewQuotePage() {
       primaryColor: '#6366F1',
     }
   }, [
-    quoteNumber, customerName, customerEmail, customerPhone, customerCompany,
+    quoteNumber, customerName, customerEmail, customerPhone, customerCompany, customerAddress, billingInfo,
     makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
-    costOverrides, subtotal, marginPercentage, marginAmount, total, notes
+    costOverrides, miscFees, costsSubtotal, miscFeesTotal, subtotal, marginPercentage, marginAmount, total, notes
   ])
 
   // Generate PDF preview
@@ -270,6 +356,7 @@ export default function NewQuotePage() {
       costs,
       enabledCosts,
       costOverrides,
+      miscFees,
       subtotal,
       marginPercentage,
       notes,
@@ -285,7 +372,7 @@ export default function NewQuotePage() {
   }, [
     quoteNumber, customerName, customerEmail, customerPhone, customerCompany,
     makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
-    costOverrides, subtotal, marginPercentage, notes, isMultiEquipment, equipmentBlocks
+    costOverrides, miscFees, subtotal, marginPercentage, notes, isMultiEquipment, equipmentBlocks
   ])
 
   // Live PDF preview with debouncing
@@ -395,6 +482,12 @@ export default function NewQuotePage() {
       customer_email: customerEmail || undefined,
       customer_phone: customerPhone || undefined,
       customer_company: customerCompany || undefined,
+      customer_address: getFullAddressString(customerAddress),
+      billing_address: billingInfo.address || undefined,
+      billing_city: billingInfo.city || undefined,
+      billing_state: billingInfo.state || undefined,
+      billing_zip: billingInfo.zip || undefined,
+      payment_terms: billingInfo.paymentTerms || undefined,
       company_id: selectedCompanyId || undefined,
       contact_id: selectedContactId || undefined,
       make_id: selectedMakeId || undefined,
@@ -410,8 +503,10 @@ export default function NewQuotePage() {
         costs,
         enabledCosts,
         costOverrides,
+        miscFees,
         dimensions,
         notes,
+        billingInfo,
       },
     })
   }
@@ -421,11 +516,18 @@ export default function NewQuotePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">New Quote</h1>
-          <p className="text-muted-foreground">
-            Quote #{quoteNumber}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-muted-foreground">
+              Quote #{quoteNumber}
+            </p>
+            <AutoSaveIndicator
+              status={autoSave.status}
+              lastSaved={autoSave.lastSaved}
+              error={autoSave.error}
+            />
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Button
             variant={showLivePdfPreview ? 'default' : 'outline'}
             size="icon"
@@ -493,9 +595,10 @@ export default function NewQuotePage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="equipment" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="equipment">Equipment</TabsTrigger>
               <TabsTrigger value="costs">Costs</TabsTrigger>
+              <TabsTrigger value="fees">Fees{miscFees.length > 0 ? ` (${miscFees.length})` : ''}</TabsTrigger>
               <TabsTrigger value="customer">Customer</TabsTrigger>
             </TabsList>
 
@@ -592,6 +695,7 @@ export default function NewQuotePage() {
                     costs={costs}
                     enabledCosts={enabledCosts}
                     costOverrides={costOverrides}
+                    descriptionOverrides={descriptionOverrides}
                     onToggleCost={(field) =>
                       setEnabledCosts((prev) => ({
                         ...prev,
@@ -604,9 +708,23 @@ export default function NewQuotePage() {
                         [field]: value,
                       }))
                     }
+                    onOverrideDescription={(field, value) =>
+                      setDescriptionOverrides((prev) => ({
+                        ...prev,
+                        [field]: value,
+                      }))
+                    }
                   />
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="fees" className="mt-4">
+              <MiscFeesList
+                fees={miscFees}
+                onChange={setMiscFees}
+                subtotal={costsSubtotal}
+              />
             </TabsContent>
 
             <TabsContent value="customer" className="mt-4">
@@ -623,14 +741,18 @@ export default function NewQuotePage() {
                     customerEmail={customerEmail}
                     customerPhone={customerPhone}
                     customerCompany={customerCompany}
+                    customerAddress={customerAddress}
                     onCustomerNameChange={setCustomerName}
                     onCustomerEmailChange={setCustomerEmail}
                     onCustomerPhoneChange={setCustomerPhone}
                     onCustomerCompanyChange={setCustomerCompany}
+                    onCustomerAddressChange={setCustomerAddress}
                     onCompanySelect={(id, name) => {
                       setSelectedCompanyId(id)
                       setCustomerCompany(name)
                     }}
+                    billingInfo={billingInfo}
+                    onBillingInfoChange={setBillingInfo}
                     notes={notes}
                     onNotesChange={setNotes}
                   />

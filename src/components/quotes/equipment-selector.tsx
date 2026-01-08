@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -8,9 +9,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { trpc } from '@/lib/trpc/client'
-import { LOCATIONS, type LocationName } from '@/types/equipment'
-import { formatDimension, formatWeight } from '@/lib/dimensions'
+import { LOCATIONS, type LocationName, sortMakesByPopularity, isPopularMake } from '@/types/equipment'
+import { SelectSeparator, SelectGroup, SelectLabel } from '@/components/ui/select'
+import { formatWeight } from '@/lib/dimensions'
+import { useRecentEquipment } from '@/hooks/use-recent-equipment'
+import { useFavorites } from '@/hooks/use-favorites'
+import { Clock, X, Star, Ruler, DollarSign } from 'lucide-react'
+import Image from 'next/image'
+import { DimensionDisplay } from '@/components/ui/dimension-display'
 
 interface EquipmentSelectorProps {
   selectedMakeId: string
@@ -19,6 +29,7 @@ interface EquipmentSelectorProps {
   onMakeChange: (id: string, name: string) => void
   onModelChange: (id: string, name: string) => void
   onLocationChange: (location: LocationName) => void
+  onEquipmentSelect?: (makeId: string, makeName: string, modelId: string, modelName: string) => void
   dimensions: {
     length_inches: number
     width_inches: number
@@ -34,19 +45,144 @@ export function EquipmentSelector({
   onMakeChange,
   onModelChange,
   onLocationChange,
+  onEquipmentSelect,
   dimensions,
 }: EquipmentSelectorProps) {
+  const { recentEquipment, trackEquipmentUsage, clearRecentEquipment } = useRecentEquipment()
+  const { favorites, isFavorite, toggleFavorite } = useFavorites()
+
+  // Filter state
+  const [filterHasDimensions, setFilterHasDimensions] = useState(false)
+  const [filterHasRates, setFilterHasRates] = useState(false)
+
   // Fetch makes
   const { data: makes, isLoading: makesLoading } = trpc.equipment.getMakes.useQuery()
 
-  // Fetch models when make is selected
-  const { data: models, isLoading: modelsLoading } = trpc.equipment.getModels.useQuery(
-    { makeId: selectedMakeId },
+  // Fetch models with availability info when make is selected
+  const { data: modelsWithAvailability, isLoading: modelsLoading } = trpc.equipment.getModelsWithAvailability.useQuery(
+    { makeId: selectedMakeId, location: selectedLocation },
     { enabled: !!selectedMakeId }
   )
 
+  // Filter models based on selected filters
+  const models = useMemo(() => {
+    if (!modelsWithAvailability) return []
+    return modelsWithAvailability.filter((model) => {
+      if (filterHasDimensions && !model.has_dimensions) return false
+      if (filterHasRates && !model.has_rates) return false
+      return true
+    })
+  }, [modelsWithAvailability, filterHasDimensions, filterHasRates])
+
+  // Fetch full dimensions with images
+  const { data: fullDimensions } = trpc.equipment.getDimensions.useQuery(
+    { modelId: selectedModelId },
+    { enabled: !!selectedModelId }
+  )
+
+  // Sort and group makes by popularity
+  const { popularMakes, otherMakes } = useMemo(() => {
+    if (!makes) return { popularMakes: [], otherMakes: [] }
+    const sorted = sortMakesByPopularity(makes)
+    const popular = sorted.filter((m) => isPopularMake(m.name))
+    const others = sorted.filter((m) => !isPopularMake(m.name))
+    return { popularMakes: popular, otherMakes: others }
+  }, [makes])
+
+  // Handle selecting recent equipment or favorite
+  const handleQuickSelect = (item: { makeId: string; makeName: string; modelId: string; modelName: string }) => {
+    onMakeChange(item.makeId, item.makeName)
+    // Small delay to allow make change to propagate
+    setTimeout(() => {
+      onModelChange(item.modelId, item.modelName)
+      if (onEquipmentSelect) {
+        onEquipmentSelect(item.makeId, item.makeName, item.modelId, item.modelName)
+      }
+    }, 100)
+  }
+
+  // Handle toggling favorite for current selection
+  const handleToggleFavorite = () => {
+    const make = makes?.find((m) => m.id === selectedMakeId)
+    const model = models?.find((m) => m.id === selectedModelId)
+    if (make && model) {
+      toggleFavorite({
+        modelId: model.id,
+        makeId: make.id,
+        makeName: make.name,
+        modelName: model.name,
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Favorites Section */}
+      {favorites.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+            <Label className="text-sm font-medium">Favorites</Label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {favorites.map((item) => (
+              <Button
+                key={item.modelId}
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickSelect(item)}
+                className="h-auto py-1.5 px-3 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-50 dark:hover:bg-yellow-950"
+              >
+                <Star className="h-3 w-3 mr-1.5 text-yellow-500 fill-yellow-500" />
+                <span className="font-medium">{item.makeName}</span>
+                <span className="text-muted-foreground mx-1">·</span>
+                <span>{item.modelName}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Equipment Section */}
+      {recentEquipment.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Recent Equipment</Label>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearRecentEquipment}
+              className="h-auto py-1 px-2 text-xs text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {recentEquipment.slice(0, 5).map((item) => (
+              <Button
+                key={item.modelId}
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickSelect(item)}
+                className="h-auto py-1.5 px-3"
+              >
+                <span className="font-medium">{item.makeName}</span>
+                <span className="text-muted-foreground mx-1">·</span>
+                <span>{item.modelName}</span>
+                {item.useCount > 1 && (
+                  <Badge variant="secondary" className="ml-2 h-4 px-1.5 text-[10px]">
+                    {item.useCount}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="make">Make</Label>
@@ -61,11 +197,29 @@ export function EquipmentSelector({
               <SelectValue placeholder={makesLoading ? 'Loading...' : 'Select make'} />
             </SelectTrigger>
             <SelectContent>
-              {makes?.map((make) => (
-                <SelectItem key={make.id} value={make.id}>
-                  {make.name}
-                </SelectItem>
-              ))}
+              {popularMakes.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground">Popular Makes</SelectLabel>
+                  {popularMakes.map((make) => (
+                    <SelectItem key={make.id} value={make.id}>
+                      {make.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {popularMakes.length > 0 && otherMakes.length > 0 && (
+                <SelectSeparator />
+              )}
+              {otherMakes.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground">All Makes</SelectLabel>
+                  {otherMakes.map((make) => (
+                    <SelectItem key={make.id} value={make.id}>
+                      {make.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -76,7 +230,17 @@ export function EquipmentSelector({
             value={selectedModelId}
             onValueChange={(value) => {
               const model = models?.find((m) => m.id === value)
+              const make = makes?.find((m) => m.id === selectedMakeId)
               onModelChange(value, model?.name || '')
+              // Track equipment usage
+              if (make && model) {
+                trackEquipmentUsage({
+                  modelId: model.id,
+                  makeId: make.id,
+                  makeName: make.name,
+                  modelName: model.name,
+                })
+              }
             }}
             disabled={!selectedMakeId}
           >
@@ -94,11 +258,60 @@ export function EquipmentSelector({
             <SelectContent>
               {models?.map((model) => (
                 <SelectItem key={model.id} value={model.id}>
-                  {model.name}
+                  <div className="flex items-center gap-2">
+                    <span>{model.name}</span>
+                    <div className="flex items-center gap-1 ml-auto">
+                      {model.has_dimensions && (
+                        <Ruler className="h-3 w-3 text-blue-500" title="Has dimensions" />
+                      )}
+                      {model.has_rates && (
+                        <DollarSign className="h-3 w-3 text-green-500" title="Has rates" />
+                      )}
+                    </div>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          {/* Model Filters */}
+          {selectedMakeId && (
+            <div className="flex items-center gap-4 pt-1">
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="filter-dimensions"
+                  checked={filterHasDimensions}
+                  onCheckedChange={(checked) => setFilterHasDimensions(checked === true)}
+                />
+                <label
+                  htmlFor="filter-dimensions"
+                  className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+                >
+                  <Ruler className="h-3 w-3 text-blue-500" />
+                  Has Dimensions
+                </label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="filter-rates"
+                  checked={filterHasRates}
+                  onCheckedChange={(checked) => setFilterHasRates(checked === true)}
+                />
+                <label
+                  htmlFor="filter-rates"
+                  className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+                >
+                  <DollarSign className="h-3 w-3 text-green-500" />
+                  Has Rates ({selectedLocation})
+                </label>
+              </div>
+              {modelsWithAvailability && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {models.length} of {modelsWithAvailability.length} models
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -123,19 +336,74 @@ export function EquipmentSelector({
 
       {selectedModelId && (
         <div className="rounded-lg border p-4 bg-muted/30">
-          <h4 className="font-medium mb-3">Equipment Dimensions</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium">Equipment Dimensions</h4>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleFavorite}
+              className="h-8 px-2"
+              title={isFavorite(selectedModelId) ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Star
+                className={`h-4 w-4 ${
+                  isFavorite(selectedModelId)
+                    ? 'text-yellow-500 fill-yellow-500'
+                    : 'text-muted-foreground'
+                }`}
+              />
+              <span className="ml-1.5 text-xs">
+                {isFavorite(selectedModelId) ? 'Favorited' : 'Add to Favorites'}
+              </span>
+            </Button>
+          </div>
+
+          {/* Equipment Images */}
+          {(fullDimensions?.front_image_url || fullDimensions?.side_image_url) && (
+            <div className="grid gap-4 md:grid-cols-2 mb-4">
+              {fullDimensions?.front_image_url && (
+                <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
+                  <Image
+                    src={fullDimensions.front_image_url}
+                    alt="Front view"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 300px"
+                  />
+                  <span className="absolute bottom-2 left-2 text-xs bg-background/80 px-2 py-1 rounded">
+                    Front View
+                  </span>
+                </div>
+              )}
+              {fullDimensions?.side_image_url && (
+                <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
+                  <Image
+                    src={fullDimensions.side_image_url}
+                    alt="Side view"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 300px"
+                  />
+                  <span className="absolute bottom-2 left-2 text-xs bg-background/80 px-2 py-1 rounded">
+                    Side View
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid gap-4 md:grid-cols-4">
             <div>
               <p className="text-sm text-muted-foreground">Length</p>
-              <p className="font-mono text-lg">{formatDimension(dimensions.length_inches)}</p>
+              <DimensionDisplay inches={dimensions.length_inches} size="lg" showDual />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Width</p>
-              <p className="font-mono text-lg">{formatDimension(dimensions.width_inches)}</p>
+              <DimensionDisplay inches={dimensions.width_inches} size="lg" showDual />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Height</p>
-              <p className="font-mono text-lg">{formatDimension(dimensions.height_inches)}</p>
+              <DimensionDisplay inches={dimensions.height_inches} size="lg" showDual />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Weight</p>
