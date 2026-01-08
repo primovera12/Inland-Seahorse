@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 export const companiesRouter = router({
   // Get all companies
@@ -31,7 +32,7 @@ export const companiesRouter = router({
 
       const { data, error, count } = await query
 
-      if (error) throw error
+      checkSupabaseError(error, 'Company')
       return { companies: data, total: count }
     }),
 
@@ -45,7 +46,8 @@ export const companiesRouter = router({
         .eq('id', input.id)
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Company')
+      assertDataExists(data, 'Company')
       return data
     }),
 
@@ -80,7 +82,7 @@ export const companiesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Company')
       return data
     }),
 
@@ -119,7 +121,7 @@ export const companiesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Company')
       return data
     }),
 
@@ -134,7 +136,7 @@ export const companiesRouter = router({
         .eq('status', 'active')
         .limit(10)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Company')
       return data
     }),
 })
@@ -158,7 +160,7 @@ export const contactsRouter = router({
         .order('last_name')
         .range(input.offset, input.offset + input.limit - 1)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Contact')
       return { contacts: data || [], total: count || 0 }
     }),
 
@@ -187,7 +189,7 @@ export const contactsRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Contact')
       return data
     }),
 
@@ -219,7 +221,7 @@ export const contactsRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Contact')
       return data
     }),
 })

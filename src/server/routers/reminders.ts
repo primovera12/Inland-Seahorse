@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 const reminderPriorities = ['low', 'medium', 'high', 'urgent'] as const
 
@@ -43,7 +44,7 @@ export const remindersRouter = router({
 
       const { data, error, count } = await query.range(offset, offset + limit - 1)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Reminder')
       return { reminders: data || [], total: count || 0 }
     }),
 
@@ -68,7 +69,7 @@ export const remindersRouter = router({
       .order('due_date', { ascending: true })
       .limit(10)
 
-    if (error) throw error
+    checkSupabaseError(error, 'Reminder')
     return data || []
   }),
 
@@ -101,7 +102,7 @@ export const remindersRouter = router({
         .order('due_date', { ascending: true })
         .range(offset, offset + limit - 1)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Reminder')
       return { reminders: data || [], total: count || 0 }
     }),
 
@@ -130,7 +131,7 @@ export const remindersRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Reminder')
       return data
     }),
 
@@ -156,7 +157,7 @@ export const remindersRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Reminder')
       return data
     }),
 
@@ -172,7 +173,8 @@ export const remindersRouter = router({
         .eq('user_id', ctx.user.id)
         .single()
 
-      if (fetchError) throw fetchError
+      checkSupabaseError(fetchError, 'Reminder')
+      assertDataExists(current, 'Reminder')
 
       const newState = !current.is_completed
       const { data, error } = await ctx.supabase
@@ -187,7 +189,7 @@ export const remindersRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Reminder')
       return data
     }),
 
@@ -201,7 +203,7 @@ export const remindersRouter = router({
         .eq('id', input.id)
         .eq('user_id', ctx.user.id)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Reminder')
       return { success: true }
     }),
 

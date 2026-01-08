@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { router, protectedProcedure, rateLimitedProcedure } from '../trpc/trpc'
 import { Resend } from 'resend'
+import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 // Lazy initialization to avoid build-time errors when API key is not set
 const getResend = () => {
@@ -84,7 +85,7 @@ export const feedbackRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Ticket')
 
       // Send email notification to admin
       const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com'
@@ -147,7 +148,7 @@ export const feedbackRouter = router({
 
       const { data, error, count } = await query
 
-      if (error) throw error
+      checkSupabaseError(error, 'Ticket')
       return { tickets: data || [], total: count || 0 }
     }),
 
@@ -161,7 +162,8 @@ export const feedbackRouter = router({
         .eq('id', input.id)
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Ticket')
+      assertDataExists(data, 'Ticket')
       return data
     }),
 
@@ -195,7 +197,7 @@ export const feedbackRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Ticket')
       return data
     }),
 
@@ -218,7 +220,7 @@ export const feedbackRouter = router({
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Ticket')
       return { tickets: data || [], total: count || 0 }
     }),
 
@@ -228,7 +230,7 @@ export const feedbackRouter = router({
       .from('tickets')
       .select('status, type, priority')
 
-    if (error) throw error
+    checkSupabaseError(error, 'Ticket')
 
     const stats = {
       total: data?.length || 0,
