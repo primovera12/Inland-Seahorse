@@ -13,8 +13,6 @@ const inlandQuoteDataSchema = z.object({
   company_id: z.string().uuid().optional(),
   contact_id: z.string().uuid().optional(),
   subtotal: z.number(),
-  margin_percentage: z.number(),
-  margin_amount: z.number(),
   total: z.number(),
   quote_data: z.record(z.string(), z.unknown()),
 })

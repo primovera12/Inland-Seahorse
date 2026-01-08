@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Dismantle Pro",
+  title: "Seahorse Express",
   description: "Equipment dismantling and inland transportation rate management",
 }
 

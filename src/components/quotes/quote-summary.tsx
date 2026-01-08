@@ -1,8 +1,6 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
 import type { LocationName } from '@/types/equipment'
@@ -13,10 +11,7 @@ interface QuoteSummaryProps {
   modelName: string
   location: LocationName | 'Multiple'
   subtotal: number
-  marginPercentage: number
-  marginAmount: number
   total: number
-  onMarginChange: (value: number) => void
   equipmentBlocks?: EquipmentBlock[]
 }
 
@@ -25,10 +20,7 @@ export function QuoteSummary({
   modelName,
   location,
   subtotal,
-  marginPercentage,
-  marginAmount,
   total,
-  onMarginChange,
   equipmentBlocks,
 }: QuoteSummaryProps) {
   return (
@@ -87,27 +79,6 @@ export function QuoteSummary({
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-mono">{formatCurrency(subtotal)}</span>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="margin" className="text-sm">
-              Margin (%)
-            </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="margin"
-                type="number"
-                min="0"
-                max="100"
-                value={marginPercentage}
-                onChange={(e) => onMarginChange(Number(e.target.value))}
-                className="w-20 text-right font-mono"
-              />
-              <span className="text-sm text-muted-foreground">%</span>
-              <span className="flex-1 text-right font-mono text-sm">
-                {formatCurrency(marginAmount)}
-              </span>
-            </div>
           </div>
         </div>
 

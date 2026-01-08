@@ -21,12 +21,6 @@ const quoteDataSchema = z.object({
   customer_phone: z.string().optional(),
   customer_company: z.string().optional(),
   customer_address: z.string().optional(),
-  // Billing info
-  billing_address: z.string().optional(),
-  billing_city: z.string().optional(),
-  billing_state: z.string().optional(),
-  billing_zip: z.string().optional(),
-  payment_terms: z.string().optional(),
   company_id: z.string().uuid().optional(),
   contact_id: z.string().uuid().optional(),
   make_id: z.string().uuid().optional(),
@@ -42,8 +36,6 @@ const quoteDataSchema = z.object({
     'Long Beach',
   ]),
   subtotal: z.number(),
-  margin_percentage: z.number(),
-  margin_amount: z.number(),
   total: z.number(),
   quote_data: z.record(z.string(), z.unknown()),
 })

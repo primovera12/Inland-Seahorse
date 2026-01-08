@@ -16,8 +16,6 @@ export interface InlandQuotePDFData {
   customerCompany?: string
   destinationBlocks: InlandDestinationBlock[]
   subtotal: number
-  marginPercentage: number
-  marginAmount: number
   total: number
   quoteNotes?: string
   termsAndConditions?: string
@@ -90,13 +88,13 @@ function generateInlandQuotePDFWithLogo(data: InlandQuotePDFData, logoBase64: st
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(24)
       doc.setFont('helvetica', 'bold')
-      doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+      doc.text(data.companyName || 'Seahorse Express', margin, 25)
     }
   } else {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(24)
     doc.setFont('helvetica', 'bold')
-    doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+    doc.text(data.companyName || 'Seahorse Express', margin, 25)
   }
 
   // Quote number and date
@@ -297,10 +295,6 @@ function generateInlandQuotePDFWithLogo(data: InlandQuotePDFData, logoBase64: st
   doc.setTextColor(0, 0, 0)
   doc.text('Subtotal:', totalsX, y)
   doc.text(formatCurrency(data.subtotal), pageWidth - margin, y, { align: 'right' })
-  y += 6
-
-  doc.text(`Margin (${data.marginPercentage}%):`, totalsX, y)
-  doc.text(formatCurrency(data.marginAmount), pageWidth - margin, y, { align: 'right' })
   y += 8
 
   // Total with background

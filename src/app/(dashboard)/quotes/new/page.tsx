@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { EquipmentSelector } from '@/components/quotes/equipment-selector'
-import { CustomerForm, type BillingInfo, type CustomerAddress } from '@/components/quotes/customer-form'
+import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { CostBreakdown } from '@/components/quotes/cost-breakdown'
 import { QuoteSummary } from '@/components/quotes/quote-summary'
 import { EquipmentBlockCard } from '@/components/quotes/equipment-block-card'
@@ -94,8 +94,6 @@ export default function NewQuotePage() {
     COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>)
   )
 
-  // Margin
-  const [marginPercentage, setMarginPercentage] = useState(15)
 
   // Customer
   const [customerName, setCustomerName] = useState('')
@@ -111,14 +109,6 @@ export default function NewQuotePage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [selectedContactId] = useState<string | null>(null)
 
-  // Billing Info
-  const [billingInfo, setBillingInfo] = useState<BillingInfo>({
-    address: '',
-    city: '',
-    state: '',
-    zip: '',
-    paymentTerms: 'net_30',
-  })
 
   // Quote
   const [quoteNumber, setQuoteNumber] = useState('')
@@ -160,20 +150,18 @@ export default function NewQuotePage() {
     enabledCosts,
     costOverrides,
     descriptionOverrides,
-    marginPercentage,
     customerName,
     customerEmail,
     customerPhone,
     customerCompany,
     customerAddress,
-    billingInfo,
     notes,
     miscFees,
   }), [
     quoteNumber, isMultiEquipment, equipmentBlocks, selectedMakeId, selectedModelId,
     selectedLocation, makeName, modelName, dimensions, costs, enabledCosts, costOverrides,
-    descriptionOverrides, marginPercentage, customerName, customerEmail, customerPhone,
-    customerCompany, customerAddress, billingInfo, notes, miscFees
+    descriptionOverrides, customerName, customerEmail, customerPhone,
+    customerCompany, customerAddress, notes, miscFees
   ])
 
   // Save draft mutation
@@ -211,13 +199,11 @@ export default function NewQuotePage() {
         if (data.enabledCosts) setEnabledCosts(data.enabledCosts)
         if (data.costOverrides) setCostOverrides(data.costOverrides)
         if (data.descriptionOverrides) setDescriptionOverrides(data.descriptionOverrides)
-        if (data.marginPercentage !== undefined) setMarginPercentage(data.marginPercentage)
         if (data.customerName) setCustomerName(data.customerName)
         if (data.customerEmail) setCustomerEmail(data.customerEmail)
         if (data.customerPhone) setCustomerPhone(data.customerPhone)
         if (data.customerCompany) setCustomerCompany(data.customerCompany)
         if (data.customerAddress) setCustomerAddress(data.customerAddress)
-        if (data.billingInfo) setBillingInfo(data.billingInfo)
         if (data.notes) setNotes(data.notes)
         if (data.miscFees) setMiscFees(data.miscFees)
 
@@ -247,13 +233,11 @@ export default function NewQuotePage() {
       setEnabledCosts(initialEnabled)
       setCostOverrides(initialOverrides)
       setDescriptionOverrides(COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>))
-      setMarginPercentage(15)
       setCustomerName('')
       setCustomerEmail('')
       setCustomerPhone('')
       setCustomerCompany('')
       setCustomerAddress({ address: '', city: '', state: '', zip: '' })
-      setBillingInfo({ address: '', city: '', state: '', zip: '', paymentTerms: 'net_30' })
       setNotes('')
       setMiscFees([])
 
@@ -313,8 +297,7 @@ export default function NewQuotePage() {
     (sum, block) => sum + block.total_with_quantity,
     0
   )
-  const multiEquipmentMarginAmount = Math.round(multiEquipmentSubtotal * (marginPercentage / 100))
-  const multiEquipmentTotal = multiEquipmentSubtotal + multiEquipmentMarginAmount
+  const multiEquipmentTotal = multiEquipmentSubtotal
 
   // Fetch rates when model and location change
   const { data: rates } = trpc.equipment.getRates.useQuery(
@@ -368,9 +351,7 @@ export default function NewQuotePage() {
 
   const miscFeesTotal = calculateMiscFeesTotal(miscFees, costsSubtotal)
   const subtotal = costsSubtotal + miscFeesTotal
-
-  const marginAmount = Math.round(subtotal * (marginPercentage / 100))
-  const total = subtotal + marginAmount
+  const total = subtotal
 
   // Helper to get full address string
   const getFullAddressString = (addr: CustomerAddress): string | undefined => {
@@ -397,11 +378,6 @@ export default function NewQuotePage() {
       customerPhone: customerPhone || undefined,
       customerCompany: customerCompany || undefined,
       customerAddress: getFullAddressString(customerAddress),
-      billingAddress: billingInfo.address || undefined,
-      billingCity: billingInfo.city || undefined,
-      billingState: billingInfo.state || undefined,
-      billingZip: billingInfo.zip || undefined,
-      paymentTerms: billingInfo.paymentTerms || undefined,
       makeName: makeName || 'Custom',
       modelName: modelName || 'Equipment',
       location: selectedLocation,
@@ -415,17 +391,15 @@ export default function NewQuotePage() {
       costsSubtotal,
       miscFeesTotal,
       subtotal,
-      marginPercentage,
-      marginAmount,
       total,
       notes: notes || undefined,
-      companyName: 'Dismantle Pro',
+      companyName: 'Seahorse Express',
       primaryColor: '#6366F1',
     }
   }, [
-    quoteNumber, getExpirationDate, customerName, customerEmail, customerPhone, customerCompany, customerAddress, billingInfo,
+    quoteNumber, getExpirationDate, customerName, customerEmail, customerPhone, customerCompany, customerAddress,
     makeName, modelName, selectedLocation, dimensions, equipmentImages, costs, enabledCosts,
-    costOverrides, miscFees, costsSubtotal, miscFeesTotal, subtotal, marginPercentage, marginAmount, total, notes
+    costOverrides, miscFees, costsSubtotal, miscFeesTotal, subtotal, total, notes
   ])
 
   // Generate PDF preview
@@ -468,7 +442,6 @@ export default function NewQuotePage() {
       costOverrides,
       miscFees,
       subtotal,
-      marginPercentage,
       notes,
       isMultiEquipment,
       equipmentBlocks: isMultiEquipment ? equipmentBlocks.map(b => ({
@@ -482,7 +455,7 @@ export default function NewQuotePage() {
   }, [
     quoteNumber, customerName, customerEmail, customerPhone, customerCompany,
     makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
-    costOverrides, miscFees, subtotal, marginPercentage, notes, isMultiEquipment, equipmentBlocks
+    costOverrides, miscFees, subtotal, notes, isMultiEquipment, equipmentBlocks
   ])
 
   // Live PDF preview with debouncing
@@ -573,7 +546,6 @@ export default function NewQuotePage() {
         costs,
         enabledCosts,
         costOverrides,
-        marginPercentage,
       },
     })
   }
@@ -596,11 +568,6 @@ export default function NewQuotePage() {
       customer_phone: customerPhone || undefined,
       customer_company: customerCompany || undefined,
       customer_address: getFullAddressString(customerAddress),
-      billing_address: billingInfo.address || undefined,
-      billing_city: billingInfo.city || undefined,
-      billing_state: billingInfo.state || undefined,
-      billing_zip: billingInfo.zip || undefined,
-      payment_terms: billingInfo.paymentTerms || undefined,
       company_id: selectedCompanyId || undefined,
       contact_id: selectedContactId || undefined,
       make_id: selectedMakeId || undefined,
@@ -609,8 +576,6 @@ export default function NewQuotePage() {
       model_name: modelName,
       location: selectedLocation,
       subtotal,
-      margin_percentage: marginPercentage,
-      margin_amount: marginAmount,
       total,
       quote_data: {
         costs,
@@ -619,7 +584,6 @@ export default function NewQuotePage() {
         miscFees,
         dimensions,
         notes,
-        billingInfo,
       },
     })
   }
@@ -724,12 +688,12 @@ export default function NewQuotePage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="equipment" className="w-full">
+          <Tabs defaultValue="customer" className="w-full">
             <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="customer">Customer</TabsTrigger>
               <TabsTrigger value="equipment">Equipment</TabsTrigger>
               <TabsTrigger value="costs">Costs</TabsTrigger>
               <TabsTrigger value="fees">Fees{miscFees.length > 0 ? ` (${miscFees.length})` : ''}</TabsTrigger>
-              <TabsTrigger value="customer">Customer</TabsTrigger>
             </TabsList>
 
             <TabsContent value="equipment" className="mt-4 space-y-4">
@@ -881,8 +845,6 @@ export default function NewQuotePage() {
                       setSelectedCompanyId(id)
                       setCustomerCompany(name)
                     }}
-                    billingInfo={billingInfo}
-                    onBillingInfoChange={setBillingInfo}
                     notes={notes}
                     onNotesChange={setNotes}
                   />
@@ -898,10 +860,7 @@ export default function NewQuotePage() {
             modelName={isMultiEquipment ? '' : modelName}
             location={isMultiEquipment ? 'Multiple' : selectedLocation}
             subtotal={isMultiEquipment ? multiEquipmentSubtotal : subtotal}
-            marginPercentage={marginPercentage}
-            marginAmount={isMultiEquipment ? multiEquipmentMarginAmount : marginAmount}
             total={isMultiEquipment ? multiEquipmentTotal : total}
-            onMarginChange={setMarginPercentage}
             equipmentBlocks={isMultiEquipment ? equipmentBlocks : undefined}
           />
 

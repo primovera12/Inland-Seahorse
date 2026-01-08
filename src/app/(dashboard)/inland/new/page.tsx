@@ -83,9 +83,6 @@ export default function NewInlandQuotePage() {
   const [customerCompany, setCustomerCompany] = useState('')
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
 
-  // Margin
-  const [marginPercentage, setMarginPercentage] = useState(15)
-
   // Notes
   const [internalNotes, setInternalNotes] = useState('')
   const [quoteNotes, setQuoteNotes] = useState('')
@@ -143,8 +140,7 @@ export default function NewInlandQuotePage() {
 
   // Calculate totals
   const subtotal = destinationBlocks.reduce((sum, block) => sum + block.subtotal, 0)
-  const marginAmount = Math.round(subtotal * (marginPercentage / 100))
-  const total = subtotal + marginAmount
+  const total = subtotal
 
   // Draft data for auto-save
   const draftData = useMemo(
@@ -155,7 +151,6 @@ export default function NewInlandQuotePage() {
       customerPhone,
       customerCompany,
       selectedCompanyId,
-      marginPercentage,
       internalNotes,
       quoteNotes,
       destinationBlocks,
@@ -167,7 +162,6 @@ export default function NewInlandQuotePage() {
       customerPhone,
       customerCompany,
       selectedCompanyId,
-      marginPercentage,
       internalNotes,
       quoteNotes,
       destinationBlocks,
@@ -195,7 +189,6 @@ export default function NewInlandQuotePage() {
         if (data.customerPhone) setCustomerPhone(data.customerPhone)
         if (data.customerCompany) setCustomerCompany(data.customerCompany)
         if (data.selectedCompanyId) setSelectedCompanyId(data.selectedCompanyId)
-        if (data.marginPercentage !== undefined) setMarginPercentage(data.marginPercentage)
         if (data.internalNotes) setInternalNotes(data.internalNotes)
         if (data.quoteNotes) setQuoteNotes(data.quoteNotes)
         if (data.destinationBlocks && data.destinationBlocks.length > 0) {
@@ -219,7 +212,6 @@ export default function NewInlandQuotePage() {
     setCustomerPhone('')
     setCustomerCompany('')
     setSelectedCompanyId(null)
-    setMarginPercentage(15)
     setInternalNotes('')
     setQuoteNotes('')
     setDestinationBlocks([createEmptyDestination('A')])
@@ -238,11 +230,9 @@ export default function NewInlandQuotePage() {
       customerCompany: customerCompany || undefined,
       destinationBlocks,
       subtotal,
-      marginPercentage,
-      marginAmount,
       total,
       quoteNotes: quoteNotes || undefined,
-      companyName: 'Dismantle Pro',
+      companyName: 'Seahorse Express',
       primaryColor: '#6366F1',
     }
   }, [
@@ -253,8 +243,6 @@ export default function NewInlandQuotePage() {
     customerCompany,
     destinationBlocks,
     subtotal,
-    marginPercentage,
-    marginAmount,
     total,
     quoteNotes,
   ])
@@ -306,7 +294,6 @@ export default function NewInlandQuotePage() {
         })),
       })),
       subtotal,
-      marginPercentage,
       quoteNotes,
     })
   }, [
@@ -317,7 +304,6 @@ export default function NewInlandQuotePage() {
     customerCompany,
     destinationBlocks,
     subtotal,
-    marginPercentage,
     quoteNotes,
   ])
 
@@ -479,7 +465,6 @@ export default function NewInlandQuotePage() {
       description: `Inland transportation template with ${destinationBlocks.length} destination(s)`,
       template_type: 'inland',
       template_data: {
-        marginPercentage,
         destination_blocks: destinationBlocks.map((d) => ({
           pickup_address: d.pickup_address,
           dropoff_address: d.dropoff_address,
@@ -507,8 +492,6 @@ export default function NewInlandQuotePage() {
       customer_company: customerCompany || undefined,
       company_id: selectedCompanyId || undefined,
       subtotal,
-      margin_percentage: marginPercentage,
-      margin_amount: marginAmount,
       total,
       quote_data: {
         destination_blocks: destinationBlocks,
@@ -805,29 +788,7 @@ export default function NewInlandQuotePage() {
                   <span className="font-mono">{formatCurrency(subtotal)}</span>
                 </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="margin" className="text-sm">
-                    Margin (%)
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="margin"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={marginPercentage}
-                      onChange={(e) => setMarginPercentage(Number(e.target.value))}
-                      className="w-20 text-right font-mono"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                    <span className="flex-1 text-right font-mono text-sm">
-                      {formatCurrency(marginAmount)}
-                    </span>
-                  </div>
-                </div>
               </div>
-
-              <Separator />
 
               <div className="flex justify-between items-center">
                 <span className="font-medium">Total</span>

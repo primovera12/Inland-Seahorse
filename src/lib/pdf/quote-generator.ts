@@ -31,12 +31,6 @@ export interface QuotePDFData {
   customerPhone?: string
   customerCompany?: string
   customerAddress?: string
-  // Billing info
-  billingAddress?: string
-  billingCity?: string
-  billingState?: string
-  billingZip?: string
-  paymentTerms?: string
   // Equipment
   makeName: string
   modelName: string
@@ -57,8 +51,6 @@ export interface QuotePDFData {
   costsSubtotal?: number
   miscFeesTotal?: number
   subtotal: number
-  marginPercentage: number
-  marginAmount: number
   total: number
   notes?: string
   termsAndConditions?: string
@@ -147,13 +139,13 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(24)
       doc.setFont('helvetica', 'bold')
-      doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+      doc.text(data.companyName || 'Seahorse Express', margin, 25)
     }
   } else {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(24)
     doc.setFont('helvetica', 'bold')
-    doc.text(data.companyName || 'Dismantle Pro', margin, 25)
+    doc.text(data.companyName || 'Seahorse Express', margin, 25)
   }
 
   // Quote number and date
@@ -178,12 +170,6 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.text('Customer Information', margin, y)
-
-  // Billing header on right side
-  const hasBillingInfo = data.billingAddress || data.billingCity || data.billingState || data.billingZip
-  if (hasBillingInfo) {
-    doc.text('Billing Information', pageWidth / 2 + 10, y)
-  }
   y += 8
 
   doc.setFontSize(10)
@@ -201,38 +187,12 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
     customerInfo.push(['Address:', data.customerAddress])
   }
 
-  // Build billing info if present
-  const billingInfoLines: [string, string][] = []
-  if (hasBillingInfo) {
-    if (data.billingAddress) billingInfoLines.push(['Address:', data.billingAddress])
-    const cityStateZip = [data.billingCity, data.billingState, data.billingZip].filter(Boolean).join(', ')
-    if (cityStateZip) billingInfoLines.push(['', cityStateZip])
-    if (data.paymentTerms) {
-      const termsLabel = data.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-      billingInfoLines.push(['Terms:', termsLabel])
-    }
-  }
-
-  const maxLines = Math.max(customerInfo.length, billingInfoLines.length)
-  for (let i = 0; i < maxLines; i++) {
-    // Customer info (left side)
-    if (i < customerInfo.length) {
-      const [label, value] = customerInfo[i]
-      doc.setTextColor(100, 100, 100)
-      doc.text(label, margin, y)
-      doc.setTextColor(0, 0, 0)
-      doc.text(value, margin + 30, y)
-    }
-
-    // Billing info (right side)
-    if (i < billingInfoLines.length) {
-      const [label, value] = billingInfoLines[i]
-      doc.setTextColor(100, 100, 100)
-      if (label) doc.text(label, pageWidth / 2 + 10, y)
-      doc.setTextColor(0, 0, 0)
-      doc.text(value, pageWidth / 2 + (label ? 40 : 10), y)
-    }
-
+  for (let i = 0; i < customerInfo.length; i++) {
+    const [label, value] = customerInfo[i]
+    doc.setTextColor(100, 100, 100)
+    doc.text(label, margin, y)
+    doc.setTextColor(0, 0, 0)
+    doc.text(value, margin + 30, y)
     y += 6
   }
 
@@ -319,13 +279,16 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
   doc.text('Cost Breakdown', margin, y)
   y += 5
 
-  // Build table data
+  // Build table data - skip $0 values
   const tableData: (string | { content: string; styles?: object })[][] = []
   Object.entries(COST_LABELS).forEach(([field, label]) => {
     const costField = field as CostField
     if (data.enabledCosts[costField]) {
       const cost = data.costOverrides[costField] ?? data.costs[costField]
-      tableData.push([label, formatCurrency(cost)])
+      // Only add non-zero costs to the PDF
+      if (cost > 0) {
+        tableData.push([label, formatCurrency(cost)])
+      }
     }
   })
 
@@ -345,16 +308,19 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
       { content: '', styles: { fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b] } },
     ])
 
-    // Add each misc fee
+    // Add each misc fee - skip $0 values
     data.miscFees.forEach((fee) => {
       const feeLabel = fee.description ? `${fee.title} - ${fee.description}` : fee.title
       const feeAmount = fee.is_percentage && data.costsSubtotal
         ? Math.round(data.costsSubtotal * (fee.amount / 10000))
         : fee.amount
-      tableData.push([
-        feeLabel || 'Miscellaneous Fee',
-        fee.is_percentage ? `${formatCurrency(feeAmount)} (${(fee.amount / 100).toFixed(1)}%)` : formatCurrency(feeAmount),
-      ])
+      // Only add non-zero fees
+      if (feeAmount > 0) {
+        tableData.push([
+          feeLabel || 'Miscellaneous Fee',
+          fee.is_percentage ? `${formatCurrency(feeAmount)} (${(fee.amount / 100).toFixed(1)}%)` : formatCurrency(feeAmount),
+        ])
+      }
     })
 
     // Add misc fees subtotal
@@ -400,10 +366,6 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
   doc.setFont('helvetica', 'normal')
   doc.text('Subtotal:', totalsX, y)
   doc.text(formatCurrency(data.subtotal), pageWidth - margin, y, { align: 'right' })
-  y += 6
-
-  doc.text(`Margin (${data.marginPercentage}%):`, totalsX, y)
-  doc.text(formatCurrency(data.marginAmount), pageWidth - margin, y, { align: 'right' })
   y += 8
 
   // Total with background
