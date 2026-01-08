@@ -111,8 +111,9 @@ export const settingsRouter = router({
         .single()
 
       if (error && error.code !== 'PGRST116') throw error
+      const termsKey = `terms_${input.type}` as 'terms_dismantle' | 'terms_inland'
       return {
-        content: data?.[`terms_${input.type}`] || null,
+        content: (data as Record<string, unknown>)?.[termsKey] || null,
         version: data?.terms_version || 1,
       }
     }),

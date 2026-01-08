@@ -360,7 +360,7 @@ export default function QuotePipelinePage() {
   }, [quotesByStatus])
 
   const handleDragStart = (event: DragStartEvent) => {
-    const quote = data?.quotes?.find((q: Quote) => q.id === event.active.id)
+    const quote = data?.quotes?.find((q: Quote) => q.id === event.active.id) as Quote | undefined
     if (quote) {
       setActiveQuote(quote)
     }
@@ -375,7 +375,7 @@ export default function QuotePipelinePage() {
     const quoteId = active.id as string
     const newStatus = over.id as QuoteStatus
 
-    const quote = data?.quotes?.find((q: Quote) => q.id === quoteId)
+    const quote = data?.quotes?.find((q: Quote) => q.id === quoteId) as Quote | undefined
     if (!quote || quote.status === newStatus) return
 
     // Validate status transitions

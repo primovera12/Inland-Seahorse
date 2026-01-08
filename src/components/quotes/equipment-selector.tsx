@@ -85,7 +85,7 @@ export function EquipmentSelector({
 
   // Helper to check if a make is in the popular list (case-insensitive)
   const isPopularMake = useMemo(() => {
-    const popularSet = new Set((popularMakesList || []).map(m => m.toLowerCase().trim()))
+    const popularSet = new Set((popularMakesList || []).map((m: string) => m.toLowerCase().trim()))
     return (makeName: string) => popularSet.has(makeName.toLowerCase().trim())
   }, [popularMakesList])
 
@@ -271,10 +271,10 @@ export function EquipmentSelector({
                     <span>{model.name}</span>
                     <div className="flex items-center gap-1 ml-auto">
                       {model.has_dimensions && (
-                        <Ruler className="h-3 w-3 text-blue-500" title="Has dimensions" />
+                        <Ruler className="h-3 w-3 text-blue-500" />
                       )}
                       {model.has_rates && (
-                        <DollarSign className="h-3 w-3 text-green-500" title="Has rates" />
+                        <DollarSign className="h-3 w-3 text-green-500" />
                       )}
                     </div>
                   </div>

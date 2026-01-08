@@ -51,7 +51,7 @@ interface CustomerFormProps {
   onCustomerEmailChange: (value: string) => void
   onCustomerPhoneChange: (value: string) => void
   onCustomerCompanyChange: (value: string) => void
-  onCustomerAddressChange?: (value: string | CustomerAddress) => void
+  onCustomerAddressChange?: (value: CustomerAddress) => void
   onCompanySelect: (id: string, name: string) => void
   // Billing info
   billingInfo?: BillingInfo
