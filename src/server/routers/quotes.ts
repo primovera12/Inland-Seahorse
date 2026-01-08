@@ -3,7 +3,14 @@ import { router, protectedProcedure } from '../trpc/trpc'
 import { generateQuoteNumber } from '@/lib/utils'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy initialization to avoid build-time errors when API key is not set
+const getResend = () => {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY environment variable is not set')
+  }
+  return new Resend(apiKey)
+}
 
 const quoteDataSchema = z.object({
   quote_number: z.string(),
@@ -208,7 +215,7 @@ export const quotesRouter = router({
         // Send email notification for important status changes
         if (['accepted', 'rejected'].includes(input.status) && currentQuote?.customer_email) {
           try {
-            await resend.emails.send({
+            await getResend().emails.send({
               from: 'Dismantle Pro <noreply@dismantlepro.com>',
               to: process.env.ADMIN_EMAIL || 'admin@example.com',
               subject: `Quote ${currentQuote.quote_number} ${input.status}`,
@@ -382,7 +389,7 @@ export const quotesRouter = router({
 
         // Send notification email
         try {
-          await resend.emails.send({
+          await getResend().emails.send({
             from: 'Dismantle Pro <noreply@dismantlepro.com>',
             to: process.env.ADMIN_EMAIL || 'admin@example.com',
             subject: `Quote ${currentQuote?.quote_number} Accepted`,
@@ -444,7 +451,7 @@ export const quotesRouter = router({
 
         // Send notification email
         try {
-          await resend.emails.send({
+          await getResend().emails.send({
             from: 'Dismantle Pro <noreply@dismantlepro.com>',
             to: process.env.ADMIN_EMAIL || 'admin@example.com',
             subject: `Quote ${currentQuote?.quote_number} Rejected`,

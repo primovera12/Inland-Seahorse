@@ -2,7 +2,14 @@ import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy initialization to avoid build-time errors when API key is not set
+const getResend = () => {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY environment variable is not set')
+  }
+  return new Resend(apiKey)
+}
 
 export const feedbackRouter = router({
   // Submit a new ticket
@@ -83,7 +90,7 @@ export const feedbackRouter = router({
       const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com'
 
       try {
-        await resend.emails.send({
+        await getResend().emails.send({
           from: 'Dismantle Pro <noreply@dismantlepro.com>',
           to: adminEmail,
           subject: `[${ticketNumber}] New ${input.type}: ${input.title}`,
