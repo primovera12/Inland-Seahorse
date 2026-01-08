@@ -121,7 +121,9 @@
 
 - [x] Set up Vitest
 - [x] Add unit tests for rate-limiter utility
-- [ ] Add unit tests for other utilities (dimensions, truck-recommendation)
+- [x] Add unit tests for dimensions utility (47 tests)
+- [x] Add unit tests for truck-recommendation utility (21 tests)
+- [x] Add unit tests for utils utility (24 tests)
 - [ ] Add integration tests for tRPC routers
 - [ ] Add E2E tests for critical flows (quote creation)
 
@@ -154,6 +156,11 @@
 
 ### 2026-01-07
 
+- Added comprehensive unit tests for utility functions:
+  - dimensions.test.ts (47 tests): parseSmartDimension, unit conversions, formatting
+  - truck-recommendation.test.ts (21 tests): cargo fitting, truck recommendations
+  - utils.test.ts (24 tests): currency, dates, quote number generation
+  - Total: 100 passing tests
 - Optimized quote history queries:
   - getVersions: reduced from 3 queries to 2 with eager loading
   - getHistory: select only required columns for list view
