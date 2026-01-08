@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -14,25 +13,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Building2, Copy, ClipboardPaste } from 'lucide-react'
+import { Search, Building2, ClipboardPaste, Users, ChevronDown } from 'lucide-react'
 import { EmailSignatureDialog } from './email-signature-dialog'
 import type { ParsedSignature } from '@/lib/email-signature-parser'
-
-const PAYMENT_TERMS = [
-  { value: 'due_on_receipt', label: 'Due on Receipt' },
-  { value: 'net_15', label: 'Net 15' },
-  { value: 'net_30', label: 'Net 30' },
-  { value: 'net_45', label: 'Net 45' },
-  { value: 'net_60', label: 'Net 60' },
-] as const
-
-export interface BillingInfo {
-  address: string
-  city: string
-  state: string
-  zip: string
-  paymentTerms: string
-}
 
 export interface CustomerAddress {
   address: string
@@ -53,13 +36,12 @@ interface CustomerFormProps {
   onCustomerCompanyChange: (value: string) => void
   onCustomerAddressChange?: (value: CustomerAddress) => void
   onCompanySelect: (id: string, name: string) => void
-  // Billing info
-  billingInfo?: BillingInfo
-  onBillingInfoChange?: (info: BillingInfo) => void
-  // Notes
+  onContactSelect?: (id: string, name: string) => void
   notes: string
   onNotesChange: (value: string) => void
 }
+
+type SelectionMode = 'browse' | 'search' | 'manual'
 
 export function CustomerForm({
   customerName,
@@ -73,14 +55,14 @@ export function CustomerForm({
   onCustomerCompanyChange,
   onCustomerAddressChange,
   onCompanySelect,
-  billingInfo = { address: '', city: '', state: '', zip: '', paymentTerms: 'net_30' },
-  onBillingInfoChange,
+  onContactSelect,
   notes,
   onNotesChange,
 }: CustomerFormProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [showSearch, setShowSearch] = useState(false)
-  const [sameAsCustomer, setSameAsCustomer] = useState(false)
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('browse')
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+  const [selectedContactId, setSelectedContactId] = useState<string>('')
 
   // Helper to get customer address as an object
   const getCustomerAddressObj = (): CustomerAddress => {
@@ -102,44 +84,59 @@ export function CustomerForm({
     }
   }
 
+  // Fetch all companies for dropdown
+  const { data: companiesData, isLoading: companiesLoading } = trpc.companies.getAll.useQuery(
+    { limit: 100 },
+    { enabled: selectionMode === 'browse' }
+  )
+
+  // Fetch contacts for selected company
+  const { data: contactsData, isLoading: contactsLoading } = trpc.contacts.getByCompany.useQuery(
+    { companyId: selectedCompanyId },
+    { enabled: !!selectedCompanyId && selectionMode === 'browse' }
+  )
+
   // Search companies
   const { data: searchResults } = trpc.companies.search.useQuery(
     { query: searchQuery },
-    { enabled: searchQuery.length >= 2 }
+    { enabled: searchQuery.length >= 2 && selectionMode === 'search' }
   )
 
-  const updateBillingField = (field: keyof BillingInfo, value: string) => {
-    if (onBillingInfoChange) {
-      onBillingInfoChange({ ...billingInfo, [field]: value })
+  const handleCompanySelect = (companyId: string) => {
+    setSelectedCompanyId(companyId)
+    setSelectedContactId('')
+
+    const company = companiesData?.companies?.find(c => c.id === companyId)
+    if (company) {
+      onCompanySelect(company.id, company.name)
+      onCustomerCompanyChange(company.name)
+      if (company.phone) onCustomerPhoneChange(company.phone)
+      // Update address if available
+      if (onCustomerAddressChange && company.address) {
+        onCustomerAddressChange({
+          address: company.address || '',
+          city: company.city || '',
+          state: company.state || '',
+          zip: company.zip || '',
+        })
+      }
     }
   }
 
-  const handleCopyFromCustomer = () => {
-    if (onBillingInfoChange) {
-      onBillingInfoChange({
-        ...billingInfo,
-        address: addressObj.address,
-        city: addressObj.city,
-        state: addressObj.state,
-        zip: addressObj.zip,
-      })
+  const handleContactSelect = (contactId: string) => {
+    setSelectedContactId(contactId)
+
+    const contact = contactsData?.contacts?.find(c => c.id === contactId)
+    if (contact) {
+      const fullName = `${contact.first_name} ${contact.last_name}`.trim()
+      onCustomerNameChange(fullName)
+      if (contact.email) onCustomerEmailChange(contact.email)
+      if (contact.phone) onCustomerPhoneChange(contact.phone)
+      if (onContactSelect) {
+        onContactSelect(contact.id, fullName)
+      }
     }
   }
-
-  const handleSameAsCustomerChange = (checked: boolean) => {
-    setSameAsCustomer(checked)
-    if (checked && onBillingInfoChange) {
-      onBillingInfoChange({
-        ...billingInfo,
-        address: addressObj.address,
-        city: addressObj.city,
-        state: addressObj.state,
-        zip: addressObj.zip,
-      })
-    }
-  }
-
-  const hasCustomerAddress = Boolean(addressObj.address || addressObj.city || addressObj.state || addressObj.zip)
 
   const handleApplySignature = (parsed: ParsedSignature) => {
     if (parsed.fullName) onCustomerNameChange(parsed.fullName)
@@ -148,7 +145,6 @@ export function CustomerForm({
     if (parsed.mobile && !parsed.phone) onCustomerPhoneChange(parsed.mobile)
     if (parsed.company) onCustomerCompanyChange(parsed.company)
 
-    // Update customer address if we have address components
     if (onCustomerAddressChange && (parsed.city || parsed.state || parsed.zip || parsed.address)) {
       onCustomerAddressChange({
         address: parsed.address || addressObj.address,
@@ -157,30 +153,49 @@ export function CustomerForm({
         zip: parsed.zip || addressObj.zip,
       })
     }
+  }
 
-    // Update billing info if we have address components
-    if (onBillingInfoChange && (parsed.city || parsed.state || parsed.zip || parsed.address)) {
-      onBillingInfoChange({
-        ...billingInfo,
-        address: parsed.address || billingInfo.address,
-        city: parsed.city || billingInfo.city,
-        state: parsed.state || billingInfo.state,
-        zip: parsed.zip || billingInfo.zip,
-      })
+  const clearSelection = () => {
+    setSelectedCompanyId('')
+    setSelectedContactId('')
+    onCustomerNameChange('')
+    onCustomerEmailChange('')
+    onCustomerPhoneChange('')
+    onCustomerCompanyChange('')
+    if (onCustomerAddressChange) {
+      onCustomerAddressChange({ address: '', city: '', state: '', zip: '' })
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      {/* Selection Mode Toggle */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           type="button"
-          variant={showSearch ? 'default' : 'outline'}
+          variant={selectionMode === 'browse' ? 'default' : 'outline'}
           size="sm"
-          onClick={() => setShowSearch(!showSearch)}
+          onClick={() => setSelectionMode('browse')}
         >
           <Building2 className="h-4 w-4 mr-2" />
-          {showSearch ? 'Manual Entry' : 'Search Companies'}
+          Browse Companies
+        </Button>
+        <Button
+          type="button"
+          variant={selectionMode === 'search' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSelectionMode('search')}
+        >
+          <Search className="h-4 w-4 mr-2" />
+          Search
+        </Button>
+        <Button
+          type="button"
+          variant={selectionMode === 'manual' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSelectionMode('manual')}
+        >
+          Manual Entry
         </Button>
         <EmailSignatureDialog
           onApply={handleApplySignature}
@@ -193,8 +208,95 @@ export function CustomerForm({
         />
       </div>
 
-      {showSearch && (
-        <div className="space-y-2 mb-6 p-4 rounded-lg border bg-muted/30">
+      {/* Browse Mode - Company and Contact Dropdowns */}
+      {selectionMode === 'browse' && (
+        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Company Dropdown */}
+            <div className="space-y-2">
+              <Label>Select Company</Label>
+              <Select
+                value={selectedCompanyId}
+                onValueChange={handleCompanySelect}
+                disabled={companiesLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={companiesLoading ? "Loading..." : "Choose a company..."} />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {companiesData?.companies?.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span>{company.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {companiesData?.companies?.length === 0 && (
+                <p className="text-sm text-muted-foreground">No companies found</p>
+              )}
+            </div>
+
+            {/* Contact Dropdown */}
+            <div className="space-y-2">
+              <Label>Select Contact</Label>
+              <Select
+                value={selectedContactId}
+                onValueChange={handleContactSelect}
+                disabled={!selectedCompanyId || contactsLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      !selectedCompanyId
+                        ? "Select company first"
+                        : contactsLoading
+                          ? "Loading..."
+                          : "Choose a contact..."
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {contactsData?.contacts?.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>{contact.first_name} {contact.last_name}</span>
+                        {contact.is_primary && (
+                          <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedCompanyId && contactsData?.contacts?.length === 0 && (
+                <p className="text-sm text-muted-foreground">No contacts for this company</p>
+              )}
+            </div>
+          </div>
+
+          {(selectedCompanyId || selectedContactId) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearSelection}
+              className="mt-2"
+            >
+              Clear Selection
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Search Mode */}
+      {selectionMode === 'search' && (
+        <div className="space-y-2 p-4 rounded-lg border bg-muted/30">
           <Label>Search Existing Companies</Label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -216,7 +318,7 @@ export function CustomerForm({
                     onCompanySelect(company.id, company.name)
                     onCustomerCompanyChange(company.name)
                     if (company.phone) onCustomerPhoneChange(company.phone)
-                    setShowSearch(false)
+                    setSelectionMode('manual')
                     setSearchQuery('')
                   }}
                 >
@@ -227,6 +329,9 @@ export function CustomerForm({
                 </button>
               ))}
             </div>
+          )}
+          {searchQuery.length >= 2 && searchResults?.length === 0 && (
+            <p className="text-sm text-muted-foreground mt-2">No companies found</p>
           )}
         </div>
       )}
@@ -324,106 +429,6 @@ export function CustomerForm({
           )}
         </div>
       </div>
-
-      {/* Billing Information */}
-      {onBillingInfoChange && (
-        <>
-          <Separator />
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Billing Information</h3>
-              {hasCustomerAddress && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyFromCustomer}
-                >
-                  <Copy className="h-3 w-3 mr-1" />
-                  Copy from Customer
-                </Button>
-              )}
-            </div>
-
-            {hasCustomerAddress && (
-              <div className="flex items-center space-x-2 mb-4">
-                <Checkbox
-                  id="sameAsCustomer"
-                  checked={sameAsCustomer}
-                  onCheckedChange={handleSameAsCustomerChange}
-                />
-                <Label htmlFor="sameAsCustomer" className="text-sm cursor-pointer">
-                  Same as customer address
-                </Label>
-              </div>
-            )}
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="billingAddress">Billing Address</Label>
-                <Input
-                  id="billingAddress"
-                  placeholder="123 Billing St"
-                  value={billingInfo.address}
-                  onChange={(e) => updateBillingField('address', e.target.value)}
-                  disabled={sameAsCustomer}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="billingCity">City</Label>
-                <Input
-                  id="billingCity"
-                  placeholder="New York"
-                  value={billingInfo.city}
-                  onChange={(e) => updateBillingField('city', e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-2">
-                  <Label htmlFor="billingState">State</Label>
-                  <Input
-                    id="billingState"
-                    placeholder="NY"
-                    value={billingInfo.state}
-                    onChange={(e) => updateBillingField('state', e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="billingZip">ZIP Code</Label>
-                  <Input
-                    id="billingZip"
-                    placeholder="10001"
-                    value={billingInfo.zip}
-                    onChange={(e) => updateBillingField('zip', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="paymentTerms">Payment Terms</Label>
-                <Select
-                  value={billingInfo.paymentTerms}
-                  onValueChange={(value) => updateBillingField('paymentTerms', value)}
-                >
-                  <SelectTrigger id="paymentTerms">
-                    <SelectValue placeholder="Select payment terms" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_TERMS.map((term) => (
-                      <SelectItem key={term.value} value={term.value}>
-                        {term.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Notes */}
       <Separator />

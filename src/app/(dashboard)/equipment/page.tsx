@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -13,15 +14,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { trpc } from '@/lib/trpc/client'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
-import { Search, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp, Filter, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ImageUpload } from '@/components/ui/image-upload'
+
+type FilterType = 'all' | 'has_dimensions' | 'no_dimensions' | 'has_image' | 'no_image'
 
 export default function EquipmentPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
+  const [modelSearchQuery, setModelSearchQuery] = useState('')
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   // Fetch makes
   const { data: makes, isLoading: makesLoading } = trpc.equipment.getMakes.useQuery()
@@ -38,6 +50,22 @@ export default function EquipmentPage() {
   )
 
   const selectedMake = makes?.find((m) => m.id === selectedMakeId)
+
+  // Filter models by search query
+  const searchFilteredModels = useMemo(() => {
+    if (!models) return []
+    if (!modelSearchQuery) return models
+    return models.filter((model) =>
+      model.name.toLowerCase().includes(modelSearchQuery.toLowerCase())
+    )
+  }, [models, modelSearchQuery])
+
+  const clearFilters = () => {
+    setActiveFilter('all')
+    setModelSearchQuery('')
+  }
+
+  const hasActiveFilters = activeFilter !== 'all' || modelSearchQuery.length > 0
 
   return (
     <div className="space-y-6">
@@ -95,16 +123,94 @@ export default function EquipmentPage() {
         {/* Models List */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>
-              {selectedMake ? `${selectedMake.name} Models` : 'Select a Make'}
-            </CardTitle>
-            <CardDescription>
-              {selectedMake
-                ? `${models?.length || 0} models`
-                : 'Select a make to view its models'}
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>
+                  {selectedMake ? `${selectedMake.name} Models` : 'Select a Make'}
+                </CardTitle>
+                <CardDescription>
+                  {selectedMake
+                    ? `${searchFilteredModels?.length || 0} models`
+                    : 'Select a make to view its models'}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {selectedMakeId && (
+              <>
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Filters:</span>
+                  </div>
+
+                  {/* Search within models */}
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                    <Input
+                      placeholder="Search models..."
+                      value={modelSearchQuery}
+                      onChange={(e) => setModelSearchQuery(e.target.value)}
+                      className="pl-7 h-8 text-sm"
+                    />
+                  </div>
+
+                  {/* Filter dropdown */}
+                  <Select value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>
+                    <SelectTrigger className="w-[180px] h-8">
+                      <SelectValue placeholder="Filter by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Models</SelectItem>
+                      <SelectItem value="has_dimensions">Has Dimensions</SelectItem>
+                      <SelectItem value="no_dimensions">No Dimensions</SelectItem>
+                      <SelectItem value="has_image">Has Image</SelectItem>
+                      <SelectItem value="no_image">No Image</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {hasActiveFilters && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="h-8"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                {/* Active filters display */}
+                {hasActiveFilters && (
+                  <div className="flex items-center gap-2">
+                    {modelSearchQuery && (
+                      <Badge variant="secondary" className="gap-1">
+                        Search: "{modelSearchQuery}"
+                        <button onClick={() => setModelSearchQuery('')}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {activeFilter !== 'all' && (
+                      <Badge variant="secondary" className="gap-1">
+                        {activeFilter === 'has_dimensions' && 'Has Dimensions'}
+                        {activeFilter === 'no_dimensions' && 'No Dimensions'}
+                        {activeFilter === 'has_image' && 'Has Image'}
+                        {activeFilter === 'no_image' && 'No Image'}
+                        <button onClick={() => setActiveFilter('all')}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
             {!selectedMakeId ? (
               <div className="text-center py-10 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -112,9 +218,9 @@ export default function EquipmentPage() {
               </div>
             ) : modelsLoading ? (
               <div className="text-center py-10 text-muted-foreground">Loading models...</div>
-            ) : models?.length === 0 ? (
+            ) : searchFilteredModels?.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
-                <p>No models found for this make</p>
+                <p>No models found{modelSearchQuery ? ' matching your search' : ''}</p>
               </div>
             ) : (
               <div className="rounded-md border">
@@ -131,8 +237,8 @@ export default function EquipmentPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {models?.map((model) => (
-                      <ModelRow key={model.id} model={model} />
+                    {searchFilteredModels?.map((model) => (
+                      <ModelRow key={model.id} model={model} activeFilter={activeFilter} />
                     ))}
                   </TableBody>
                 </Table>
@@ -145,7 +251,7 @@ export default function EquipmentPage() {
   )
 }
 
-function ModelRow({ model }: { model: { id: string; name: string } }) {
+function ModelRow({ model, activeFilter }: { model: { id: string; name: string }; activeFilter: FilterType }) {
   const [expanded, setExpanded] = useState(false)
   const utils = trpc.useUtils()
 
@@ -166,6 +272,19 @@ function ModelRow({ model }: { model: { id: string; name: string } }) {
 
   const hasImages = dimensions?.front_image_url || dimensions?.side_image_url
   const imageCount = [dimensions?.front_image_url, dimensions?.side_image_url].filter(Boolean).length
+
+  const hasDimensions = dimensions && (
+    dimensions.length_inches > 0 ||
+    dimensions.width_inches > 0 ||
+    dimensions.height_inches > 0 ||
+    dimensions.weight_lbs > 0
+  )
+
+  // Apply filter
+  if (activeFilter === 'has_dimensions' && !hasDimensions) return null
+  if (activeFilter === 'no_dimensions' && hasDimensions) return null
+  if (activeFilter === 'has_image' && !hasImages) return null
+  if (activeFilter === 'no_image' && hasImages) return null
 
   const handleFrontImageChange = (url: string | null) => {
     updateImagesMutation.mutate({ modelId: model.id, frontImageUrl: url })
@@ -194,16 +313,16 @@ function ModelRow({ model }: { model: { id: string; name: string } }) {
         </TableCell>
         <TableCell className="font-medium">{model.name}</TableCell>
         <TableCell className="font-mono">
-          {dimensions ? formatDimension(dimensions.length_inches) : '-'}
+          {dimensions && dimensions.length_inches > 0 ? formatDimension(dimensions.length_inches) : '-'}
         </TableCell>
         <TableCell className="font-mono">
-          {dimensions ? formatDimension(dimensions.width_inches) : '-'}
+          {dimensions && dimensions.width_inches > 0 ? formatDimension(dimensions.width_inches) : '-'}
         </TableCell>
         <TableCell className="font-mono">
-          {dimensions ? formatDimension(dimensions.height_inches) : '-'}
+          {dimensions && dimensions.height_inches > 0 ? formatDimension(dimensions.height_inches) : '-'}
         </TableCell>
         <TableCell className="font-mono">
-          {dimensions ? formatWeight(dimensions.weight_lbs) : '-'}
+          {dimensions && dimensions.weight_lbs > 0 ? formatWeight(dimensions.weight_lbs) : '-'}
         </TableCell>
         <TableCell className="text-center">
           <div className="flex items-center justify-center gap-1">
