@@ -98,7 +98,7 @@
 **Priority**: MEDIUM
 **Location**: Supabase/PostgreSQL
 
-- [ ] Add indexes on frequently queried columns
+- [x] Add indexes on frequently queried columns (migration 008)
 - [ ] Optimize quote history queries
 - [ ] Add pagination to all list endpoints
 
@@ -158,3 +158,11 @@
 - Fixed setState-in-effect anti-patterns in settings pages
 - Escaped JSX special characters
 - Removed unused variables and function declarations
+- Added database indexes migration (008) for:
+  - Reminders (due_date, user_id, is_completed)
+  - Inland quotes (company_id, created_by)
+  - Quote history (created_by, expires_at)
+  - Quote drafts (user_id)
+  - Tickets (status, user_id)
+  - Quote status history (quote_id)
+  - Composite indexes for common query patterns
