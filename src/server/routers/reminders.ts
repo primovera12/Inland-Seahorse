@@ -247,4 +247,197 @@ export const remindersRouter = router({
       completed: completedCount || 0,
     }
   }),
+
+  // === Reminder Rules ===
+
+  // Get all rules
+  getRules: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('reminder_rules')
+      .select('*')
+      .eq('user_id', ctx.user.id)
+      .order('created_at', { ascending: false })
+
+    checkSupabaseError(error, 'Rule')
+    return data || []
+  }),
+
+  // Get single rule
+  getRuleById: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('reminder_rules')
+        .select('*')
+        .eq('id', input.id)
+        .eq('user_id', ctx.user.id)
+        .single()
+
+      checkSupabaseError(error, 'Rule')
+      assertDataExists(data, 'Rule')
+      return data
+    }),
+
+  // Create rule
+  createRule: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        trigger_event: z.enum([
+          'quote_sent',
+          'quote_viewed',
+          'quote_accepted',
+          'quote_rejected',
+          'quote_created',
+          'quote_expiring',
+          'company_created',
+          'contact_created',
+        ]),
+        delay_days: z.number().min(0).max(365).default(3),
+        delay_hours: z.number().min(0).max(23).default(0),
+        reminder_title: z.string().min(1),
+        reminder_description: z.string().optional(),
+        reminder_priority: z.enum(reminderPriorities).default('medium'),
+        applies_to: z.enum(['all', 'dismantle', 'inland']).default('all'),
+        is_active: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('reminder_rules')
+        .insert({
+          ...input,
+          user_id: ctx.user.id,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Rule')
+      return data
+    }),
+
+  // Update rule
+  updateRule: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        trigger_event: z.enum([
+          'quote_sent',
+          'quote_viewed',
+          'quote_accepted',
+          'quote_rejected',
+          'quote_created',
+          'quote_expiring',
+          'company_created',
+          'contact_created',
+        ]).optional(),
+        delay_days: z.number().min(0).max(365).optional(),
+        delay_hours: z.number().min(0).max(23).optional(),
+        reminder_title: z.string().min(1).optional(),
+        reminder_description: z.string().optional(),
+        reminder_priority: z.enum(reminderPriorities).optional(),
+        applies_to: z.enum(['all', 'dismantle', 'inland']).optional(),
+        is_active: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updates } = input
+
+      const { data, error } = await ctx.supabase
+        .from('reminder_rules')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', ctx.user.id)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Rule')
+      return data
+    }),
+
+  // Toggle rule active status
+  toggleRuleActive: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Get current state
+      const { data: current, error: fetchError } = await ctx.supabase
+        .from('reminder_rules')
+        .select('is_active')
+        .eq('id', input.id)
+        .eq('user_id', ctx.user.id)
+        .single()
+
+      checkSupabaseError(fetchError, 'Rule')
+      assertDataExists(current, 'Rule')
+
+      const { data, error } = await ctx.supabase
+        .from('reminder_rules')
+        .update({
+          is_active: !current.is_active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.id)
+        .eq('user_id', ctx.user.id)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Rule')
+      return data
+    }),
+
+  // Delete rule
+  deleteRule: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('reminder_rules')
+        .delete()
+        .eq('id', input.id)
+        .eq('user_id', ctx.user.id)
+
+      checkSupabaseError(error, 'Rule')
+      return { success: true }
+    }),
+
+  // Get rule execution history
+  getRuleExecutions: protectedProcedure
+    .input(
+      z.object({
+        ruleId: z.string().uuid().optional(),
+        limit: z.number().min(1).max(100).default(20),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      let query = ctx.supabase
+        .from('reminder_rule_executions')
+        .select(`
+          *,
+          rule:reminder_rules(id, name, trigger_event)
+        `)
+        .order('executed_at', { ascending: false })
+        .limit(input.limit)
+
+      if (input.ruleId) {
+        query = query.eq('rule_id', input.ruleId)
+      }
+
+      // Filter to only user's rules
+      const { data: userRules } = await ctx.supabase
+        .from('reminder_rules')
+        .select('id')
+        .eq('user_id', ctx.user.id)
+
+      const ruleIds = userRules?.map(r => r.id) || []
+      if (ruleIds.length > 0) {
+        query = query.in('rule_id', ruleIds)
+      }
+
+      const { data, error } = await query
+
+      checkSupabaseError(error, 'Execution')
+      return data || []
+    }),
 })

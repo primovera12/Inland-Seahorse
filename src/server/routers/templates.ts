@@ -3,12 +3,46 @@ import { router, protectedProcedure } from '../trpc/trpc'
 import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 export const templatesRouter = router({
-  // Get all templates
+  // Get all categories
+  getCategories: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('template_categories')
+      .select('*')
+      .order('display_order', { ascending: true })
+
+    checkSupabaseError(error, 'Category')
+    return data || []
+  }),
+
+  // Create category
+  createCategory: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        icon: z.string().default('folder'),
+        color: z.string().default('gray'),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('template_categories')
+        .insert(input)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Category')
+      return data
+    }),
+
+  // Get all templates with category filtering
   getAll: protectedProcedure
     .input(
       z.object({
         type: z.enum(['dismantle', 'inland']).optional(),
-        limit: z.number().min(1).max(50).default(20),
+        category: z.string().optional(),
+        search: z.string().optional(),
+        limit: z.number().min(1).max(100).default(50),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -20,6 +54,14 @@ export const templatesRouter = router({
 
       if (input.type) {
         query = query.eq('template_type', input.type)
+      }
+
+      if (input.category && input.category !== 'all') {
+        query = query.eq('category', input.category)
+      }
+
+      if (input.search) {
+        query = query.or(`name.ilike.%${input.search}%,description.ilike.%${input.search}%`)
       }
 
       const { data, error } = await query
@@ -50,6 +92,7 @@ export const templatesRouter = router({
         description: z.string().optional(),
         template_type: z.enum(['dismantle', 'inland']),
         template_data: z.record(z.string(), z.unknown()),
+        category: z.string().default('general'),
         is_default: z.boolean().default(false),
       })
     )
@@ -84,6 +127,7 @@ export const templatesRouter = router({
         name: z.string().min(1).optional(),
         description: z.string().optional(),
         template_data: z.record(z.string(), z.unknown()).optional(),
+        category: z.string().optional(),
         is_default: z.boolean().optional(),
       })
     )
@@ -158,5 +202,39 @@ export const templatesRouter = router({
       }
 
       return { success: true }
+    }),
+
+  // Duplicate template
+  duplicate: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Get the source template
+      const { data: source, error: fetchError } = await ctx.supabase
+        .from('quote_templates')
+        .select('*')
+        .eq('id', input.id)
+        .single()
+
+      checkSupabaseError(fetchError, 'Template')
+      assertDataExists(source, 'Template')
+
+      // Create duplicate with modified name
+      const { data, error } = await ctx.supabase
+        .from('quote_templates')
+        .insert({
+          name: `${source.name} (Copy)`,
+          description: source.description,
+          template_type: source.template_type,
+          template_data: source.template_data,
+          category: source.category || 'general',
+          is_default: false,
+          created_by: ctx.user.id,
+          use_count: 0,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Template')
+      return data
     }),
 })

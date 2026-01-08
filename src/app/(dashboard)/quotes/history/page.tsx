@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -50,6 +51,9 @@ import {
   Pencil,
   Copy,
   Link2,
+  CheckSquare,
+  X,
+  GitCompare,
 } from 'lucide-react'
 
 // Helper to check if quote is expiring soon (within 7 days)
@@ -77,6 +81,7 @@ export default function QuoteHistoryPage() {
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(0)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const limit = 20
 
   const { data, isLoading } = trpc.quotes.getHistory.useQuery({
@@ -131,6 +136,29 @@ export default function QuoteHistoryPage() {
     },
   })
 
+  // Batch operations
+  const batchUpdateStatus = trpc.quotes.batchUpdateStatus.useMutation({
+    onSuccess: (data) => {
+      utils.quotes.getHistory.invalidate()
+      setSelectedIds(new Set())
+      toast.success(`Updated ${data.updated} quotes`)
+    },
+    onError: (error) => {
+      toast.error('Failed to update quotes', { description: error.message })
+    },
+  })
+
+  const batchDelete = trpc.quotes.batchDelete.useMutation({
+    onSuccess: (data) => {
+      utils.quotes.getHistory.invalidate()
+      setSelectedIds(new Set())
+      toast.success(`Deleted ${data.deleted} quotes`)
+    },
+    onError: (error) => {
+      toast.error('Failed to delete quotes', { description: error.message })
+    },
+  })
+
   const quotes = data?.quotes || []
   const total = data?.total || 0
   const totalPages = Math.ceil(total / limit)
@@ -148,13 +176,55 @@ export default function QuoteHistoryPage() {
     )
   })
 
+  // Selection helpers
+  const allSelected = filteredQuotes.length > 0 && filteredQuotes.every(q => selectedIds.has(q.id))
+  const someSelected = selectedIds.size > 0 && !allSelected
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredQuotes.map(q => q.id)))
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds)
+    if (newSet.has(id)) {
+      newSet.delete(id)
+    } else {
+      newSet.add(id)
+    }
+    setSelectedIds(newSet)
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+  }
+
+  const handleBatchStatusChange = (status: QuoteStatus) => {
+    if (selectedIds.size === 0) return
+    batchUpdateStatus.mutate({ ids: Array.from(selectedIds), status })
+  }
+
+  const handleBatchDelete = () => {
+    if (selectedIds.size === 0) return
+    if (confirm(`Are you sure you want to delete ${selectedIds.size} quotes? This cannot be undone.`)) {
+      batchDelete.mutate({ ids: Array.from(selectedIds) })
+    }
+  }
+
   const handleExportCSV = () => {
-    if (filteredQuotes.length === 0) {
+    const quotesToExport = selectedIds.size > 0
+      ? filteredQuotes.filter(q => selectedIds.has(q.id))
+      : filteredQuotes
+
+    if (quotesToExport.length === 0) {
       toast.error('No quotes to export')
       return
     }
     exportToCSV(
-      filteredQuotes,
+      quotesToExport,
       [
         { key: 'quote_number', header: 'Quote #' },
         { key: 'customer_name', header: 'Customer Name' },
@@ -168,8 +238,10 @@ export default function QuoteHistoryPage() {
       ],
       `quotes-export-${new Date().toISOString().split('T')[0]}`
     )
-    toast.success(`Exported ${filteredQuotes.length} quotes`)
+    toast.success(`Exported ${quotesToExport.length} quotes`)
   }
+
+  const isBatchLoading = batchUpdateStatus.isPending || batchDelete.isPending
 
   return (
     <div className="space-y-6">
@@ -183,7 +255,7 @@ export default function QuoteHistoryPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportCSV} disabled={filteredQuotes.length === 0}>
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            Export CSV {selectedIds.size > 0 && `(${selectedIds.size})`}
           </Button>
           <Link href="/quotes/new">
             <Button>
@@ -193,6 +265,65 @@ export default function QuoteHistoryPage() {
           </Link>
         </div>
       </div>
+
+      {/* Batch Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="border-primary bg-primary/5">
+          <CardContent className="py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckSquare className="h-5 w-5 text-primary" />
+                <span className="font-medium">{selectedIds.size} selected</span>
+                <Button variant="ghost" size="sm" onClick={clearSelection}>
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={isBatchLoading}>
+                      Change Status
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleBatchStatusChange('draft')}>
+                      Mark as Draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBatchStatusChange('sent')}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Mark as Sent
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleBatchStatusChange('accepted')}
+                      className="text-green-600"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Mark as Accepted
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleBatchStatusChange('rejected')}
+                      className="text-red-600"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Mark as Rejected
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBatchDelete}
+                  disabled={isBatchLoading}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -253,6 +384,14 @@ export default function QuoteHistoryPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Select all"
+                          className={someSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                        />
+                      </TableHead>
                       <TableHead>Quote #</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Equipment</TableHead>
@@ -266,7 +405,17 @@ export default function QuoteHistoryPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredQuotes.map((quote) => (
-                      <TableRow key={quote.id}>
+                      <TableRow
+                        key={quote.id}
+                        className={selectedIds.has(quote.id) ? 'bg-primary/5' : ''}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(quote.id)}
+                            onCheckedChange={() => toggleSelect(quote.id)}
+                            aria-label={`Select ${quote.quote_number}`}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">
                           {quote.quote_number}
                         </TableCell>
@@ -345,6 +494,12 @@ export default function QuoteHistoryPage() {
                                 {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
                               </DropdownMenuItem>
                               <ShareLinkMenuItem quoteId={quote.id} />
+                              <DropdownMenuItem asChild>
+                                <Link href={`/quotes/${quote.id}/compare`}>
+                                  <GitCompare className="h-4 w-4 mr-2" />
+                                  Compare Versions
+                                </Link>
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                               {quote.status === 'draft' && (

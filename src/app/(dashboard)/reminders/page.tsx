@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +36,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleDot,
+  Zap,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { ReminderPriority } from '@/types/crm'
@@ -243,13 +245,20 @@ export default function RemindersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Follow-up Reminders</h1>
           <p className="text-muted-foreground">Track your follow-ups and never miss a deadline</p>
         </div>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Reminder
+        <div className="flex gap-2">
+          <Link href="/reminders/rules">
+            <Button variant="outline">
+              <Zap className="h-4 w-4 mr-2" />
+              Automation Rules
             </Button>
-          </DialogTrigger>
+          </Link>
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Reminder
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Create Follow-up Reminder</DialogTitle>
@@ -330,6 +339,7 @@ export default function RemindersPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Stats */}

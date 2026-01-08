@@ -15,6 +15,7 @@ import { notificationsRouter } from './notifications'
 import { importRouter } from './import'
 import { settingsRouter } from './settings'
 import { feedbackRouter } from './feedback'
+import { sequencesRouter } from './sequences'
 
 export const appRouter = router({
   user: userRouter,
@@ -34,6 +35,7 @@ export const appRouter = router({
   import: importRouter,
   settings: settingsRouter,
   feedback: feedbackRouter,
+  sequences: sequencesRouter,
 })
 
 export type AppRouter = typeof appRouter

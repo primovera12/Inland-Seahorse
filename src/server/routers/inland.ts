@@ -1008,4 +1008,201 @@ export const inlandRouter = router({
 
       return { url: data.signedUrl }
     }),
+
+  // Batch update status
+  batchUpdateStatus: protectedProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().uuid()).min(1).max(100),
+        status: z.enum(['draft', 'sent', 'accepted', 'rejected', 'expired']),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updateData: Record<string, unknown> = {
+        status: input.status,
+        updated_at: new Date().toISOString(),
+      }
+
+      // Set appropriate timestamp based on status
+      if (input.status === 'sent') {
+        updateData.sent_at = new Date().toISOString()
+        // Set expiration
+        const { data: settings } = await ctx.supabase
+          .from('company_settings')
+          .select('quote_validity_days')
+          .single()
+        const validityDays = settings?.quote_validity_days || 30
+        const expiresAt = new Date()
+        expiresAt.setDate(expiresAt.getDate() + validityDays)
+        updateData.expires_at = expiresAt.toISOString()
+      } else if (input.status === 'accepted') {
+        updateData.accepted_at = new Date().toISOString()
+      } else if (input.status === 'rejected') {
+        updateData.rejected_at = new Date().toISOString()
+      }
+
+      const { error } = await ctx.supabase
+        .from('inland_quotes')
+        .update(updateData)
+        .in('id', input.ids)
+
+      checkSupabaseError(error, 'Quote')
+
+      return { success: true, updated: input.ids.length }
+    }),
+
+  // Batch delete quotes
+  batchDelete: protectedProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().uuid()).min(1).max(100),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('inland_quotes')
+        .delete()
+        .in('id', input.ids)
+
+      checkSupabaseError(error, 'Quote')
+      return { success: true, deleted: input.ids.length }
+    }),
+
+  // Public endpoint to accept a quote with signature
+  publicAccept: publicProcedure
+    .input(
+      z.object({
+        token: z.string().uuid(),
+        signatureData: z.string().optional(),
+        signedBy: z.string().min(1),
+        signerEmail: z.string().email().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get the quote by token
+      const { data: quote, error: fetchError } = await ctx.supabase
+        .from('inland_quotes')
+        .select('id, status, quote_number')
+        .eq('public_token', input.token)
+        .single()
+
+      if (fetchError || !quote) {
+        throw new Error('Quote not found')
+      }
+
+      // Check if quote can be accepted
+      if (quote.status !== 'sent' && quote.status !== 'viewed') {
+        throw new Error('This quote cannot be accepted in its current state')
+      }
+
+      const now = new Date().toISOString()
+
+      // Update the quote
+      const { error: updateError } = await ctx.supabase
+        .from('inland_quotes')
+        .update({
+          status: 'accepted',
+          signature_data: input.signatureData,
+          signed_by: input.signedBy,
+          signed_at: now,
+          accepted_at: now,
+          updated_at: now,
+        })
+        .eq('id', quote.id)
+
+      if (updateError) {
+        throw new Error('Failed to accept quote')
+      }
+
+      // Record the response
+      await ctx.supabase.from('quote_responses').insert({
+        inland_quote_id: quote.id,
+        response_type: 'accepted',
+        signature_data: input.signatureData,
+        signed_by: input.signedBy,
+        signer_email: input.signerEmail,
+        notes: input.notes,
+      })
+
+      // Record status change
+      await ctx.supabase.from('quote_status_history').insert({
+        inland_quote_id: quote.id,
+        quote_type: 'inland',
+        previous_status: quote.status,
+        new_status: 'accepted',
+        changed_by: null,
+        changed_by_name: input.signedBy,
+        notes: 'Accepted via public link with signature',
+      })
+
+      return { success: true, quoteNumber: quote.quote_number }
+    }),
+
+  // Public endpoint to reject a quote
+  publicReject: publicProcedure
+    .input(
+      z.object({
+        token: z.string().uuid(),
+        rejectionReason: z.string().optional(),
+        respondentName: z.string().optional(),
+        respondentEmail: z.string().email().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get the quote by token
+      const { data: quote, error: fetchError } = await ctx.supabase
+        .from('inland_quotes')
+        .select('id, status, quote_number')
+        .eq('public_token', input.token)
+        .single()
+
+      if (fetchError || !quote) {
+        throw new Error('Quote not found')
+      }
+
+      // Check if quote can be rejected
+      if (quote.status !== 'sent' && quote.status !== 'viewed') {
+        throw new Error('This quote cannot be rejected in its current state')
+      }
+
+      const now = new Date().toISOString()
+
+      // Update the quote
+      const { error: updateError } = await ctx.supabase
+        .from('inland_quotes')
+        .update({
+          status: 'rejected',
+          rejection_reason: input.rejectionReason,
+          rejected_at: now,
+          updated_at: now,
+        })
+        .eq('id', quote.id)
+
+      if (updateError) {
+        throw new Error('Failed to reject quote')
+      }
+
+      // Record the response
+      await ctx.supabase.from('quote_responses').insert({
+        inland_quote_id: quote.id,
+        response_type: 'rejected',
+        signed_by: input.respondentName,
+        signer_email: input.respondentEmail,
+        rejection_reason: input.rejectionReason,
+      })
+
+      // Record status change
+      await ctx.supabase.from('quote_status_history').insert({
+        inland_quote_id: quote.id,
+        quote_type: 'inland',
+        previous_status: quote.status,
+        new_status: 'rejected',
+        changed_by: null,
+        changed_by_name: input.respondentName || 'Customer',
+        notes: input.rejectionReason ? `Rejected: ${input.rejectionReason}` : 'Rejected via public link',
+      })
+
+      return { success: true, quoteNumber: quote.quote_number }
+    }),
 })
