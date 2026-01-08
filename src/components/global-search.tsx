@@ -18,7 +18,6 @@ import {
   Truck,
   Building2,
   Users,
-  FileText,
   Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'

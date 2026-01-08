@@ -71,7 +71,7 @@ export default function InlandSettingsPage() {
   // Fuel Surcharge Index
   const [currentFuelPrice, setCurrentFuelPrice] = useState(3.85)
   const [baseFuelPrice, setBaseFuelPrice] = useState(2.50)
-  const [fuelSurchargeFormula, setFuelSurchargeFormula] = useState('linear') // linear, tiered
+  const [fuelSurchargeFormula] = useState('linear') // linear, tiered
   const [fuelPriceEffectiveDate, setFuelPriceEffectiveDate] = useState(
     new Date().toISOString().split('T')[0]
   )
@@ -328,8 +328,8 @@ export default function InlandSettingsPage() {
                     <div>
                       <p className="font-medium">{type.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        Max: {type.max_length_inches}"L x {type.max_width_inches}"W x{' '}
-                        {type.max_height_inches}"H, {type.max_weight_lbs?.toLocaleString()} lbs
+                        Max: {type.max_length_inches}&quot;L x {type.max_width_inches}&quot;W x{' '}
+                        {type.max_height_inches}&quot;H, {type.max_weight_lbs?.toLocaleString()} lbs
                       </p>
                     </div>
                     <Badge variant="outline">

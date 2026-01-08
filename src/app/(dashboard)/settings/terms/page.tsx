@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -13,33 +13,33 @@ import { Save, FileText, ArrowLeft, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export default function TermsSettingsPage() {
-  const [dismantleTerms, setDismantleTerms] = useState('')
-  const [inlandTerms, setInlandTerms] = useState('')
+  // Local state for user edits (null means use saved data)
+  const [localDismantleTerms, setLocalDismantleTerms] = useState<string | null>(null)
+  const [localInlandTerms, setLocalInlandTerms] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'dismantle' | 'inland'>('dismantle')
   const [hasChanges, setHasChanges] = useState(false)
 
   const utils = trpc.useUtils()
 
-  const { data: settings, isLoading } = trpc.settings.get.useQuery()
+  const { data: settings } = trpc.settings.get.useQuery()
+
+  // Derive actual values from local state or saved data
+  const dismantleTerms = localDismantleTerms ?? settings?.terms_dismantle ?? ''
+  const inlandTerms = localInlandTerms ?? settings?.terms_inland ?? ''
 
   const updateTermsMutation = trpc.settings.updateTerms.useMutation({
     onSuccess: (data) => {
       utils.settings.get.invalidate()
       toast.success(`Terms & Conditions updated (v${data.version})`)
       setHasChanges(false)
+      // Reset local state to use saved data
+      setLocalDismantleTerms(null)
+      setLocalInlandTerms(null)
     },
     onError: (error) => {
       toast.error('Failed to save: ' + error.message)
     },
   })
-
-  // Load initial values
-  useEffect(() => {
-    if (settings) {
-      setDismantleTerms(settings.terms_dismantle || '')
-      setInlandTerms(settings.terms_inland || '')
-    }
-  }, [settings])
 
   const handleSave = () => {
     const content = activeTab === 'dismantle' ? dismantleTerms : inlandTerms
@@ -52,13 +52,11 @@ export default function TermsSettingsPage() {
   const handleTermsChange = (value: string) => {
     setHasChanges(true)
     if (activeTab === 'dismantle') {
-      setDismantleTerms(value)
+      setLocalDismantleTerms(value)
     } else {
-      setInlandTerms(value)
+      setLocalInlandTerms(value)
     }
   }
-
-  const currentTerms = activeTab === 'dismantle' ? dismantleTerms : inlandTerms
 
   return (
     <div className="space-y-6">
