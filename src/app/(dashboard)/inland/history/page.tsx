@@ -45,6 +45,8 @@ import {
   CheckCircle2,
   XCircle,
   Download,
+  Copy,
+  Link2,
 } from 'lucide-react'
 
 type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
@@ -96,6 +98,24 @@ export default function InlandHistoryPage() {
     onSuccess: () => {
       utils.inland.getHistory.invalidate()
       toast.success('Quote marked as rejected')
+    },
+  })
+
+  const cloneQuote = trpc.inland.clone.useMutation({
+    onSuccess: (data) => {
+      utils.inland.getHistory.invalidate()
+      toast.success('Quote cloned', {
+        description: `New quote ${data.quote_number} created`,
+        action: {
+          label: 'Edit',
+          onClick: () => window.location.href = `/inland/${data.id}/edit`,
+        },
+      })
+    },
+    onError: (error) => {
+      toast.error('Failed to clone quote', {
+        description: error.message,
+      })
     },
   })
 
@@ -254,6 +274,14 @@ export default function InlandHistoryPage() {
                                 <Eye className="h-4 w-4 mr-2" />
                                 View Quote
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => cloneQuote.mutate({ id: quote.id })}
+                                disabled={cloneQuote.isPending}
+                              >
+                                <Copy className="h-4 w-4 mr-2" />
+                                {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
+                              </DropdownMenuItem>
+                              <ShareLinkMenuItem quoteId={quote.id} />
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                               {quote.status === 'draft' && (
@@ -337,5 +365,32 @@ export default function InlandHistoryPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function ShareLinkMenuItem({ quoteId }: { quoteId: string }) {
+  const { data, isLoading } = trpc.inland.getPublicLink.useQuery({ id: quoteId })
+
+  const copyShareLink = async () => {
+    if (!data?.token) {
+      toast.error('Failed to get share link')
+      return
+    }
+    const url = `${window.location.origin}/quote/${data.token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Share link copied!', {
+        description: 'Customers can view the quote using this link.',
+      })
+    } catch {
+      toast.error('Failed to copy link')
+    }
+  }
+
+  return (
+    <DropdownMenuItem onClick={copyShareLink} disabled={isLoading}>
+      <Link2 className="h-4 w-4 mr-2" />
+      {isLoading ? 'Loading...' : 'Copy Share Link'}
+    </DropdownMenuItem>
   )
 }

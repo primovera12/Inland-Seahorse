@@ -121,6 +121,95 @@ export const activityRouter = router({
       return { success: true }
     }),
 
+  // Get comprehensive timeline for a company (combines activities, quotes, and status changes)
+  getCompanyTimeline: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.string().uuid(),
+        limit: z.number().min(1).max(100).default(50),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      type TimelineEvent = {
+        id: string
+        type: 'activity' | 'dismantle_quote' | 'inland_quote' | 'status_change'
+        title: string
+        description?: string
+        status?: string
+        amount?: number
+        created_at: string
+        metadata?: Record<string, unknown>
+      }
+
+      const timeline: TimelineEvent[] = []
+
+      // Get activities
+      const { data: activities } = await ctx.supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('company_id', input.companyId)
+        .order('created_at', { ascending: false })
+        .limit(input.limit)
+
+      activities?.forEach((activity) => {
+        timeline.push({
+          id: activity.id,
+          type: 'activity',
+          title: activity.subject,
+          description: activity.description,
+          created_at: activity.created_at,
+          metadata: {
+            activity_type: activity.activity_type,
+          },
+        })
+      })
+
+      // Get dismantle quotes
+      const { data: dismantleQuotes } = await ctx.supabase
+        .from('quote_history')
+        .select('id, quote_number, status, customer_name, make_name, model_name, total, created_at')
+        .eq('company_id', input.companyId)
+        .order('created_at', { ascending: false })
+        .limit(input.limit)
+
+      dismantleQuotes?.forEach((quote) => {
+        timeline.push({
+          id: quote.id,
+          type: 'dismantle_quote',
+          title: `Quote ${quote.quote_number}`,
+          description: `${quote.make_name} ${quote.model_name}`,
+          status: quote.status,
+          amount: quote.total,
+          created_at: quote.created_at,
+        })
+      })
+
+      // Get inland quotes
+      const { data: inlandQuotes } = await ctx.supabase
+        .from('inland_quotes')
+        .select('id, quote_number, status, customer_name, origin_city, origin_state, destination_city, destination_state, total, created_at')
+        .eq('company_id', input.companyId)
+        .order('created_at', { ascending: false })
+        .limit(input.limit)
+
+      inlandQuotes?.forEach((quote) => {
+        timeline.push({
+          id: quote.id,
+          type: 'inland_quote',
+          title: `Inland Quote ${quote.quote_number}`,
+          description: `${quote.origin_city}, ${quote.origin_state} → ${quote.destination_city}, ${quote.destination_state}`,
+          status: quote.status,
+          amount: quote.total,
+          created_at: quote.created_at,
+        })
+      })
+
+      // Sort by date descending and limit
+      timeline.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+      return timeline.slice(0, input.limit)
+    }),
+
   // Get activity stats
   getStats: protectedProcedure.query(async ({ ctx }) => {
     // Get activity counts by type for this month

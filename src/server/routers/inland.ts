@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, publicProcedure } from '../trpc/trpc'
 import { generateInlandQuoteNumber } from '@/lib/utils'
 import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
@@ -178,6 +178,77 @@ export const inlandRouter = router({
 
       checkSupabaseError(error, 'Inland quote')
       return data
+    }),
+
+  // Get quote by public token (public endpoint for customers)
+  getByPublicToken: publicProcedure
+    .input(z.object({ token: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('inland_quotes')
+        .select('*')
+        .eq('public_token', input.token)
+        .single()
+
+      if (error || !data) {
+        return null
+      }
+
+      // Mark as viewed if it was sent (customer is viewing it)
+      if (data.status === 'sent') {
+        await ctx.supabase
+          .from('inland_quotes')
+          .update({
+            status: 'viewed',
+            viewed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', data.id)
+
+        // Record status change
+        await ctx.supabase.from('quote_status_history').insert({
+          quote_id: data.id,
+          quote_type: 'inland',
+          previous_status: 'sent',
+          new_status: 'viewed',
+          changed_by: null,
+          changed_by_name: 'Customer',
+          notes: 'Viewed via public link',
+        })
+
+        data.status = 'viewed'
+      }
+
+      return data
+    }),
+
+  // Get public link for a quote
+  getPublicLink: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('inland_quotes')
+        .select('public_token')
+        .eq('id', input.id)
+        .single()
+
+      checkSupabaseError(error, 'Inland quote')
+      return { token: data?.public_token }
+    }),
+
+  // Regenerate public token for a quote
+  regeneratePublicToken: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('inland_quotes')
+        .update({ public_token: crypto.randomUUID() })
+        .eq('id', input.id)
+        .select('public_token')
+        .single()
+
+      checkSupabaseError(error, 'Inland quote')
+      return { token: data?.public_token }
     }),
 
   // Create quote
@@ -649,6 +720,88 @@ export const inlandRouter = router({
       return newQuote
     }),
 
+  // Clone a quote (create independent copy with new quote number)
+  clone: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Get the source quote
+      const { data: sourceQuote, error: fetchError } = await ctx.supabase
+        .from('inland_quotes')
+        .select('*')
+        .eq('id', input.id)
+        .single()
+
+      checkSupabaseError(fetchError, 'Inland quote')
+      assertDataExists(sourceQuote, 'Source quote')
+
+      // Generate new quote number
+      const newQuoteNumber = generateInlandQuoteNumber()
+
+      // Create the cloned quote (independent, not a revision)
+      const { data: clonedQuote, error: createError } = await ctx.supabase
+        .from('inland_quotes')
+        .insert({
+          // Copy core data
+          customer_name: sourceQuote.customer_name,
+          customer_email: sourceQuote.customer_email,
+          customer_phone: sourceQuote.customer_phone,
+          customer_company: sourceQuote.customer_company,
+          company_id: sourceQuote.company_id,
+          contact_id: sourceQuote.contact_id,
+          // Copy location data
+          origin_address: sourceQuote.origin_address,
+          origin_city: sourceQuote.origin_city,
+          origin_state: sourceQuote.origin_state,
+          origin_zip: sourceQuote.origin_zip,
+          origin_place_id: sourceQuote.origin_place_id,
+          destination_address: sourceQuote.destination_address,
+          destination_city: sourceQuote.destination_city,
+          destination_state: sourceQuote.destination_state,
+          destination_zip: sourceQuote.destination_zip,
+          destination_place_id: sourceQuote.destination_place_id,
+          distance_miles: sourceQuote.distance_miles,
+          // Copy pricing data
+          subtotal: sourceQuote.subtotal,
+          margin_percentage: sourceQuote.margin_percentage,
+          margin_amount: sourceQuote.margin_amount,
+          total: sourceQuote.total,
+          // Copy quote data (equipment, accessorials, etc.)
+          quote_data: sourceQuote.quote_data,
+          notes: sourceQuote.notes,
+          // New quote metadata
+          quote_number: newQuoteNumber,
+          status: 'draft',
+          version: 1,
+          parent_quote_id: null, // Independent quote, not a revision
+          is_latest_version: true,
+          created_by: ctx.user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          // Reset timestamps
+          sent_at: null,
+          expires_at: null,
+          accepted_at: null,
+          rejected_at: null,
+          viewed_at: null,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(createError, 'Inland quote')
+
+      // Record in status history
+      await ctx.supabase.from('quote_status_history').insert({
+        quote_id: clonedQuote.id,
+        quote_type: 'inland',
+        previous_status: null,
+        new_status: 'draft',
+        changed_by: ctx.user.id,
+        notes: `Cloned from ${sourceQuote.quote_number}`,
+      })
+
+      return clonedQuote
+    }),
+
   // Get all versions of a quote
   getVersions: protectedProcedure
     .input(z.object({ quoteId: z.string().uuid() }))
@@ -766,5 +919,93 @@ export const inlandRouter = router({
         quote2: { id: quote2.id, version: quote2.version, quote_number: quote2.quote_number },
         differences,
       }
+    }),
+
+  // Get attachments for an inland quote
+  getAttachments: protectedProcedure
+    .input(z.object({ quoteId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_attachments')
+        .select('*')
+        .eq('inland_quote_id', input.quoteId)
+        .order('uploaded_at', { ascending: false })
+
+      checkSupabaseError(error, 'Attachment')
+      return data || []
+    }),
+
+  // Add attachment metadata (file is uploaded directly to storage via client)
+  addAttachment: protectedProcedure
+    .input(
+      z.object({
+        quoteId: z.string().uuid(),
+        fileName: z.string(),
+        filePath: z.string(),
+        fileSize: z.number(),
+        fileType: z.string(),
+        description: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_attachments')
+        .insert({
+          inland_quote_id: input.quoteId,
+          file_name: input.fileName,
+          file_path: input.filePath,
+          file_size: input.fileSize,
+          file_type: input.fileType,
+          description: input.description,
+          uploaded_by: ctx.user.id,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Attachment')
+      return data
+    }),
+
+  // Delete attachment
+  deleteAttachment: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Get attachment to delete file from storage
+      const { data: attachment } = await ctx.supabase
+        .from('quote_attachments')
+        .select('file_path')
+        .eq('id', input.id)
+        .single()
+
+      if (attachment?.file_path) {
+        // Delete from storage
+        await ctx.supabase.storage
+          .from('quote-attachments')
+          .remove([attachment.file_path])
+      }
+
+      // Delete from database
+      const { error } = await ctx.supabase
+        .from('quote_attachments')
+        .delete()
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Attachment')
+      return { success: true }
+    }),
+
+  // Get signed URL for downloading attachment
+  getAttachmentUrl: protectedProcedure
+    .input(z.object({ filePath: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase.storage
+        .from('quote-attachments')
+        .createSignedUrl(input.filePath, 3600) // 1 hour expiry
+
+      if (error) {
+        throw new Error('Failed to generate download URL')
+      }
+
+      return { url: data.signedUrl }
     }),
 })

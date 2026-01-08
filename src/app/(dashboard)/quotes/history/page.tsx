@@ -48,6 +48,8 @@ import {
   Clock,
   AlertTriangle,
   Pencil,
+  Copy,
+  Link2,
 } from 'lucide-react'
 
 // Helper to check if quote is expiring soon (within 7 days)
@@ -110,6 +112,22 @@ export default function QuoteHistoryPage() {
     onSuccess: () => {
       utils.quotes.getHistory.invalidate()
       toast.success('Quote marked as rejected')
+    },
+  })
+
+  const cloneQuote = trpc.quotes.clone.useMutation({
+    onSuccess: (data) => {
+      utils.quotes.getHistory.invalidate()
+      toast.success('Quote cloned', {
+        description: `New quote ${data.quote_number} created`,
+        action: {
+          label: 'Edit',
+          onClick: () => window.location.href = `/quotes/${data.id}/edit`,
+        },
+      })
+    },
+    onError: (error) => {
+      toast.error('Failed to clone quote', { description: error.message })
     },
   })
 
@@ -319,6 +337,14 @@ export default function QuoteHistoryPage() {
                                   Edit Quote
                                 </Link>
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => cloneQuote.mutate({ id: quote.id })}
+                                disabled={cloneQuote.isPending}
+                              >
+                                <Copy className="h-4 w-4 mr-2" />
+                                {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
+                              </DropdownMenuItem>
+                              <ShareLinkMenuItem quoteId={quote.id} />
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                               {quote.status === 'draft' && (
@@ -401,5 +427,32 @@ export default function QuoteHistoryPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function ShareLinkMenuItem({ quoteId }: { quoteId: string }) {
+  const { data, isLoading } = trpc.quotes.getPublicLink.useQuery({ id: quoteId })
+
+  const copyShareLink = async () => {
+    if (!data?.token) {
+      toast.error('Failed to get share link')
+      return
+    }
+    const url = `${window.location.origin}/quote/${data.token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Share link copied!', {
+        description: 'Customers can view the quote using this link.',
+      })
+    } catch {
+      toast.error('Failed to copy link')
+    }
+  }
+
+  return (
+    <DropdownMenuItem onClick={copyShareLink} disabled={isLoading}>
+      <Link2 className="h-4 w-4 mr-2" />
+      {isLoading ? 'Loading...' : 'Copy Share Link'}
+    </DropdownMenuItem>
   )
 }

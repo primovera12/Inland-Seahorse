@@ -31,7 +31,10 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Plus, Building2, Phone, MapPin, Eye, Edit } from 'lucide-react'
+import { Search, Plus, Building2, Phone, MapPin, Eye, Edit, History } from 'lucide-react'
+import { CompanyTimeline } from '@/components/crm/company-timeline'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
 
 type CompanyStatus = 'active' | 'inactive' | 'prospect' | 'lead' | 'vip'
@@ -48,6 +51,7 @@ export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<CompanyStatus | 'all'>('all')
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [newCompany, setNewCompany] = useState({
     name: '',
     phone: '',
@@ -298,7 +302,12 @@ export default function CompaniesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" title="View company">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View company"
+                            onClick={() => setSelectedCompanyId(company.id)}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" title="Edit company">
@@ -314,6 +323,134 @@ export default function CompaniesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Company Detail Dialog */}
+      <Dialog open={!!selectedCompanyId} onOpenChange={(open) => !open && setSelectedCompanyId(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          {selectedCompanyId && (
+            <CompanyDetailDialog
+              companyId={selectedCompanyId}
+              onClose={() => setSelectedCompanyId(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+function CompanyDetailDialog({
+  companyId,
+  onClose,
+}: {
+  companyId: string
+  onClose: () => void
+}) {
+  const { data: company, isLoading } = trpc.companies.getById.useQuery({ id: companyId })
+
+  if (isLoading) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        Loading company details...
+      </div>
+    )
+  }
+
+  if (!company) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        Company not found
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          {company.name}
+        </DialogTitle>
+        <DialogDescription>
+          {company.city && company.state
+            ? `${company.city}, ${company.state}`
+            : 'Company details and activity'}
+        </DialogDescription>
+      </DialogHeader>
+
+      <Tabs defaultValue="timeline" className="mt-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="timeline">
+            <History className="h-4 w-4 mr-2" />
+            Activity Timeline
+          </TabsTrigger>
+          <TabsTrigger value="details">
+            <Building2 className="h-4 w-4 mr-2" />
+            Details
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="timeline" className="mt-4">
+          <ScrollArea className="h-[400px] pr-4">
+            <CompanyTimeline companyId={companyId} />
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="details" className="mt-4">
+          <div className="space-y-4">
+            {company.phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span>{company.phone}</span>
+              </div>
+            )}
+            {company.address && (
+              <div className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p>{company.address}</p>
+                  {company.city && company.state && (
+                    <p className="text-muted-foreground">
+                      {company.city}, {company.state} {company.zip}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {company.industry && (
+              <div>
+                <p className="text-sm text-muted-foreground">Industry</p>
+                <p>{company.industry}</p>
+              </div>
+            )}
+            {company.contacts && company.contacts.length > 0 && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Contacts</p>
+                <div className="space-y-2">
+                  {company.contacts.map((contact: { id: string; first_name: string; last_name: string; email?: string; is_primary?: boolean }) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between text-sm p-2 rounded bg-muted/50"
+                    >
+                      <span>
+                        {contact.first_name} {contact.last_name}
+                        {contact.is_primary && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            Primary
+                          </Badge>
+                        )}
+                      </span>
+                      {contact.email && (
+                        <span className="text-muted-foreground">{contact.email}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </>
   )
 }
