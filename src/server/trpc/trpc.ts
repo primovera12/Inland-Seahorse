@@ -3,6 +3,7 @@ import superjson from 'superjson'
 import { ZodError } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import type { User } from '@/types/auth'
+import { checkRateLimit, RATE_LIMITS, type RateLimitConfig } from '@/lib/rate-limiter'
 
 export type Context = {
   user: User | null
@@ -69,3 +70,61 @@ const isAuthed = middleware(async ({ ctx, next }) => {
 })
 
 export const protectedProcedure = t.procedure.use(isAuthed)
+
+// Rate limiting middleware factory for public procedures
+const createPublicRateLimiter = (config: RateLimitConfig) =>
+  middleware(async ({ ctx, next }) => {
+    const identifier = ctx.user?.id || 'anonymous'
+    const result = checkRateLimit(identifier, config)
+
+    if (!result.success) {
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: `Rate limit exceeded. Try again in ${Math.ceil((result.resetAt - Date.now()) / 1000)} seconds.`,
+      })
+    }
+
+    return next({ ctx })
+  })
+
+// Combined auth + rate limit middleware for protected procedures
+const createAuthedRateLimiter = (config: RateLimitConfig) =>
+  middleware(async ({ ctx, next }) => {
+    if (!ctx.user) {
+      throw new TRPCError({ code: 'UNAUTHORIZED' })
+    }
+
+    const result = checkRateLimit(ctx.user.id, config)
+
+    if (!result.success) {
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: `Rate limit exceeded. Try again in ${Math.ceil((result.resetAt - Date.now()) / 1000)} seconds.`,
+      })
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+      },
+    })
+  })
+
+// Pre-configured rate-limited procedures
+export const rateLimitedProcedure = {
+  // For sensitive auth-related operations (public, but rate limited)
+  auth: t.procedure.use(createPublicRateLimiter(RATE_LIMITS.auth)),
+
+  // For creating resources (protected + rate limited)
+  create: t.procedure.use(createAuthedRateLimiter(RATE_LIMITS.create)),
+
+  // For email sending operations (protected + rate limited)
+  email: t.procedure.use(createAuthedRateLimiter(RATE_LIMITS.email)),
+
+  // For feedback/ticket submissions (protected + rate limited)
+  feedback: t.procedure.use(createAuthedRateLimiter(RATE_LIMITS.feedback)),
+}
+
+// Export rate limit configs for custom usage
+export { RATE_LIMITS }

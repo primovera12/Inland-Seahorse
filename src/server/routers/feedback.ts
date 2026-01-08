@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, rateLimitedProcedure } from '../trpc/trpc'
 import { Resend } from 'resend'
 
 // Lazy initialization to avoid build-time errors when API key is not set
@@ -12,8 +12,8 @@ const getResend = () => {
 }
 
 export const feedbackRouter = router({
-  // Submit a new ticket
-  submit: protectedProcedure
+  // Submit a new ticket (rate limited: 5 per 5 minutes)
+  submit: rateLimitedProcedure.feedback
     .input(
       z.object({
         type: z.enum(['bug', 'feature', 'enhancement', 'question']),

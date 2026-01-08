@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, rateLimitedProcedure } from '../trpc/trpc'
 
 export const emailRouter = router({
-  // Send quote via email
-  sendQuote: protectedProcedure
+  // Send quote via email (rate limited: 10 per minute)
+  sendQuote: rateLimitedProcedure.email
     .input(
       z.object({
         quoteId: z.string().uuid(),

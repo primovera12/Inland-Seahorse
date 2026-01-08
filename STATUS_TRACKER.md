@@ -80,7 +80,7 @@
 **Location**: Auth system
 
 - [ ] Enable 2FA enforcement option in settings
-- [ ] Add rate limiting on API endpoints
+- [x] Add rate limiting on API endpoints
 - [ ] Add CSRF protection
 
 ### 7. Data Encryption
@@ -152,6 +152,10 @@
 
 ### 2026-01-07
 
+- Added rate limiting middleware for API security:
+  - In-memory rate limiter utility (src/lib/rate-limiter.ts)
+  - Rate-limited procedures for sensitive endpoints
+  - Applied to feedback.submit (5/5min) and email.sendQuote (10/min)
 - Added pagination to high-priority endpoints:
   - activity.getByCompany (with offset and total count)
   - contacts.getByCompany (with limit, offset, total count)
