@@ -47,6 +47,7 @@ import {
   Download,
   Clock,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react'
 
 // Helper to check if quote is expiring soon (within 7 days)
@@ -311,6 +312,12 @@ export default function QuoteHistoryPage() {
                               <DropdownMenuItem>
                                 <Eye className="h-4 w-4 mr-2" />
                                 View Quote
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/quotes/${quote.id}/edit`}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit Quote
+                                </Link>
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>Change Status</DropdownMenuLabel>

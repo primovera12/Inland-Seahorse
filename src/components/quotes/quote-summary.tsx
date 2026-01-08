@@ -13,6 +13,9 @@ interface QuoteSummaryProps {
   subtotal: number
   total: number
   equipmentBlocks?: EquipmentBlock[]
+  costsSubtotal?: number
+  miscFeesTotal?: number
+  inlandTransportCost?: number
 }
 
 export function QuoteSummary({
@@ -22,6 +25,9 @@ export function QuoteSummary({
   subtotal,
   total,
   equipmentBlocks,
+  costsSubtotal,
+  miscFeesTotal,
+  inlandTransportCost,
 }: QuoteSummaryProps) {
   return (
     <Card className="sticky top-20">
@@ -76,7 +82,25 @@ export function QuoteSummary({
         <Separator />
 
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          {costsSubtotal !== undefined && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Equipment Costs</span>
+              <span className="font-mono">{formatCurrency(costsSubtotal)}</span>
+            </div>
+          )}
+          {miscFeesTotal !== undefined && miscFeesTotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Fees</span>
+              <span className="font-mono">{formatCurrency(miscFeesTotal)}</span>
+            </div>
+          )}
+          {inlandTransportCost !== undefined && inlandTransportCost > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Inland Transport</span>
+              <span className="font-mono">{formatCurrency(inlandTransportCost)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm font-medium pt-1 border-t">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-mono">{formatCurrency(subtotal)}</span>
           </div>

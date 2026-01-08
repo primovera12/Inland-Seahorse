@@ -157,8 +157,12 @@ export interface EquipmentBlock {
   enabled_costs: Record<CostField, boolean>
   cost_overrides: Record<CostField, number | null>
 
+  // Miscellaneous fees (per equipment)
+  misc_fees?: MiscellaneousFee[]
+
   // Calculated
   subtotal: number
+  misc_fees_total?: number
   total_with_quantity: number
 }
 

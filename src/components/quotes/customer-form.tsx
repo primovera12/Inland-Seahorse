@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Building2, ClipboardPaste, Users, ChevronDown } from 'lucide-react'
+import { AddressAutocomplete, type AddressComponents } from '@/components/ui/address-autocomplete'
+import { Search, Building2, ClipboardPaste, Users } from 'lucide-react'
 import { EmailSignatureDialog } from './email-signature-dialog'
 import type { ParsedSignature } from '@/lib/email-signature-parser'
 
@@ -386,11 +387,21 @@ export function CustomerForm({
             <>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="customerAddress">Street Address</Label>
-                <Input
+                <AddressAutocomplete
                   id="customerAddress"
-                  placeholder="123 Main St"
+                  placeholder="Start typing an address..."
                   value={addressObj.address}
-                  onChange={(e) => updateCustomerAddressField('address', e.target.value)}
+                  onChange={(value) => updateCustomerAddressField('address', value)}
+                  onSelect={(components) => {
+                    if (onCustomerAddressChange) {
+                      onCustomerAddressChange({
+                        address: components.address,
+                        city: components.city || addressObj.city,
+                        state: components.state || addressObj.state,
+                        zip: components.zip || addressObj.zip,
+                      })
+                    }
+                  }}
                 />
               </div>
 

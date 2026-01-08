@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -17,13 +18,11 @@ import { InlandTransportForm, initialInlandTransportData, type InlandTransportDa
 import { trpc } from '@/lib/trpc/client'
 import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
-import { generateQuoteNumber, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { FileDown, Eye, Plus, Layers, MonitorPlay, Loader2, Mail, Save, Trash2, FolderOpen, Truck } from 'lucide-react'
+import { FileDown, Eye, Plus, Layers, MonitorPlay, Loader2, Mail, ArrowLeft, Truck } from 'lucide-react'
 import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
-import { useAutoSave } from '@/hooks/use-auto-save'
-import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 
 type CostState = Record<CostField, number>
 type EnabledState = Record<CostField, boolean>
@@ -60,7 +59,15 @@ function createEmptyEquipmentBlock(): EquipmentBlock {
   }
 }
 
-export default function NewQuotePage() {
+export default function EditQuotePage() {
+  const params = useParams()
+  const router = useRouter()
+  const quoteId = params.id as string
+
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false)
+
   // Multi-equipment mode
   const [isMultiEquipment, setIsMultiEquipment] = useState(false)
   const [equipmentBlocks, setEquipmentBlocks] = useState<EquipmentBlock[]>([
@@ -133,141 +140,128 @@ export default function NewQuotePage() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Email & Template dialogs
+  // Email dialog
   const [showEmailDialog, setShowEmailDialog] = useState(false)
-  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
 
-  // Draft management
-  const [draftLoaded, setDraftLoaded] = useState(false)
-  const [hasDraft, setHasDraft] = useState(false)
+  // Fetch existing quote data
+  const { data: quote, isLoading: isLoadingQuote } = trpc.quotes.getById.useQuery(
+    { id: quoteId },
+    { enabled: !!quoteId }
+  )
 
-  // Auto-save draft data
-  const draftData = useMemo(() => ({
-    quoteNumber,
-    isMultiEquipment,
-    equipmentBlocks,
-    selectedMakeId,
-    selectedModelId,
-    selectedLocation,
-    makeName,
-    modelName,
-    dimensions,
-    costs,
-    enabledCosts,
-    costOverrides,
-    descriptionOverrides,
-    customerName,
-    customerEmail,
-    customerPhone,
-    customerCompany,
-    customerAddress,
-    notes,
-    miscFees,
-    inlandTransport,
-  }), [
-    quoteNumber, isMultiEquipment, equipmentBlocks, selectedMakeId, selectedModelId,
-    selectedLocation, makeName, modelName, dimensions, costs, enabledCosts, costOverrides,
-    descriptionOverrides, customerName, customerEmail, customerPhone,
-    customerCompany, customerAddress, notes, miscFees, inlandTransport
-  ])
+  // Fetch settings for quote validity
+  const { data: settings } = trpc.settings.get.useQuery()
 
-  // Save draft mutation
-  const saveDraftMutation = trpc.quotes.saveDraft.useMutation()
-
-  // Get existing draft
-  const { data: existingDraft } = trpc.quotes.getDraft.useQuery(undefined, {
-    enabled: !draftLoaded,
-  })
-
-  // Delete draft mutation
-  const deleteDraftMutation = trpc.quotes.deleteDraft.useMutation({
-    onSuccess: () => {
-      setHasDraft(false)
-      toast.success('Draft discarded')
-    },
-  })
-
-  // Load draft data on mount
+  // Load quote data into state
   useEffect(() => {
-    if (existingDraft && !draftLoaded) {
-      const data = existingDraft.quote_data as typeof draftData
-      if (data) {
-        // Load all the draft data into state
-        if (data.quoteNumber) setQuoteNumber(data.quoteNumber)
-        if (data.isMultiEquipment !== undefined) setIsMultiEquipment(data.isMultiEquipment)
-        if (data.equipmentBlocks) setEquipmentBlocks(data.equipmentBlocks)
-        if (data.selectedMakeId) setSelectedMakeId(data.selectedMakeId)
-        if (data.selectedModelId) setSelectedModelId(data.selectedModelId)
-        if (data.selectedLocation) setSelectedLocation(data.selectedLocation)
-        if (data.makeName) setMakeName(data.makeName)
-        if (data.modelName) setModelName(data.modelName)
-        if (data.dimensions) setDimensions(data.dimensions)
-        if (data.costs) setCosts(data.costs)
-        if (data.enabledCosts) setEnabledCosts(data.enabledCosts)
-        if (data.costOverrides) setCostOverrides(data.costOverrides)
-        if (data.descriptionOverrides) setDescriptionOverrides(data.descriptionOverrides)
-        if (data.customerName) setCustomerName(data.customerName)
-        if (data.customerEmail) setCustomerEmail(data.customerEmail)
-        if (data.customerPhone) setCustomerPhone(data.customerPhone)
-        if (data.customerCompany) setCustomerCompany(data.customerCompany)
-        if (data.customerAddress) setCustomerAddress(data.customerAddress)
-        if (data.notes) setNotes(data.notes)
-        if (data.miscFees) setMiscFees(data.miscFees)
-        if (data.inlandTransport) setInlandTransport(data.inlandTransport)
+    if (quote && !dataLoaded) {
+      // Basic quote info
+      setQuoteNumber(quote.quote_number)
+      setMakeName(quote.make_name || '')
+      setModelName(quote.model_name || '')
+      setSelectedLocation(quote.location as LocationName)
+      if (quote.make_id) setSelectedMakeId(quote.make_id)
+      if (quote.model_id) setSelectedModelId(quote.model_id)
 
-        setHasDraft(true)
-        toast.info('Draft loaded', { description: 'Your previous draft has been restored' })
+      // Customer info
+      setCustomerName(quote.customer_name || '')
+      setCustomerEmail(quote.customer_email || '')
+      setCustomerPhone(quote.customer_phone || '')
+      setCustomerCompany(quote.customer_company || '')
+      if (quote.company_id) setSelectedCompanyId(quote.company_id)
+
+      // Parse customer address if stored as string
+      if (quote.customer_address) {
+        // Try to parse the address string back into components
+        const parts = quote.customer_address.split(', ')
+        if (parts.length >= 1) {
+          setCustomerAddress({
+            address: parts[0] || '',
+            city: parts[1] || '',
+            state: parts[2] || '',
+            zip: parts[3] || '',
+          })
+        }
       }
-      setDraftLoaded(true)
-    } else if (!existingDraft && !draftLoaded) {
-      setDraftLoaded(true)
+
+      // Load quote_data (costs, enabled costs, overrides, misc fees, notes, dimensions, inland)
+      const quoteData = quote.quote_data as {
+        costs?: CostState
+        enabledCosts?: EnabledState
+        costOverrides?: Record<CostField, number | null>
+        descriptionOverrides?: Record<CostField, string | null>
+        miscFees?: MiscellaneousFee[]
+        notes?: string
+        dimensions?: typeof dimensions
+        isMultiEquipment?: boolean
+        equipmentBlocks?: EquipmentBlock[]
+        inlandTransport?: InlandTransportData
+      }
+
+      if (quoteData) {
+        if (quoteData.costs) setCosts(quoteData.costs)
+        if (quoteData.enabledCosts) setEnabledCosts(quoteData.enabledCosts)
+        if (quoteData.costOverrides) setCostOverrides(quoteData.costOverrides)
+        if (quoteData.descriptionOverrides) setDescriptionOverrides(quoteData.descriptionOverrides)
+        if (quoteData.miscFees) setMiscFees(quoteData.miscFees)
+        if (quoteData.notes) setNotes(quoteData.notes)
+        if (quoteData.dimensions) setDimensions(quoteData.dimensions)
+        if (quoteData.isMultiEquipment !== undefined) setIsMultiEquipment(quoteData.isMultiEquipment)
+        if (quoteData.equipmentBlocks) setEquipmentBlocks(quoteData.equipmentBlocks)
+        if (quoteData.inlandTransport) setInlandTransport(quoteData.inlandTransport)
+      }
+
+      setDataLoaded(true)
+      setIsLoading(false)
     }
-  }, [existingDraft, draftLoaded])
+  }, [quote, dataLoaded])
 
-  // Handle discard draft
-  const handleDiscardDraft = () => {
-    if (confirm('Are you sure you want to discard this draft? All changes will be lost.')) {
-      // Reset all state to defaults
-      setQuoteNumber(generateQuoteNumber())
-      setIsMultiEquipment(false)
-      setEquipmentBlocks([createEmptyEquipmentBlock()])
-      setSelectedMakeId('')
-      setSelectedModelId('')
-      setSelectedLocation('New Jersey')
-      setMakeName('')
-      setModelName('')
-      setDimensions({ length_inches: 0, width_inches: 0, height_inches: 0, weight_lbs: 0 })
-      setCosts(initialCosts)
-      setEnabledCosts(initialEnabled)
-      setCostOverrides(initialOverrides)
-      setDescriptionOverrides(COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>))
-      setCustomerName('')
-      setCustomerEmail('')
-      setCustomerPhone('')
-      setCustomerCompany('')
-      setCustomerAddress({ address: '', city: '', state: '', zip: '' })
-      setNotes('')
-      setMiscFees([])
-      setInlandTransport(initialInlandTransportData)
-
-      deleteDraftMutation.mutate()
-    }
-  }
-
-  // Auto-save hook
-  const autoSave = useAutoSave({
-    data: draftData,
-    onSave: async (data) => {
-      await saveDraftMutation.mutateAsync({ quote_data: data })
-    },
-    debounceMs: 3000,
-    enabled: true,
-  })
-
-  // Generate quote number on mount
+  // Update loading state
   useEffect(() => {
-    setQuoteNumber(generateQuoteNumber())
-  }, [])
+    if (!isLoadingQuote && !quote) {
+      setIsLoading(false)
+    }
+  }, [isLoadingQuote, quote])
+
+  // Fetch rates when model and location change (only if model changed after initial load)
+  const { data: rates } = trpc.equipment.getRates.useQuery(
+    { modelId: selectedModelId, location: selectedLocation },
+    { enabled: !!selectedModelId && dataLoaded }
+  )
+
+  // Fetch dimensions when model changes
+  const { data: modelDimensions } = trpc.equipment.getDimensions.useQuery(
+    { modelId: selectedModelId },
+    { enabled: !!selectedModelId && dataLoaded }
+  )
+
+  // Update costs when rates change (only after initial load)
+  useEffect(() => {
+    if (rates && dataLoaded) {
+      const newCosts: CostState = {} as CostState
+      COST_FIELDS.forEach((field) => {
+        newCosts[field] = rates[field] || 0
+      })
+      setCosts(newCosts)
+    }
+  }, [rates, dataLoaded])
+
+  // Update dimensions when model changes (only after initial load)
+  useEffect(() => {
+    if (modelDimensions && dataLoaded) {
+      setDimensions({
+        length_inches: modelDimensions.length_inches,
+        width_inches: modelDimensions.width_inches,
+        height_inches: modelDimensions.height_inches,
+        weight_lbs: modelDimensions.weight_lbs,
+      })
+      // Set equipment images if available
+      setEquipmentImages({
+        frontImageUrl: modelDimensions.front_image_url || undefined,
+        sideImageUrl: modelDimensions.side_image_url || undefined,
+      })
+    }
+  }, [modelDimensions, dataLoaded])
 
   // Equipment block management functions
   const addEquipmentBlock = () => {
@@ -307,49 +301,6 @@ export default function NewQuotePage() {
     0
   )
   const multiEquipmentTotal = multiEquipmentSubtotal
-
-  // Fetch rates when model and location change
-  const { data: rates } = trpc.equipment.getRates.useQuery(
-    { modelId: selectedModelId, location: selectedLocation },
-    { enabled: !!selectedModelId }
-  )
-
-  // Fetch dimensions when model changes
-  const { data: modelDimensions } = trpc.equipment.getDimensions.useQuery(
-    { modelId: selectedModelId },
-    { enabled: !!selectedModelId }
-  )
-
-  // Fetch settings for quote validity and other defaults
-  const { data: settings } = trpc.settings.get.useQuery()
-
-  // Update costs when rates change
-  useEffect(() => {
-    if (rates) {
-      const newCosts: CostState = {} as CostState
-      COST_FIELDS.forEach((field) => {
-        newCosts[field] = rates[field] || 0
-      })
-      setCosts(newCosts)
-    }
-  }, [rates])
-
-  // Update dimensions when model changes
-  useEffect(() => {
-    if (modelDimensions) {
-      setDimensions({
-        length_inches: modelDimensions.length_inches,
-        width_inches: modelDimensions.width_inches,
-        height_inches: modelDimensions.height_inches,
-        weight_lbs: modelDimensions.weight_lbs,
-      })
-      // Set equipment images if available
-      setEquipmentImages({
-        frontImageUrl: modelDimensions.front_image_url || undefined,
-        sideImageUrl: modelDimensions.side_image_url || undefined,
-      })
-    }
-  }, [modelDimensions])
 
   // Calculate totals
   const costsSubtotal = COST_FIELDS.reduce((total, field) => {
@@ -455,7 +406,6 @@ export default function NewQuotePage() {
       miscFees,
       subtotal,
       notes,
-      inlandTransport,
       isMultiEquipment,
       equipmentBlocks: isMultiEquipment ? equipmentBlocks.map(b => ({
         make_name: b.make_name,
@@ -468,7 +418,7 @@ export default function NewQuotePage() {
   }, [
     quoteNumber, customerName, customerEmail, customerPhone, customerCompany,
     makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
-    costOverrides, miscFees, subtotal, notes, inlandTransport, isMultiEquipment, equipmentBlocks
+    costOverrides, miscFees, subtotal, notes, isMultiEquipment, equipmentBlocks
   ])
 
   // Live PDF preview with debouncing
@@ -522,48 +472,18 @@ export default function NewQuotePage() {
     })
   }, [buildPdfData])
 
-  // Save quote mutation
-  const createQuote = trpc.quotes.create.useMutation({
-    onSuccess: (data) => {
-      toast.success('Quote created successfully')
-      if (data?.id) {
-        setSavedQuoteId(data.id)
-      }
-      // Clear the draft after successful quote creation
-      deleteDraftMutation.mutate()
-      setHasDraft(false)
-    },
-    onError: (error) => {
-      toast.error(`Failed to create quote: ${error.message}`)
-    },
-  })
-
-  // Save as template mutation
-  const saveTemplate = trpc.templates.create.useMutation({
+  // Update quote mutation
+  const updateQuote = trpc.quotes.update.useMutation({
     onSuccess: () => {
-      toast.success('Template saved successfully')
+      toast.success('Quote updated successfully')
+      router.push('/quotes/history')
     },
     onError: (error) => {
-      toast.error(`Failed to save template: ${error.message}`)
+      toast.error(`Failed to update quote: ${error.message}`)
     },
   })
 
-  const handleSaveAsTemplate = () => {
-    const templateName = `${makeName || 'Custom'} ${modelName || 'Equipment'} - ${selectedLocation}`
-    saveTemplate.mutate({
-      name: templateName,
-      description: `Quote template for ${makeName} ${modelName}`,
-      template_type: 'dismantle',
-      template_data: {
-        selectedLocation,
-        costs,
-        enabledCosts,
-        costOverrides,
-      },
-    })
-  }
-
-  const handleSaveQuote = () => {
+  const handleUpdateQuote = () => {
     if (!customerName) {
       toast.error('Please enter a customer name')
       return
@@ -573,55 +493,72 @@ export default function NewQuotePage() {
       return
     }
 
-    createQuote.mutate({
-      quote_number: quoteNumber,
-      status: 'draft',
-      customer_name: customerName,
-      customer_email: customerEmail || undefined,
-      customer_phone: customerPhone || undefined,
-      customer_company: customerCompany || undefined,
-      customer_address: getFullAddressString(customerAddress),
-      company_id: selectedCompanyId || undefined,
-      contact_id: selectedContactId || undefined,
-      make_id: selectedMakeId || undefined,
-      model_id: selectedModelId || undefined,
-      make_name: makeName,
-      model_name: modelName,
-      location: selectedLocation,
-      subtotal,
-      total,
-      quote_data: {
-        costs,
-        enabledCosts,
-        costOverrides,
-        miscFees,
-        dimensions,
-        notes,
+    updateQuote.mutate({
+      id: quoteId,
+      data: {
+        customer_name: customerName,
+        customer_email: customerEmail || undefined,
+        customer_phone: customerPhone || undefined,
+        customer_company: customerCompany || undefined,
+        customer_address: getFullAddressString(customerAddress),
+        company_id: selectedCompanyId || undefined,
+        contact_id: selectedContactId || undefined,
+        make_id: selectedMakeId || undefined,
+        model_id: selectedModelId || undefined,
+        make_name: makeName,
+        model_name: modelName,
+        location: selectedLocation,
+        subtotal,
+        total,
+        quote_data: {
+          costs,
+          enabledCosts,
+          costOverrides,
+          descriptionOverrides,
+          miscFees,
+          dimensions,
+          notes,
+          isMultiEquipment,
+          equipmentBlocks: isMultiEquipment ? equipmentBlocks : undefined,
+          inlandTransport: inlandTransport.enabled ? inlandTransport : undefined,
+        },
       },
     })
+  }
+
+  if (isLoading || isLoadingQuote) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!quote) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-muted-foreground">Quote not found</p>
+        <Button variant="outline" className="mt-4" onClick={() => router.push('/quotes/history')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to History
+        </Button>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">New Quote</h1>
-          <div className="flex items-center gap-3">
-            <p className="text-muted-foreground">
-              Quote #{quoteNumber}
-            </p>
-            {hasDraft && (
-              <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-1 rounded-full">
-                <FolderOpen className="h-3 w-3" />
-                Draft Restored
-              </span>
-            )}
-            <AutoSaveIndicator
-              status={autoSave.status}
-              lastSaved={autoSave.lastSaved}
-              error={autoSave.error}
-            />
+          <div className="flex items-center gap-2 mb-1">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/quotes/history')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Quote</h1>
           </div>
+          <p className="text-muted-foreground ml-10">
+            Quote #{quoteNumber}
+          </p>
         </div>
         <div className="flex gap-2 items-center">
           <Button
@@ -643,32 +580,11 @@ export default function NewQuotePage() {
             size="icon"
             onClick={() => setShowEmailDialog(true)}
             title="Send via Email"
-            disabled={!savedQuoteId}
           >
             <Mail className="h-4 w-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleSaveAsTemplate}
-            title="Save as Template"
-            disabled={saveTemplate.isPending}
-          >
-            <Save className="h-4 w-4" />
-          </Button>
-          {hasDraft && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleDiscardDraft}
-              title="Discard Draft"
-              disabled={deleteDraftMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-          <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
-            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
+          <Button onClick={handleUpdateQuote} disabled={updateQuote.isPending}>
+            {updateQuote.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </div>
@@ -931,7 +847,7 @@ export default function NewQuotePage() {
       <EmailQuoteDialog
         open={showEmailDialog}
         onOpenChange={setShowEmailDialog}
-        quoteId={savedQuoteId || ''}
+        quoteId={quoteId}
         quoteType="dismantle"
         quoteNumber={quoteNumber}
         customerName={customerName || undefined}

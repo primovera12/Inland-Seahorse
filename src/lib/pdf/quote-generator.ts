@@ -22,6 +22,20 @@ const COST_LABELS: Record<CostField, string> = {
   miscellaneous_cost: 'Miscellaneous',
 }
 
+export interface InlandTransportPDFData {
+  enabled: boolean
+  pickup_address: string
+  pickup_city: string
+  pickup_state: string
+  pickup_zip: string
+  dropoff_address: string
+  dropoff_city: string
+  dropoff_state: string
+  dropoff_zip: string
+  transport_cost: number
+  notes: string
+}
+
 export interface QuotePDFData {
   quoteNumber: string
   date: string
@@ -50,6 +64,9 @@ export interface QuotePDFData {
   miscFees?: MiscellaneousFee[]
   costsSubtotal?: number
   miscFeesTotal?: number
+  // Inland transportation
+  inlandTransport?: InlandTransportPDFData
+  inlandTransportCost?: number
   subtotal: number
   total: number
   notes?: string
@@ -330,6 +347,34 @@ function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): j
         { content: formatCurrency(data.miscFeesTotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
       ])
     }
+  }
+
+  // Add inland transport if enabled
+  if (data.inlandTransport && data.inlandTransportCost && data.inlandTransportCost > 0) {
+    const inland = data.inlandTransport
+    // Add inland transport section header
+    tableData.push([
+      { content: 'Inland Transportation', styles: { fontStyle: 'bold', fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b], textColor: [255, 255, 255] } },
+      { content: '', styles: { fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b] } },
+    ])
+
+    // Format pickup address
+    const pickupParts = [inland.pickup_address, inland.pickup_city, inland.pickup_state, inland.pickup_zip].filter(Boolean)
+    if (pickupParts.length > 0) {
+      tableData.push([`Pickup: ${pickupParts.join(', ')}`, ''])
+    }
+
+    // Format dropoff address
+    const dropoffParts = [inland.dropoff_address, inland.dropoff_city, inland.dropoff_state, inland.dropoff_zip].filter(Boolean)
+    if (dropoffParts.length > 0) {
+      tableData.push([`Dropoff: ${dropoffParts.join(', ')}`, ''])
+    }
+
+    // Add transport cost
+    tableData.push([
+      { content: 'Transport Cost', styles: { fontStyle: 'bold' } },
+      { content: formatCurrency(data.inlandTransportCost), styles: { fontStyle: 'bold' } },
+    ])
   }
 
   autoTable(doc, {

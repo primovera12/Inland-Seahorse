@@ -22,7 +22,8 @@ import { trpc } from '@/lib/trpc/client'
 import { formatCurrency, parseCurrencyToCents } from '@/lib/utils'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
 import { LOCATIONS, COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
-import type { EquipmentBlock } from '@/types/quotes'
+import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
+import { MiscFeesList, calculateMiscFeesTotal } from './misc-fees-list'
 import { ChevronDown, ChevronUp, Trash2, Copy } from 'lucide-react'
 
 const COST_LABELS: Record<CostField, string> = {
@@ -105,8 +106,8 @@ export function EquipmentBlockCard({
     }
   }, [dimensions])
 
-  // Calculate subtotal
-  const calculateSubtotal = () => {
+  // Calculate costs subtotal (without fees)
+  const calculateCostsSubtotal = () => {
     return COST_FIELDS.reduce((total, field) => {
       if (!block.enabled_costs[field]) return total
       const cost = block.cost_overrides[field] ?? block.costs[field]
@@ -114,15 +115,23 @@ export function EquipmentBlockCard({
     }, 0)
   }
 
-  const subtotal = calculateSubtotal()
+  const costsSubtotal = calculateCostsSubtotal()
+  const miscFees = block.misc_fees || []
+  const miscFeesTotal = calculateMiscFeesTotal(miscFees, costsSubtotal)
+  const subtotal = costsSubtotal + miscFeesTotal
   const totalWithQuantity = subtotal * block.quantity
 
   // Update parent when subtotal changes
   useEffect(() => {
-    if (block.subtotal !== subtotal || block.total_with_quantity !== totalWithQuantity) {
-      onUpdate({ ...block, subtotal, total_with_quantity: totalWithQuantity })
+    if (block.subtotal !== subtotal || block.total_with_quantity !== totalWithQuantity || block.misc_fees_total !== miscFeesTotal) {
+      onUpdate({ ...block, subtotal, misc_fees_total: miscFeesTotal, total_with_quantity: totalWithQuantity })
     }
-  }, [subtotal, totalWithQuantity])
+  }, [subtotal, totalWithQuantity, miscFeesTotal])
+
+  // Handle fee changes
+  const handleFeesChange = (newFees: MiscellaneousFee[]) => {
+    onUpdate({ ...block, misc_fees: newFees })
+  }
 
   const handleMakeChange = (makeId: string) => {
     const make = makes?.find((m) => m.id === makeId)
@@ -355,16 +364,36 @@ export function EquipmentBlockCard({
               </div>
             </div>
 
+            {/* Miscellaneous Fees */}
+            <div className="rounded-lg border p-4 bg-muted/20">
+              <MiscFeesList
+                fees={miscFees}
+                onChange={handleFeesChange}
+                subtotal={costsSubtotal}
+                compact
+              />
+            </div>
+
             {/* Block Summary */}
-            <div className="flex justify-end gap-6 pt-2 border-t text-sm">
-              <div>
-                <span className="text-muted-foreground">Unit subtotal: </span>
+            <div className="space-y-2 pt-2 border-t text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Costs subtotal:</span>
+                <span className="font-mono">{formatCurrency(costsSubtotal)}</span>
+              </div>
+              {miscFeesTotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Fees:</span>
+                  <span className="font-mono">{formatCurrency(miscFeesTotal)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-medium">
+                <span>Unit total:</span>
                 <span className="font-mono">{formatCurrency(subtotal)}</span>
               </div>
               {block.quantity > 1 && (
-                <div>
-                  <span className="text-muted-foreground">× {block.quantity} = </span>
-                  <span className="font-mono font-medium">{formatCurrency(totalWithQuantity)}</span>
+                <div className="flex justify-between font-medium text-primary">
+                  <span>× {block.quantity} units:</span>
+                  <span className="font-mono">{formatCurrency(totalWithQuantity)}</span>
                 </div>
               )}
             </div>
