@@ -48,6 +48,18 @@
 - [x] Type `data?.quotes` properly in pipeline page query result
 - [x] Type `popularMakesList` query result
 
+### 3b. Error Handling Standardization
+
+**Priority**: MEDIUM
+**Location**: tRPC routers
+**Status**: IN PROGRESS
+
+- [x] Create error handling utility (src/lib/errors.ts)
+- [x] Apply to search router (was silently failing)
+- [x] Apply to activity router
+- [x] Apply to templates router
+- [ ] Apply to remaining routers (quotes, inland, companies, etc.)
+
 ---
 
 ## DEFERRED FEATURES
@@ -157,6 +169,10 @@
 
 ### 2026-01-07
 
+- Applied error handling utility to tRPC routers:
+  - search.ts: Fixed silent failures in global search (was ignoring errors)
+  - activity.ts: Standardized error handling with checkSupabaseError
+  - templates.ts: Added proper error checks including fallback scenarios
 - Added error handling utility (src/lib/errors.ts):
   - handleSupabaseError: converts PostgrestError to TRPCError with proper codes
   - checkSupabaseError: helper for common error check pattern
