@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { trpc } from '@/lib/trpc/client'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -10,13 +9,9 @@ import {
   TrendingUp,
   DollarSign,
   FileText,
-  Users,
-  CheckCircle2,
   Clock,
   Percent,
   Building2,
-  Truck,
-  Wrench,
 } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {

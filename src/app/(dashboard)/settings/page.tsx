@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,75 +9,97 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { ImageUpload } from '@/components/ui/image-upload'
-import { Settings, Building2, Palette, FileText, Bell, Save, ChevronRight, Scale, ImageIcon } from 'lucide-react'
+import { Building2, Palette, FileText, Bell, Save, ChevronRight, Scale } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc } from '@/lib/trpc/client'
 import Link from 'next/link'
 import Image from 'next/image'
 
+type SettingsState = {
+  company_name: string
+  company_address: string
+  company_city: string
+  company_state: string
+  company_zip: string
+  company_phone: string
+  company_email: string
+  company_website: string
+  company_logo_url: string | null
+  logo_size_percentage: number
+  primary_color: string
+  secondary_color: string | null
+  default_payment_terms: string
+  quote_validity_days: number
+  default_margin_percentage: number
+  quote_prefix: string
+  email_notifications_enabled: boolean
+  notification_email: string
+}
+
+const defaultSettings: SettingsState = {
+  company_name: 'Dismantle Pro',
+  company_address: '',
+  company_city: '',
+  company_state: '',
+  company_zip: '',
+  company_phone: '',
+  company_email: '',
+  company_website: '',
+  company_logo_url: null,
+  logo_size_percentage: 100,
+  primary_color: '#6366F1',
+  secondary_color: null,
+  default_payment_terms: 'Net 30',
+  quote_validity_days: 30,
+  default_margin_percentage: 15,
+  quote_prefix: 'QT',
+  email_notifications_enabled: true,
+  notification_email: '',
+}
+
 export default function SettingsPage() {
-  const [settings, setSettings] = useState({
-    company_name: 'Dismantle Pro',
-    company_address: '',
-    company_city: '',
-    company_state: '',
-    company_zip: '',
-    company_phone: '',
-    company_email: '',
-    company_website: '',
-    company_logo_url: null as string | null,
-    logo_size_percentage: 100,
-    primary_color: '#6366F1',
-    secondary_color: null as string | null,
-    default_payment_terms: 'Net 30',
-    quote_validity_days: 30,
-    default_margin_percentage: 15,
-    quote_prefix: 'QT',
-    email_notifications_enabled: true,
-    notification_email: '',
-  })
+  const [localSettings, setLocalSettings] = useState<SettingsState | null>(null)
 
   const utils = trpc.useUtils()
 
   // Load settings from database
-  const { data: savedSettings, isLoading } = trpc.settings.get.useQuery()
+  const { data: savedSettings } = trpc.settings.get.useQuery()
+
+  // Use local state if user has made edits, otherwise derive from saved data
+  const settings: SettingsState = localSettings ?? (savedSettings ? {
+    company_name: savedSettings.company_name || defaultSettings.company_name,
+    company_address: savedSettings.company_address || defaultSettings.company_address,
+    company_city: savedSettings.company_city || defaultSettings.company_city,
+    company_state: savedSettings.company_state || defaultSettings.company_state,
+    company_zip: savedSettings.company_zip || defaultSettings.company_zip,
+    company_phone: savedSettings.company_phone || defaultSettings.company_phone,
+    company_email: savedSettings.company_email || defaultSettings.company_email,
+    company_website: savedSettings.company_website || defaultSettings.company_website,
+    company_logo_url: savedSettings.company_logo_url || defaultSettings.company_logo_url,
+    logo_size_percentage: savedSettings.logo_size_percentage || defaultSettings.logo_size_percentage,
+    primary_color: savedSettings.primary_color || defaultSettings.primary_color,
+    secondary_color: savedSettings.secondary_color || defaultSettings.secondary_color,
+    default_payment_terms: savedSettings.default_payment_terms || defaultSettings.default_payment_terms,
+    quote_validity_days: savedSettings.quote_validity_days || defaultSettings.quote_validity_days,
+    default_margin_percentage: savedSettings.default_margin_percentage || defaultSettings.default_margin_percentage,
+    quote_prefix: savedSettings.quote_prefix || defaultSettings.quote_prefix,
+    email_notifications_enabled: savedSettings.email_notifications_enabled ?? defaultSettings.email_notifications_enabled,
+    notification_email: savedSettings.notification_email || defaultSettings.notification_email,
+  } : defaultSettings)
+
+  const setSettings = (newSettings: SettingsState) => setLocalSettings(newSettings)
 
   // Update mutation
   const updateMutation = trpc.settings.update.useMutation({
     onSuccess: () => {
       utils.settings.get.invalidate()
+      setLocalSettings(null) // Reset to use saved data
       toast.success('Settings saved successfully')
     },
     onError: (error) => {
       toast.error('Failed to save settings: ' + error.message)
     },
   })
-
-  // Load saved settings into state
-  useEffect(() => {
-    if (savedSettings) {
-      setSettings({
-        company_name: savedSettings.company_name || 'Dismantle Pro',
-        company_address: savedSettings.company_address || '',
-        company_city: savedSettings.company_city || '',
-        company_state: savedSettings.company_state || '',
-        company_zip: savedSettings.company_zip || '',
-        company_phone: savedSettings.company_phone || '',
-        company_email: savedSettings.company_email || '',
-        company_website: savedSettings.company_website || '',
-        company_logo_url: savedSettings.company_logo_url || null,
-        logo_size_percentage: savedSettings.logo_size_percentage || 100,
-        primary_color: savedSettings.primary_color || '#6366F1',
-        secondary_color: savedSettings.secondary_color || null,
-        default_payment_terms: savedSettings.default_payment_terms || 'Net 30',
-        quote_validity_days: savedSettings.quote_validity_days || 30,
-        default_margin_percentage: savedSettings.default_margin_percentage || 15,
-        quote_prefix: savedSettings.quote_prefix || 'QT',
-        email_notifications_enabled: savedSettings.email_notifications_enabled ?? true,
-        notification_email: savedSettings.notification_email || '',
-      })
-    }
-  }, [savedSettings])
 
   const handleSave = () => {
     updateMutation.mutate({

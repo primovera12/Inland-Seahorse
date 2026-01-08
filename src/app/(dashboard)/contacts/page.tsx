@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Plus, Users, Phone, Mail, Building2, Eye, Edit, Star } from 'lucide-react'
+import { Plus, Users, Phone, Mail, Building2, Eye, Edit, Star } from 'lucide-react'
 import { toast } from 'sonner'
 
 type ContactRole = 'general' | 'decision_maker' | 'billing' | 'operations' | 'technical'

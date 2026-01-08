@@ -29,10 +29,8 @@ import { toast } from 'sonner'
 import {
   Bell,
   Plus,
-  Clock,
   Calendar,
   Building2,
-  User,
   Trash2,
   AlertTriangle,
   CheckCircle2,

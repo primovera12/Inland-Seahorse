@@ -13,27 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { trpc } from '@/lib/trpc/client'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
-import { Search, Plus, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { ImageUpload } from '@/components/ui/image-upload'
-import Image from 'next/image'
 
 export default function EquipmentPage() {
   const [searchQuery, setSearchQuery] = useState('')

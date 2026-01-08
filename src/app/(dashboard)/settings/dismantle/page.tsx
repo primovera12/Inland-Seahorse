@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,7 +43,13 @@ export default function DismantleSettingsPage() {
   const [defaultMargin, setDefaultMargin] = useState(15)
 
   // Enabled cost fields
-  const [enabledCosts, setEnabledCosts] = useState<Record<string, boolean>>({})
+  const [enabledCosts, setEnabledCosts] = useState<Record<string, boolean>>(() => {
+    const defaults: Record<string, boolean> = {}
+    COST_FIELDS.forEach(field => {
+      defaults[field.id] = true
+    })
+    return defaults
+  })
 
   // Default location
   const [defaultLocation, setDefaultLocation] = useState('')
@@ -90,30 +96,28 @@ export default function DismantleSettingsPage() {
     },
   ])
 
-  const [editingTemplate, setEditingTemplate] = useState<string | null>(null)
+  const [, setEditingTemplate] = useState<string | null>(null)
 
   // Popular makes management
-  const [popularMakes, setPopularMakes] = useState<string[]>([])
+  const [localPopularMakes, setLocalPopularMakes] = useState<string[] | null>(null)
   const [newMakeName, setNewMakeName] = useState('')
 
   // Fetch popular makes from settings
   const { data: savedPopularMakes, isLoading: loadingMakes } = trpc.settings.getPopularMakes.useQuery()
 
+  // Use local state if user has made edits, otherwise use saved data
+  const popularMakes: string[] = localPopularMakes ?? (savedPopularMakes as string[] | undefined) ?? []
+  const setPopularMakes = (makes: string[]) => setLocalPopularMakes(makes)
+
   const updatePopularMakesMutation = trpc.settings.updatePopularMakes.useMutation({
     onSuccess: () => {
       toast.success('Popular makes updated')
+      setLocalPopularMakes(null) // Reset to use saved data
     },
     onError: (error) => {
       toast.error(`Failed to update: ${error.message}`)
     },
   })
-
-  // Load saved popular makes
-  useEffect(() => {
-    if (savedPopularMakes) {
-      setPopularMakes(savedPopularMakes)
-    }
-  }, [savedPopularMakes])
 
   const addLocationTemplate = () => {
     const newTemplate: LocationTemplate = {
@@ -185,15 +189,6 @@ export default function DismantleSettingsPage() {
     setPopularMakes(updated)
     updatePopularMakesMutation.mutate({ makes: updated })
   }
-
-  // Initialize enabled costs
-  useEffect(() => {
-    const defaults: Record<string, boolean> = {}
-    COST_FIELDS.forEach(field => {
-      defaults[field.id] = true
-    })
-    setEnabledCosts(defaults)
-  }, [])
 
   const handleSave = () => {
     // In production, this would save to the database
@@ -451,7 +446,7 @@ export default function DismantleSettingsPage() {
                   onChange={(e) => setLengthThreshold(Number(e.target.value))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {Math.floor(lengthThreshold / 12)}'-{lengthThreshold % 12}" ({(lengthThreshold * 2.54 / 100).toFixed(1)}m)
+                  {Math.floor(lengthThreshold / 12)}&apos;-{lengthThreshold % 12}&quot; ({(lengthThreshold * 2.54 / 100).toFixed(1)}m)
                 </p>
               </div>
 
@@ -468,7 +463,7 @@ export default function DismantleSettingsPage() {
                   onChange={(e) => setWidthThreshold(Number(e.target.value))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {Math.floor(widthThreshold / 12)}'-{widthThreshold % 12}" ({(widthThreshold * 2.54 / 100).toFixed(1)}m)
+                  {Math.floor(widthThreshold / 12)}&apos;-{widthThreshold % 12}&quot; ({(widthThreshold * 2.54 / 100).toFixed(1)}m)
                 </p>
               </div>
 
@@ -485,7 +480,7 @@ export default function DismantleSettingsPage() {
                   onChange={(e) => setHeightThreshold(Number(e.target.value))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {Math.floor(heightThreshold / 12)}'-{heightThreshold % 12}" ({(heightThreshold * 2.54 / 100).toFixed(1)}m)
+                  {Math.floor(heightThreshold / 12)}&apos;-{heightThreshold % 12}&quot; ({(heightThreshold * 2.54 / 100).toFixed(1)}m)
                 </p>
               </div>
 
@@ -510,7 +505,7 @@ export default function DismantleSettingsPage() {
             <div className="mt-4 p-4 rounded-lg bg-muted/50">
               <p className="text-sm text-muted-foreground">
                 <strong>Note:</strong> These thresholds are used to detect oversized and overweight equipment that may require special permits for transport.
-                Standard legal limits are typically 53' length, 8.5' width, 13.5' height, and 48,000 lbs for single-axle trailers.
+                Standard legal limits are typically 53&apos; length, 8.5&apos; width, 13.5&apos; height, and 48,000 lbs for single-axle trailers.
               </p>
             </div>
           </CardContent>

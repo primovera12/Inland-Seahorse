@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Plus, Building2, Phone, Mail, MapPin, Eye, Edit } from 'lucide-react'
+import { Search, Plus, Building2, Phone, MapPin, Eye, Edit } from 'lucide-react'
 import { toast } from 'sonner'
 
 type CompanyStatus = 'active' | 'inactive' | 'prospect' | 'lead' | 'vip'

@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const { data: recentInlandQuotes } = trpc.dashboard.getRecentInlandQuotes.useQuery()
   const { data: upcomingReminders } = trpc.reminders.getUpcoming.useQuery()
   const { data: overdueReminders } = trpc.reminders.getOverdue.useQuery()
-  const { data: reminderStats } = trpc.reminders.getStats.useQuery()
+  trpc.reminders.getStats.useQuery()
 
   return (
     <div className="space-y-6">

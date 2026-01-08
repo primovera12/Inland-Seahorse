@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { EquipmentSelector } from '@/components/quotes/equipment-selector'
 import { CustomerForm, type BillingInfo, type CustomerAddress } from '@/components/quotes/customer-form'
 import { CostBreakdown } from '@/components/quotes/cost-breakdown'
@@ -17,9 +16,9 @@ import { MiscFeesList, calculateMiscFeesTotal } from '@/components/quotes/misc-f
 import { trpc } from '@/lib/trpc/client'
 import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
-import { generateQuoteNumber, formatDate, formatCurrency } from '@/lib/utils'
+import { generateQuoteNumber, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2, Mail, Save, Cloud, Trash2, FolderOpen } from 'lucide-react'
+import { FileDown, Eye, Plus, Layers, MonitorPlay, Loader2, Mail, Save, Trash2, FolderOpen } from 'lucide-react'
 import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 import { useAutoSave } from '@/hooks/use-auto-save'
@@ -110,7 +109,7 @@ export default function NewQuotePage() {
     zip: '',
   })
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [selectedContactId] = useState<string | null>(null)
 
   // Billing Info
   const [billingInfo, setBillingInfo] = useState<BillingInfo>({

@@ -34,7 +34,7 @@ import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2, Mail, Save } from 'lucide-react'
-import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
+import type { InlandDestinationBlock } from '@/types/inland'
 import {
   downloadInlandQuotePDF,
   getInlandQuotePDFDataUrl,

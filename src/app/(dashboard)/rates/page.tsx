@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Table,
@@ -23,7 +21,7 @@ import {
 import { trpc } from '@/lib/trpc/client'
 import { formatCurrency } from '@/lib/utils'
 import { LOCATIONS, COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
-import { Search, DollarSign } from 'lucide-react'
+import { DollarSign } from 'lucide-react'
 
 const COST_LABELS: Record<CostField, string> = {
   dismantling_loading_cost: 'Dismantling & Loading',
