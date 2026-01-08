@@ -50,24 +50,26 @@ export const activityRouter = router({
       z.object({
         companyId: z.string().uuid(),
         limit: z.number().min(1).max(100).default(20),
+        offset: z.number().min(0).default(0),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error, count } = await ctx.supabase
         .from('activity_logs')
         .select(
           `
           *,
           contact:contacts(id, first_name, last_name),
           user:users(id, first_name, last_name, email)
-        `
+        `,
+          { count: 'exact' }
         )
         .eq('company_id', input.companyId)
         .order('created_at', { ascending: false })
-        .limit(input.limit)
+        .range(input.offset, input.offset + input.limit - 1)
 
       if (error) throw error
-      return data || []
+      return { activities: data || [], total: count || 0 }
     }),
 
   // Create activity

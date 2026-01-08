@@ -142,17 +142,24 @@ export const companiesRouter = router({
 export const contactsRouter = router({
   // Get contacts for a company
   getByCompany: protectedProcedure
-    .input(z.object({ companyId: z.string().uuid() }))
+    .input(
+      z.object({
+        companyId: z.string().uuid(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      })
+    )
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error, count } = await ctx.supabase
         .from('contacts')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('company_id', input.companyId)
         .order('is_primary', { ascending: false })
         .order('last_name')
+        .range(input.offset, input.offset + input.limit - 1)
 
       if (error) throw error
-      return data
+      return { contacts: data || [], total: count || 0 }
     }),
 
   // Create contact

@@ -200,16 +200,27 @@ export const feedbackRouter = router({
     }),
 
   // Get user's own tickets
-  myTickets: protectedProcedure.query(async ({ ctx }) => {
-    const { data, error } = await ctx.supabase
-      .from('tickets')
-      .select('*')
-      .eq('submitted_by', ctx.user.id)
-      .order('created_at', { ascending: false })
+  myTickets: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 50
+      const offset = input?.offset ?? 0
 
-    if (error) throw error
-    return data || []
-  }),
+      const { data, error, count } = await ctx.supabase
+        .from('tickets')
+        .select('*', { count: 'exact' })
+        .eq('submitted_by', ctx.user.id)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+
+      if (error) throw error
+      return { tickets: data || [], total: count || 0 }
+    }),
 
   // Get ticket stats (admin dashboard)
   stats: protectedProcedure.query(async ({ ctx }) => {

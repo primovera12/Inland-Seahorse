@@ -100,7 +100,7 @@
 
 - [x] Add indexes on frequently queried columns (migration 008)
 - [ ] Optimize quote history queries
-- [ ] Add pagination to all list endpoints
+- [x] Add pagination to key list endpoints
 
 ### 9. Caching Strategy
 **Priority**: LOW
@@ -151,6 +151,13 @@
 ## CHANGELOG
 
 ### 2026-01-07
+
+- Added pagination to high-priority endpoints:
+  - activity.getByCompany (with offset and total count)
+  - contacts.getByCompany (with limit, offset, total count)
+  - reminders.getOverdue (with limit, offset, total count)
+  - feedback.myTickets (with limit, offset, total count)
+- Updated frontend components to use paginated response format
 - Created status tracker
 - Fixed 5 TypeScript build errors
 - Fixed Resend lazy initialization for build

@@ -45,7 +45,8 @@ export default function DashboardPage() {
   const { data: recentQuotes } = trpc.dashboard.getRecentQuotes.useQuery()
   const { data: recentInlandQuotes } = trpc.dashboard.getRecentInlandQuotes.useQuery()
   const { data: upcomingReminders } = trpc.reminders.getUpcoming.useQuery()
-  const { data: overdueReminders } = trpc.reminders.getOverdue.useQuery()
+  const { data: overdueData } = trpc.reminders.getOverdue.useQuery()
+  const overdueReminders = overdueData?.reminders || []
   trpc.reminders.getStats.useQuery()
 
   return (
@@ -158,7 +159,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Overdue Reminders Alert */}
-      {overdueReminders && overdueReminders.length > 0 && (
+      {overdueReminders.length > 0 && (
         <Card className="border-red-200 bg-red-50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-red-800">

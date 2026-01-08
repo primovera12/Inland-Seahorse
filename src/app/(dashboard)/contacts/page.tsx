@@ -76,10 +76,11 @@ export default function ContactsPage() {
   })
 
   // Get contacts for selected company
-  const { data: contacts, isLoading } = trpc.contacts.getByCompany.useQuery(
+  const { data: contactsData, isLoading } = trpc.contacts.getByCompany.useQuery(
     { companyId: selectedCompanyId },
     { enabled: !!selectedCompanyId }
   )
+  const contacts = contactsData?.contacts || []
 
   const createContact = trpc.contacts.create.useMutation({
     onSuccess: () => {
@@ -269,12 +270,12 @@ export default function ContactsPage() {
               <Users className="h-5 w-5" />
               {selectedCompany?.name} Contacts
             </CardTitle>
-            <CardDescription>{contacts?.length || 0} contacts</CardDescription>
+            <CardDescription>{contactsData?.total || 0} contacts</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-10 text-muted-foreground">Loading contacts...</div>
-            ) : !contacts || contacts.length === 0 ? (
+            ) : contacts.length === 0 ? (
               <div className="text-center py-10">
                 <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No contacts for this company</p>

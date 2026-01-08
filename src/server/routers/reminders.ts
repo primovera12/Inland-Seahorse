@@ -73,26 +73,37 @@ export const remindersRouter = router({
   }),
 
   // Get overdue reminders
-  getOverdue: protectedProcedure.query(async ({ ctx }) => {
-    const now = new Date().toISOString()
+  getOverdue: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const now = new Date().toISOString()
+      const limit = input?.limit ?? 50
+      const offset = input?.offset ?? 0
 
-    const { data, error } = await ctx.supabase
-      .from('follow_up_reminders')
-      .select(
-        `
-        *,
-        company:companies(id, name),
-        contact:contacts(id, first_name, last_name)
-      `
-      )
-      .eq('user_id', ctx.user.id)
-      .eq('is_completed', false)
-      .lt('due_date', now)
-      .order('due_date', { ascending: true })
+      const { data, error, count } = await ctx.supabase
+        .from('follow_up_reminders')
+        .select(
+          `
+          *,
+          company:companies(id, name),
+          contact:contacts(id, first_name, last_name)
+        `,
+          { count: 'exact' }
+        )
+        .eq('user_id', ctx.user.id)
+        .eq('is_completed', false)
+        .lt('due_date', now)
+        .order('due_date', { ascending: true })
+        .range(offset, offset + limit - 1)
 
-    if (error) throw error
-    return data || []
-  }),
+      if (error) throw error
+      return { reminders: data || [], total: count || 0 }
+    }),
 
   // Create reminder
   create: protectedProcedure

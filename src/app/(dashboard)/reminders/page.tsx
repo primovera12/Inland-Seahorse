@@ -77,7 +77,8 @@ export default function RemindersPage() {
     limit: 50,
   })
 
-  const { data: overdueReminders } = trpc.reminders.getOverdue.useQuery()
+  const { data: overdueData } = trpc.reminders.getOverdue.useQuery()
+  const overdueReminders = overdueData?.reminders || []
   const { data: stats } = trpc.reminders.getStats.useQuery()
 
   // Get companies for dropdown
@@ -345,7 +346,7 @@ export default function RemindersPage() {
             <CardTitle className="text-3xl">{stats?.pending || 0}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className={overdueReminders && overdueReminders.length > 0 ? 'border-red-200' : ''}>
+        <Card className={overdueReminders.length > 0 ? 'border-red-200' : ''}>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1">
               <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -366,7 +367,7 @@ export default function RemindersPage() {
       </div>
 
       {/* Overdue Alert */}
-      {overdueReminders && overdueReminders.length > 0 && (
+      {overdueReminders.length > 0 && (
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-800">
