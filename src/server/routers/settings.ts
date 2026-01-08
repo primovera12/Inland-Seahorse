@@ -40,6 +40,7 @@ export const settingsRouter = router({
         notification_email: z.string().email().nullable().optional(),
         terms_dismantle: z.string().nullable().optional(),
         terms_inland: z.string().nullable().optional(),
+        popular_makes: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -171,5 +172,67 @@ export const settingsRouter = router({
         if (error) throw error
         return { success: true, version: 1 }
       }
+    }),
+
+  // Get popular makes list
+  getPopularMakes: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('company_settings')
+      .select('popular_makes')
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error
+
+    // Return stored list or default
+    const defaultMakes = [
+      'Caterpillar', 'CAT', 'Komatsu', 'John Deere', 'Hitachi',
+      'Volvo', 'Liebherr', 'Case', 'Kobelco', 'Doosan',
+      'JCB', 'Kubota', 'Bobcat', 'Terex', 'Hyundai'
+    ]
+    return data?.popular_makes || defaultMakes
+  }),
+
+  // Update popular makes list
+  updatePopularMakes: protectedProcedure
+    .input(z.object({ makes: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      const { data: existing } = await ctx.supabase
+        .from('company_settings')
+        .select('id')
+        .single()
+
+      if (existing) {
+        const { error } = await ctx.supabase
+          .from('company_settings')
+          .update({
+            popular_makes: input.makes,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+
+        if (error) throw error
+      } else {
+        const { error } = await ctx.supabase
+          .from('company_settings')
+          .insert({
+            company_name: 'My Company',
+            primary_color: '#6366F1',
+            logo_size_percentage: 100,
+            quote_validity_days: 30,
+            default_margin_percentage: 15,
+            quote_prefix: 'QT',
+            default_payment_terms: 'Net 30',
+            fuel_surcharge_enabled: false,
+            fuel_surcharge_percentage: 0,
+            doe_price_threshold: 0,
+            email_notifications_enabled: true,
+            terms_version: 1,
+            popular_makes: input.makes,
+          })
+
+        if (error) throw error
+      }
+
+      return { success: true }
     }),
 })

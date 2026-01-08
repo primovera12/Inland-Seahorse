@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { trpc } from '@/lib/trpc/client'
 import { toast } from 'sonner'
-import { Wrench, Save, DollarSign, Percent, MapPin, Calculator, Ruler, Scale, FileText, Plus, Trash2, Copy } from 'lucide-react'
+import { Wrench, Save, DollarSign, Percent, MapPin, Calculator, Ruler, Scale, FileText, Plus, Trash2, Copy, Star, GripVertical, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 // Cost fields that can be enabled/disabled
@@ -92,6 +92,29 @@ export default function DismantleSettingsPage() {
 
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null)
 
+  // Popular makes management
+  const [popularMakes, setPopularMakes] = useState<string[]>([])
+  const [newMakeName, setNewMakeName] = useState('')
+
+  // Fetch popular makes from settings
+  const { data: savedPopularMakes, isLoading: loadingMakes } = trpc.settings.getPopularMakes.useQuery()
+
+  const updatePopularMakesMutation = trpc.settings.updatePopularMakes.useMutation({
+    onSuccess: () => {
+      toast.success('Popular makes updated')
+    },
+    onError: (error) => {
+      toast.error(`Failed to update: ${error.message}`)
+    },
+  })
+
+  // Load saved popular makes
+  useEffect(() => {
+    if (savedPopularMakes) {
+      setPopularMakes(savedPopularMakes)
+    }
+  }, [savedPopularMakes])
+
   const addLocationTemplate = () => {
     const newTemplate: LocationTemplate = {
       id: crypto.randomUUID(),
@@ -130,6 +153,37 @@ export default function DismantleSettingsPage() {
       isDefault: false,
     }
     setLocationTemplates([...locationTemplates, newTemplate])
+  }
+
+  // Popular makes helpers
+  const addPopularMake = () => {
+    const trimmed = newMakeName.trim()
+    if (trimmed && !popularMakes.includes(trimmed)) {
+      const updated = [...popularMakes, trimmed]
+      setPopularMakes(updated)
+      setNewMakeName('')
+      updatePopularMakesMutation.mutate({ makes: updated })
+    }
+  }
+
+  const removePopularMake = (make: string) => {
+    const updated = popularMakes.filter(m => m !== make)
+    setPopularMakes(updated)
+    updatePopularMakesMutation.mutate({ makes: updated })
+  }
+
+  const movePopularMake = (index: number, direction: 'up' | 'down') => {
+    if (
+      (direction === 'up' && index === 0) ||
+      (direction === 'down' && index === popularMakes.length - 1)
+    ) {
+      return
+    }
+    const updated = [...popularMakes]
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    ;[updated[index], updated[newIndex]] = [updated[newIndex], updated[index]]
+    setPopularMakes(updated)
+    updatePopularMakesMutation.mutate({ makes: updated })
   }
 
   // Initialize enabled costs
@@ -280,6 +334,94 @@ export default function DismantleSettingsPage() {
                 onCheckedChange={setShowDimensions}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Popular Makes */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5" />
+              Popular Makes
+            </CardTitle>
+            <CardDescription>
+              Configure which equipment makes appear first in the equipment selector. Drag to reorder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add new make */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter make name (e.g., Caterpillar)"
+                value={newMakeName}
+                onChange={(e) => setNewMakeName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addPopularMake()}
+                className="max-w-xs"
+              />
+              <Button onClick={addPopularMake} disabled={!newMakeName.trim()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Make
+              </Button>
+            </div>
+
+            {/* Makes list */}
+            <div className="space-y-2">
+              {loadingMakes ? (
+                <p className="text-sm text-muted-foreground">Loading...</p>
+              ) : popularMakes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No popular makes configured</p>
+              ) : (
+                popularMakes.map((make, index) => (
+                  <div
+                    key={make}
+                    className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30"
+                  >
+                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
+                    <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
+                    <span className="flex-1 font-medium">{make}</span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => movePopularMake(index, 'up')}
+                        disabled={index === 0}
+                        className="h-8 w-8"
+                      >
+                        <span className="sr-only">Move up</span>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => movePopularMake(index, 'down')}
+                        disabled={index === popularMakes.length - 1}
+                        className="h-8 w-8"
+                      >
+                        <span className="sr-only">Move down</span>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removePopularMake(make)}
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Remove</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              These makes will appear at the top of the equipment make selector, making it faster to select commonly used manufacturers.
+            </p>
           </CardContent>
         </Card>
 

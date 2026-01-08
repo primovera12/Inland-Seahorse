@@ -19,7 +19,7 @@ import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipmen
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { generateQuoteNumber, formatDate, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2, Mail, Save, Cloud } from 'lucide-react'
+import { FileDown, Eye, X, Plus, Layers, MonitorPlay, Loader2, Mail, Save, Cloud, Trash2, FolderOpen } from 'lucide-react'
 import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 import { useAutoSave } from '@/hooks/use-auto-save'
@@ -79,6 +79,12 @@ export default function NewQuotePage() {
     weight_lbs: 0,
   })
 
+  // Equipment images
+  const [equipmentImages, setEquipmentImages] = useState<{
+    frontImageUrl?: string
+    sideImageUrl?: string
+  }>({})
+
   // Costs
   const [costs, setCosts] = useState<CostState>(initialCosts)
   const [enabledCosts, setEnabledCosts] = useState<EnabledState>(initialEnabled)
@@ -136,6 +142,10 @@ export default function NewQuotePage() {
   const [showEmailDialog, setShowEmailDialog] = useState(false)
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
 
+  // Draft management
+  const [draftLoaded, setDraftLoaded] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
+
   // Auto-save draft data
   const draftData = useMemo(() => ({
     quoteNumber,
@@ -169,6 +179,88 @@ export default function NewQuotePage() {
 
   // Save draft mutation
   const saveDraftMutation = trpc.quotes.saveDraft.useMutation()
+
+  // Get existing draft
+  const { data: existingDraft } = trpc.quotes.getDraft.useQuery(undefined, {
+    enabled: !draftLoaded,
+  })
+
+  // Delete draft mutation
+  const deleteDraftMutation = trpc.quotes.deleteDraft.useMutation({
+    onSuccess: () => {
+      setHasDraft(false)
+      toast.success('Draft discarded')
+    },
+  })
+
+  // Load draft data on mount
+  useEffect(() => {
+    if (existingDraft && !draftLoaded) {
+      const data = existingDraft.quote_data as typeof draftData
+      if (data) {
+        // Load all the draft data into state
+        if (data.quoteNumber) setQuoteNumber(data.quoteNumber)
+        if (data.isMultiEquipment !== undefined) setIsMultiEquipment(data.isMultiEquipment)
+        if (data.equipmentBlocks) setEquipmentBlocks(data.equipmentBlocks)
+        if (data.selectedMakeId) setSelectedMakeId(data.selectedMakeId)
+        if (data.selectedModelId) setSelectedModelId(data.selectedModelId)
+        if (data.selectedLocation) setSelectedLocation(data.selectedLocation)
+        if (data.makeName) setMakeName(data.makeName)
+        if (data.modelName) setModelName(data.modelName)
+        if (data.dimensions) setDimensions(data.dimensions)
+        if (data.costs) setCosts(data.costs)
+        if (data.enabledCosts) setEnabledCosts(data.enabledCosts)
+        if (data.costOverrides) setCostOverrides(data.costOverrides)
+        if (data.descriptionOverrides) setDescriptionOverrides(data.descriptionOverrides)
+        if (data.marginPercentage !== undefined) setMarginPercentage(data.marginPercentage)
+        if (data.customerName) setCustomerName(data.customerName)
+        if (data.customerEmail) setCustomerEmail(data.customerEmail)
+        if (data.customerPhone) setCustomerPhone(data.customerPhone)
+        if (data.customerCompany) setCustomerCompany(data.customerCompany)
+        if (data.customerAddress) setCustomerAddress(data.customerAddress)
+        if (data.billingInfo) setBillingInfo(data.billingInfo)
+        if (data.notes) setNotes(data.notes)
+        if (data.miscFees) setMiscFees(data.miscFees)
+
+        setHasDraft(true)
+        toast.info('Draft loaded', { description: 'Your previous draft has been restored' })
+      }
+      setDraftLoaded(true)
+    } else if (!existingDraft && !draftLoaded) {
+      setDraftLoaded(true)
+    }
+  }, [existingDraft, draftLoaded])
+
+  // Handle discard draft
+  const handleDiscardDraft = () => {
+    if (confirm('Are you sure you want to discard this draft? All changes will be lost.')) {
+      // Reset all state to defaults
+      setQuoteNumber(generateQuoteNumber())
+      setIsMultiEquipment(false)
+      setEquipmentBlocks([createEmptyEquipmentBlock()])
+      setSelectedMakeId('')
+      setSelectedModelId('')
+      setSelectedLocation('New Jersey')
+      setMakeName('')
+      setModelName('')
+      setDimensions({ length_inches: 0, width_inches: 0, height_inches: 0, weight_lbs: 0 })
+      setCosts(initialCosts)
+      setEnabledCosts(initialEnabled)
+      setCostOverrides(initialOverrides)
+      setDescriptionOverrides(COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>))
+      setMarginPercentage(15)
+      setCustomerName('')
+      setCustomerEmail('')
+      setCustomerPhone('')
+      setCustomerCompany('')
+      setCustomerAddress({ address: '', city: '', state: '', zip: '' })
+      setBillingInfo({ address: '', city: '', state: '', zip: '', paymentTerms: 'net_30' })
+      setNotes('')
+      setMiscFees([])
+
+      deleteDraftMutation.mutate()
+    }
+  }
 
   // Auto-save hook
   const autoSave = useAutoSave({
@@ -237,6 +329,9 @@ export default function NewQuotePage() {
     { enabled: !!selectedModelId }
   )
 
+  // Fetch settings for quote validity and other defaults
+  const { data: settings } = trpc.settings.get.useQuery()
+
   // Update costs when rates change
   useEffect(() => {
     if (rates) {
@@ -256,6 +351,11 @@ export default function NewQuotePage() {
         width_inches: modelDimensions.width_inches,
         height_inches: modelDimensions.height_inches,
         weight_lbs: modelDimensions.weight_lbs,
+      })
+      // Set equipment images if available
+      setEquipmentImages({
+        frontImageUrl: modelDimensions.front_image_url || undefined,
+        sideImageUrl: modelDimensions.side_image_url || undefined,
       })
     }
   }, [modelDimensions])
@@ -279,11 +379,20 @@ export default function NewQuotePage() {
     return parts.length > 0 ? parts.join(', ') : undefined
   }
 
+  // Calculate quote expiration date based on settings
+  const getExpirationDate = useMemo(() => {
+    const validityDays = settings?.quote_validity_days || 30
+    const expirationDate = new Date()
+    expirationDate.setDate(expirationDate.getDate() + validityDays)
+    return formatDate(expirationDate)
+  }, [settings?.quote_validity_days])
+
   // Build PDF data object
   const buildPdfData = useCallback((): QuotePDFData => {
     return {
       quoteNumber,
       date: formatDate(new Date()),
+      expiresAt: getExpirationDate,
       customerName: customerName || 'N/A',
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
@@ -298,6 +407,8 @@ export default function NewQuotePage() {
       modelName: modelName || 'Equipment',
       location: selectedLocation,
       dimensions,
+      frontImageUrl: equipmentImages.frontImageUrl,
+      sideImageUrl: equipmentImages.sideImageUrl,
       costs,
       enabledCosts,
       costOverrides,
@@ -313,8 +424,8 @@ export default function NewQuotePage() {
       primaryColor: '#6366F1',
     }
   }, [
-    quoteNumber, customerName, customerEmail, customerPhone, customerCompany, customerAddress, billingInfo,
-    makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
+    quoteNumber, getExpirationDate, customerName, customerEmail, customerPhone, customerCompany, customerAddress, billingInfo,
+    makeName, modelName, selectedLocation, dimensions, equipmentImages, costs, enabledCosts,
     costOverrides, miscFees, costsSubtotal, miscFeesTotal, subtotal, marginPercentage, marginAmount, total, notes
   ])
 
@@ -433,6 +544,9 @@ export default function NewQuotePage() {
       if (data?.id) {
         setSavedQuoteId(data.id)
       }
+      // Clear the draft after successful quote creation
+      deleteDraftMutation.mutate()
+      setHasDraft(false)
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
@@ -520,6 +634,12 @@ export default function NewQuotePage() {
             <p className="text-muted-foreground">
               Quote #{quoteNumber}
             </p>
+            {hasDraft && (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-1 rounded-full">
+                <FolderOpen className="h-3 w-3" />
+                Draft Restored
+              </span>
+            )}
             <AutoSaveIndicator
               status={autoSave.status}
               lastSaved={autoSave.lastSaved}
@@ -560,6 +680,17 @@ export default function NewQuotePage() {
           >
             <Save className="h-4 w-4" />
           </Button>
+          {hasDraft && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleDiscardDraft}
+              title="Discard Draft"
+              disabled={deleteDraftMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
           <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
             {createQuote.isPending ? 'Saving...' : 'Create Quote'}
           </Button>

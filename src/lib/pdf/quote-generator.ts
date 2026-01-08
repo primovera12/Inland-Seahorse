@@ -47,6 +47,9 @@ export interface QuotePDFData {
     height_inches: number
     weight_lbs: number
   }
+  // Equipment images
+  frontImageUrl?: string
+  sideImageUrl?: string
   costs: Record<CostField, number>
   enabledCosts: Record<CostField, boolean>
   costOverrides: Record<CostField, number | null>
@@ -98,16 +101,28 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-export async function generateQuotePDFAsync(data: QuotePDFData): Promise<jsPDF> {
-  // Load logo if URL provided
-  let logoBase64: string | null = null
-  if (data.companyLogoUrl) {
-    logoBase64 = await loadImageAsBase64(data.companyLogoUrl)
-  }
-  return generateQuotePDFWithLogo(data, logoBase64)
+interface LoadedImages {
+  logo: string | null
+  frontImage: string | null
+  sideImage: string | null
 }
 
-function generateQuotePDFWithLogo(data: QuotePDFData, logoBase64: string | null): jsPDF {
+export async function generateQuotePDFAsync(data: QuotePDFData): Promise<jsPDF> {
+  // Load images in parallel
+  const [logoBase64, frontImageBase64, sideImageBase64] = await Promise.all([
+    data.companyLogoUrl ? loadImageAsBase64(data.companyLogoUrl) : Promise.resolve(null),
+    data.frontImageUrl ? loadImageAsBase64(data.frontImageUrl) : Promise.resolve(null),
+    data.sideImageUrl ? loadImageAsBase64(data.sideImageUrl) : Promise.resolve(null),
+  ])
+
+  return generateQuotePDFWithImages(data, {
+    logo: logoBase64,
+    frontImage: frontImageBase64,
+    sideImage: sideImageBase64,
+  })
+}
+
+function generateQuotePDFWithImages(data: QuotePDFData, images: LoadedImages): jsPDF {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -116,6 +131,7 @@ function generateQuotePDFWithLogo(data: QuotePDFData, logoBase64: string | null)
 
   const primaryColor = hexToRgb(data.primaryColor || '#6366F1')
   const secondaryColor = data.secondaryColor ? hexToRgb(data.secondaryColor) : primaryColor
+  const { logo: logoBase64, frontImage, sideImage } = images
 
   // Header
   doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
@@ -232,9 +248,14 @@ function generateQuotePDFWithLogo(data: QuotePDFData, logoBase64: string | null)
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
 
+  // Determine if we have images
+  const hasImages = frontImage || sideImage
+  const imageHeight = 40
+  const boxHeight = hasImages ? 35 + imageHeight + 5 : 35
+
   // Equipment box
   doc.setFillColor(248, 250, 252)
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 35, 3, 3, 'F')
+  doc.roundedRect(margin, y, pageWidth - margin * 2, boxHeight, 3, 3, 'F')
   y += 8
 
   doc.setFont('helvetica', 'bold')
@@ -257,7 +278,39 @@ function generateQuotePDFWithLogo(data: QuotePDFData, logoBase64: string | null)
   doc.text(formatDimension(data.dimensions.height_inches), margin + 5 + dimSpacing * 2, dimY + 5)
   doc.text(formatWeight(data.dimensions.weight_lbs), margin + 5 + dimSpacing * 3, dimY + 5)
 
-  y += 45
+  // Equipment images (if available)
+  if (hasImages) {
+    const imageY = dimY + 12
+    const imageWidth = 50
+    let imageX = margin + 5
+
+    if (frontImage) {
+      try {
+        doc.addImage(frontImage, 'JPEG', imageX, imageY, imageWidth, imageHeight)
+        // Add label
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text('Front View', imageX + imageWidth / 2, imageY + imageHeight + 4, { align: 'center' })
+        imageX += imageWidth + 10
+      } catch {
+        // Skip if image fails
+      }
+    }
+
+    if (sideImage) {
+      try {
+        doc.addImage(sideImage, 'JPEG', imageX, imageY, imageWidth, imageHeight)
+        // Add label
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text('Side View', imageX + imageWidth / 2, imageY + imageHeight + 4, { align: 'center' })
+      } catch {
+        // Skip if image fails
+      }
+    }
+  }
+
+  y += boxHeight + 10
 
   // Cost Breakdown Table
   doc.setTextColor(0, 0, 0)
@@ -432,9 +485,9 @@ function generateQuotePDFWithLogo(data: QuotePDFData, logoBase64: string | null)
   return doc
 }
 
-// Synchronous version (without logo support for backwards compatibility)
+// Synchronous version (without image support for backwards compatibility)
 export function generateQuotePDF(data: QuotePDFData): jsPDF {
-  return generateQuotePDFWithLogo(data, null)
+  return generateQuotePDFWithImages(data, { logo: null, frontImage: null, sideImage: null })
 }
 
 export function downloadQuotePDF(data: QuotePDFData, filename?: string): void {

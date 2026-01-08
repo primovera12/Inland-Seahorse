@@ -3,7 +3,7 @@
 **Created**: January 7, 2026
 **Last Updated**: January 7, 2026
 **Total Features Missing**: ~65
-**Completed**: 33 (Phase 1-6 Complete)
+**Completed**: 37 (Phase 1-7 Complete)
 
 ---
 
@@ -574,6 +574,93 @@
 ---
 
 ## PHASE 6: ADDITIONAL SYSTEMS (COMPLETED)
+*See Phase 6 sections below*
+
+---
+
+## PHASE 7: DEFERRED ITEMS (COMPLETED)
+
+### 7.1 Complete Auto-Save Draft Management
+**Priority**: HIGH
+**Affects**: Quote Creation
+**Location**: `src/app/(dashboard)/quotes/new/page.tsx`
+**Status**: COMPLETED
+
+- [x] Load existing draft on page mount (if exists)
+- [x] Clear draft on successful quote creation
+- [x] "Discard Draft" button
+- [x] Visual indicator when draft is restored
+
+**Files Created/Modified**:
+- `src/server/routers/quotes.ts` (added deleteDraft mutation)
+- `src/app/(dashboard)/quotes/new/page.tsx` (draft loading, clearing, discard button)
+
+---
+
+### 7.2 Equipment Images in PDF
+**Priority**: MEDIUM
+**Affects**: PDF Generation
+**Location**: `src/lib/pdf/quote-generator.ts`
+**Status**: COMPLETED
+
+- [x] Include front/side images in PDF (async version)
+- [x] Image sizing and layout in PDF
+- [x] Graceful fallback when images unavailable
+
+**Files Created/Modified**:
+- `src/lib/pdf/quote-generator.ts` (added frontImageUrl, sideImageUrl support)
+- `src/app/(dashboard)/quotes/new/page.tsx` (pass equipment images to PDF)
+
+---
+
+### 7.3 Validity Period in PDF
+**Priority**: MEDIUM
+**Affects**: PDF Generation
+**Location**: `src/lib/pdf/quote-generator.ts`
+**Status**: COMPLETED
+
+- [x] Display quote validity/expiration date in PDF header
+- [x] Calculate expiration from settings (quote_validity_days)
+
+**Files Created/Modified**:
+- `src/app/(dashboard)/quotes/new/page.tsx` (added settings query, expiration calculation)
+
+---
+
+### 7.4 Configurable Popular Makes
+**Priority**: LOW
+**Affects**: Settings, Equipment Selection
+**Location**: `src/app/(dashboard)/settings/dismantle/page.tsx`
+**Status**: COMPLETED
+
+- [x] Settings UI to manage popular makes list
+- [x] Up/down reorder popular makes
+- [x] Add/remove makes from popular list
+- [x] Equipment selector uses configurable list
+
+**Files Created/Modified**:
+- `src/server/routers/settings.ts` (added getPopularMakes, updatePopularMakes)
+- `src/app/(dashboard)/settings/dismantle/page.tsx` (added Popular Makes section)
+- `src/components/quotes/equipment-selector.tsx` (uses configurable list)
+- `supabase/migrations/007_popular_makes.sql` (new - popular_makes column)
+
+---
+
+### 7.5 Auto-Expire Quotes
+**Priority**: LOW
+**Affects**: Quote Management
+**Location**: Backend/Cron
+**Status**: DEFERRED
+
+- [ ] Cron job or scheduled function to check expired quotes
+- [ ] Update status to 'expired' when past validity
+- [ ] Optional notification to user
+
+*Note: Requires external cron service (Vercel Cron, etc.) - deferred for future implementation*
+
+---
+
+## PHASE 6: ADDITIONAL SYSTEMS - Details (COMPLETED)
 
 ### 6.1 Ticket/Feedback System
 **Priority**: LOW

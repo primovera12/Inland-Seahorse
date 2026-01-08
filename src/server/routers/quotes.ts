@@ -12,6 +12,13 @@ const quoteDataSchema = z.object({
   customer_email: z.string().email().optional(),
   customer_phone: z.string().optional(),
   customer_company: z.string().optional(),
+  customer_address: z.string().optional(),
+  // Billing info
+  billing_address: z.string().optional(),
+  billing_city: z.string().optional(),
+  billing_state: z.string().optional(),
+  billing_zip: z.string().optional(),
+  payment_terms: z.string().optional(),
   company_id: z.string().uuid().optional(),
   contact_id: z.string().uuid().optional(),
   make_id: z.string().uuid().optional(),
@@ -507,6 +514,17 @@ export const quotesRouter = router({
 
     if (error && error.code !== 'PGRST116') throw error
     return data
+  }),
+
+  // Delete user's draft
+  deleteDraft: protectedProcedure.mutation(async ({ ctx }) => {
+    const { error } = await ctx.supabase
+      .from('quote_drafts')
+      .delete()
+      .eq('user_id', ctx.user.id)
+
+    if (error) throw error
+    return { success: true }
   }),
 
   // Create a new revision from an existing quote

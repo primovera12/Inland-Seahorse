@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { trpc } from '@/lib/trpc/client'
-import { LOCATIONS, type LocationName, sortMakesByPopularity, isPopularMake } from '@/types/equipment'
+import { LOCATIONS, type LocationName, sortMakesByPopularity } from '@/types/equipment'
 import { SelectSeparator, SelectGroup, SelectLabel } from '@/components/ui/select'
 import { formatWeight } from '@/lib/dimensions'
 import { useRecentEquipment } from '@/hooks/use-recent-equipment'
@@ -58,6 +58,9 @@ export function EquipmentSelector({
   // Fetch makes
   const { data: makes, isLoading: makesLoading } = trpc.equipment.getMakes.useQuery()
 
+  // Fetch configurable popular makes from settings
+  const { data: popularMakesList } = trpc.settings.getPopularMakes.useQuery()
+
   // Fetch models with availability info when make is selected
   const { data: modelsWithAvailability, isLoading: modelsLoading } = trpc.equipment.getModelsWithAvailability.useQuery(
     { makeId: selectedMakeId, location: selectedLocation },
@@ -80,6 +83,12 @@ export function EquipmentSelector({
     { enabled: !!selectedModelId }
   )
 
+  // Helper to check if a make is in the popular list (case-insensitive)
+  const isPopularMake = useMemo(() => {
+    const popularSet = new Set((popularMakesList || []).map(m => m.toLowerCase().trim()))
+    return (makeName: string) => popularSet.has(makeName.toLowerCase().trim())
+  }, [popularMakesList])
+
   // Sort and group makes by popularity
   const { popularMakes, otherMakes } = useMemo(() => {
     if (!makes) return { popularMakes: [], otherMakes: [] }
@@ -87,7 +96,7 @@ export function EquipmentSelector({
     const popular = sorted.filter((m) => isPopularMake(m.name))
     const others = sorted.filter((m) => !isPopularMake(m.name))
     return { popularMakes: popular, otherMakes: others }
-  }, [makes])
+  }, [makes, isPopularMake])
 
   // Handle selecting recent equipment or favorite
   const handleQuickSelect = (item: { makeId: string; makeName: string; modelId: string; modelName: string }) => {
