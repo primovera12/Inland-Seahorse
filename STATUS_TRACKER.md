@@ -124,6 +124,7 @@
 - [x] Add unit tests for dimensions utility (47 tests)
 - [x] Add unit tests for truck-recommendation utility (21 tests)
 - [x] Add unit tests for utils utility (24 tests)
+- [x] Add unit tests for error handling utility (20 tests)
 - [ ] Add integration tests for tRPC routers
 - [ ] Add E2E tests for critical flows (quote creation)
 
@@ -156,11 +157,16 @@
 
 ### 2026-01-07
 
+- Added error handling utility (src/lib/errors.ts):
+  - handleSupabaseError: converts PostgrestError to TRPCError with proper codes
+  - checkSupabaseError: helper for common error check pattern
+  - assertDataExists: type guard for NOT_FOUND scenarios
+  - sanitizeErrorMessage: removes sensitive database details from error messages
+  - Comprehensive tests (20 tests) - Total: 120 passing tests
 - Added comprehensive unit tests for utility functions:
   - dimensions.test.ts (47 tests): parseSmartDimension, unit conversions, formatting
   - truck-recommendation.test.ts (21 tests): cargo fitting, truck recommendations
   - utils.test.ts (24 tests): currency, dates, quote number generation
-  - Total: 100 passing tests
 - Optimized quote history queries:
   - getVersions: reduced from 3 queries to 2 with eager loading
   - getHistory: select only required columns for list view
