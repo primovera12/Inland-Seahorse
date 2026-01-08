@@ -120,7 +120,7 @@ export const inlandRouter = router({
       return data
     }),
 
-  // Get quote history
+  // Get quote history (optimized: select only list-view columns)
   getHistory: protectedProcedure
     .input(
       z.object({
@@ -134,7 +134,24 @@ export const inlandRouter = router({
     .query(async ({ ctx, input }) => {
       let query = ctx.supabase
         .from('inland_quotes')
-        .select('*', { count: 'exact' })
+        .select(
+          `
+          id,
+          quote_number,
+          status,
+          customer_name,
+          customer_company,
+          customer_email,
+          origin_city,
+          origin_state,
+          destination_city,
+          destination_state,
+          total,
+          expires_at,
+          created_at
+        `,
+          { count: 'exact' }
+        )
         .order('created_at', { ascending: false })
         .range(input.offset, input.offset + input.limit - 1)
 

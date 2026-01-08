@@ -99,8 +99,9 @@
 **Location**: Supabase/PostgreSQL
 
 - [x] Add indexes on frequently queried columns (migration 008)
-- [ ] Optimize quote history queries
+- [x] Optimize quote history queries
 - [x] Add pagination to key list endpoints
+- [x] Add query optimization indexes (migration 009)
 
 ### 9. Caching Strategy
 **Priority**: LOW
@@ -153,6 +154,11 @@
 
 ### 2026-01-07
 
+- Optimized quote history queries:
+  - getVersions: reduced from 3 queries to 2 with eager loading
+  - getHistory: select only required columns for list view
+  - getStatusHistory: specific column selection
+  - Added migration 009 with composite indexes for better query performance
 - Set up Vitest testing framework:
   - vitest.config.ts with React and happy-dom support
   - Test setup with jest-dom matchers

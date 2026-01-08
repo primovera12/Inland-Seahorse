@@ -48,7 +48,7 @@ const quoteDataSchema = z.object({
 })
 
 export const quotesRouter = router({
-  // Get quote history
+  // Get quote history (optimized: select only list-view columns)
   getHistory: protectedProcedure
     .input(
       z.object({
@@ -62,7 +62,26 @@ export const quotesRouter = router({
     .query(async ({ ctx, input }) => {
       let query = ctx.supabase
         .from('quote_history')
-        .select('*', { count: 'exact' })
+        .select(
+          `
+          id,
+          quote_number,
+          version,
+          status,
+          customer_name,
+          customer_company,
+          customer_email,
+          make_name,
+          model_name,
+          location,
+          total,
+          expires_at,
+          created_at,
+          updated_at,
+          is_latest_version
+        `,
+          { count: 'exact' }
+        )
         .order('created_at', { ascending: false })
         .range(input.offset, input.offset + input.limit - 1)
 
@@ -236,7 +255,7 @@ export const quotesRouter = router({
       return data
     }),
 
-  // Get status history for a quote
+  // Get status history for a quote (optimized: specific columns + eager loading)
   getStatusHistory: protectedProcedure
     .input(
       z.object({
@@ -247,7 +266,17 @@ export const quotesRouter = router({
     .query(async ({ ctx, input }) => {
       const { data, error } = await ctx.supabase
         .from('quote_status_history')
-        .select('*')
+        .select(`
+          id,
+          quote_id,
+          quote_type,
+          previous_status,
+          new_status,
+          changed_by,
+          changed_by_name,
+          notes,
+          created_at
+        `)
         .eq('quote_id', input.quoteId)
         .eq('quote_type', input.quoteType)
         .order('created_at', { ascending: false })
@@ -615,7 +644,7 @@ export const quotesRouter = router({
       return newQuote
     }),
 
-  // Get all versions of a quote
+  // Get all versions of a quote (optimized: single query with eager loading)
   getVersions: protectedProcedure
     .input(z.object({ quoteId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
@@ -630,7 +659,7 @@ export const quotesRouter = router({
 
       const parentId = quote.parent_quote_id || quote.id
 
-      // Get all versions in the chain
+      // Get all versions with creator info in a single query using eager loading
       const { data: versions, error } = await ctx.supabase
         .from('quote_history')
         .select(`
@@ -643,32 +672,33 @@ export const quotesRouter = router({
           total,
           change_notes,
           created_at,
-          created_by
+          created_by,
+          creator:users!created_by(id, first_name, last_name)
         `)
         .or(`id.eq.${parentId},parent_quote_id.eq.${parentId}`)
         .order('version', { ascending: false })
 
       if (error) throw error
 
-      // Get creator names
-      const creatorIds = [...new Set(versions?.map(v => v.created_by).filter(Boolean))]
-      let creatorMap: Record<string, string> = {}
-
-      if (creatorIds.length > 0) {
-        const { data: users } = await ctx.supabase
-          .from('users')
-          .select('id, first_name, last_name')
-          .in('id', creatorIds)
-
-        users?.forEach(user => {
-          creatorMap[user.id] = `${user.first_name || ''} ${user.last_name || ''}`.trim()
-        })
-      }
-
-      return versions?.map(v => ({
-        ...v,
-        created_by_name: v.created_by ? creatorMap[v.created_by] : undefined,
-      })) || []
+      // Transform to include created_by_name
+      return versions?.map(v => {
+        const creator = v.creator as { first_name?: string; last_name?: string } | null
+        return {
+          id: v.id,
+          quote_number: v.quote_number,
+          version: v.version,
+          parent_quote_id: v.parent_quote_id,
+          is_latest_version: v.is_latest_version,
+          status: v.status,
+          total: v.total,
+          change_notes: v.change_notes,
+          created_at: v.created_at,
+          created_by: v.created_by,
+          created_by_name: creator
+            ? `${creator.first_name || ''} ${creator.last_name || ''}`.trim()
+            : undefined,
+        }
+      }) || []
     }),
 
   // Compare two versions of a quote
