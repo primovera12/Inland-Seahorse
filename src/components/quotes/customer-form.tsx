@@ -102,17 +102,6 @@ export function CustomerForm({
     }
   }
 
-  // Get full address string for display/copy
-  const getFullAddressString = (): string => {
-    const parts = [
-      addressObj.address,
-      addressObj.city,
-      addressObj.state,
-      addressObj.zip,
-    ].filter(Boolean)
-    return parts.join(', ')
-  }
-
   // Search companies
   const { data: searchResults } = trpc.companies.search.useQuery(
     { query: searchQuery },
