@@ -118,8 +118,9 @@
 **Priority**: MEDIUM
 **Location**: Project-wide
 
-- [ ] Set up Jest/Vitest
-- [ ] Add unit tests for utilities (dimensions, truck-recommendation)
+- [x] Set up Vitest
+- [x] Add unit tests for rate-limiter utility
+- [ ] Add unit tests for other utilities (dimensions, truck-recommendation)
 - [ ] Add integration tests for tRPC routers
 - [ ] Add E2E tests for critical flows (quote creation)
 
@@ -152,6 +153,11 @@
 
 ### 2026-01-07
 
+- Set up Vitest testing framework:
+  - vitest.config.ts with React and happy-dom support
+  - Test setup with jest-dom matchers
+  - Unit tests for rate-limiter utility (8 passing tests)
+  - npm scripts: test, test:run, test:coverage
 - Added rate limiting middleware for API security:
   - In-memory rate limiter utility (src/lib/rate-limiter.ts)
   - Rate-limited procedures for sensitive endpoints
