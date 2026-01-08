@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 export const equipmentRouter = router({
   // Get all makes (sorted by popularity)
@@ -9,7 +10,7 @@ export const equipmentRouter = router({
       .select('*')
       .order('popularity_rank', { ascending: true })
 
-    if (error) throw error
+    checkSupabaseError(error, 'Equipment makes')
     return data
   }),
 
@@ -23,7 +24,7 @@ export const equipmentRouter = router({
         .eq('make_id', input.makeId)
         .order('name')
 
-      if (error) throw error
+      checkSupabaseError(error, 'Equipment models')
       return data
     }),
 
@@ -38,7 +39,7 @@ export const equipmentRouter = router({
         .eq('make_id', input.makeId)
         .order('name')
 
-      if (modelsError) throw modelsError
+      checkSupabaseError(modelsError, 'Equipment models')
       if (!models || models.length === 0) return []
 
       // Get all dimensions for these models
@@ -82,7 +83,7 @@ export const equipmentRouter = router({
         .eq('model_id', input.modelId)
         .single()
 
-      if (error && error.code !== 'PGRST116') throw error
+      checkSupabaseError(error, 'Equipment dimensions', true)
       return data
     }),
 
@@ -109,7 +110,7 @@ export const equipmentRouter = router({
         .eq('location', input.location)
         .single()
 
-      if (error && error.code !== 'PGRST116') throw error
+      checkSupabaseError(error, 'Equipment rates', true)
       return data
     }),
 
@@ -122,7 +123,7 @@ export const equipmentRouter = router({
         .select('*')
         .eq('model_id', input.modelId)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Equipment rates')
       return data
     }),
 
@@ -131,18 +132,22 @@ export const equipmentRouter = router({
     .input(z.object({ query: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       // Search makes
-      const { data: makes } = await ctx.supabase
+      const { data: makes, error: makesError } = await ctx.supabase
         .from('makes')
         .select('id, name')
         .ilike('name', `%${input.query}%`)
         .limit(5)
 
+      checkSupabaseError(makesError, 'Equipment makes search')
+
       // Search models with make info
-      const { data: models } = await ctx.supabase
+      const { data: models, error: modelsError } = await ctx.supabase
         .from('models')
         .select('id, name, make_id, makes(name)')
         .ilike('name', `%${input.query}%`)
         .limit(10)
+
+      checkSupabaseError(modelsError, 'Equipment models search')
 
       return {
         makes: makes || [],
@@ -178,7 +183,7 @@ export const equipmentRouter = router({
         .update(updates)
         .eq('model_id', input.modelId)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Equipment images')
       return { success: true }
     }),
 })

@@ -52,7 +52,7 @@
 
 **Priority**: MEDIUM
 **Location**: tRPC routers
-**Status**: IN PROGRESS
+**Status**: COMPLETED
 
 - [x] Create error handling utility (src/lib/errors.ts)
 - [x] Apply to search router (was silently failing)
@@ -61,7 +61,14 @@
 - [x] Apply to companies router (including contacts)
 - [x] Apply to reminders router
 - [x] Apply to feedback router
-- [ ] Apply to remaining routers (quotes, inland, equipment, etc.)
+- [x] Apply to quotes router
+- [x] Apply to inland router
+- [x] Apply to equipment router
+- [x] Apply to user router
+- [x] Apply to settings router
+- [x] Apply to email router
+- [x] Apply to import router
+- [x] Apply to notifications router
 
 ---
 
@@ -170,7 +177,51 @@
 
 ## CHANGELOG
 
-### 2026-01-07
+### 2026-01-07 (Session 3)
+
+- **MAJOR: Brought Inland Quotes to feature parity with Dismantling Quotes**
+- Equipment Images Setup:
+  - Added Next.js config for Supabase storage images (next.config.ts)
+  - Created storage bucket migration (010_equipment_images_bucket.sql)
+- Inland Quote Draft Saving:
+  - Added saveDraft, getDraft, deleteDraft procedures to inland.ts router
+  - Created inland_quote_drafts table migration (011_inland_quote_drafts.sql)
+  - Integrated useAutoSave hook in inland/new page
+  - Auto-save with 2s debounce
+  - Draft restoration on page load with toast notification
+  - Discard Draft button functionality
+  - AutoSaveIndicator component shows save status
+- Inland Quote Version History:
+  - Added createRevision procedure to inland.ts router
+  - Added getVersions procedure with creator info
+  - Added compareVersions procedure for version diffs
+  - Created InlandVersionHistory component (src/components/inland/version-history.tsx)
+- Inland Quote Status History:
+  - Updated updateStatus to track history in quote_status_history table
+  - Updated markAsSent with expiry date calculation and history tracking
+  - Added markAsViewed procedure
+  - Updated markAsAccepted with history tracking
+  - Updated markAsRejected with history tracking
+  - Added getStatusHistory procedure
+  - Added 'viewed' status to inland quote status enum
+- All 120 tests passing
+- Build successful with no TypeScript errors
+
+### 2026-01-07 (Session 2)
+
+- Completed error handling standardization across ALL tRPC routers:
+  - quotes.ts: Applied to 15+ procedures including version management
+  - inland.ts: Applied to all CRUD and status operations
+  - equipment.ts: Applied including search with error capture
+  - user.ts: Applied to profile and team management
+  - settings.ts: Applied including PGRST116 handling for optional settings
+  - email.ts: Applied to email sending and history
+  - import.ts: Applied to bulk import operations
+  - notifications.ts: Applied to all notification CRUD
+- All 120 tests passing (47 dimensions + 21 truck + 24 utils + 20 errors + 8 rate-limiter)
+- Build successful with no TypeScript errors
+
+### 2026-01-07 (Session 1)
 
 - Applied error handling utility to 6 tRPC routers:
   - search.ts: Fixed silent failures in global search (was ignoring errors)

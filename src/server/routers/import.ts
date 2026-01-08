@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 export const importRouter = router({
   // Import equipment makes
@@ -39,7 +40,7 @@ export const importRouter = router({
             .from('equipment_makes')
             .insert(item)
 
-          if (error) throw error
+          checkSupabaseError(error, 'Import')
           imported++
         } catch (error) {
           errors.push(`Failed to import "${item.name}": ${(error as Error).message}`)
@@ -99,7 +100,7 @@ export const importRouter = router({
             .from('equipment_models')
             .insert({ make_id: make.id, name: item.name })
 
-          if (error) throw error
+          checkSupabaseError(error, 'Import')
           imported++
         } catch (error) {
           errors.push(`Failed to import "${item.name}": ${(error as Error).message}`)
@@ -153,7 +154,7 @@ export const importRouter = router({
             status: item.status || 'active',
           })
 
-          if (error) throw error
+          checkSupabaseError(error, 'Import')
           imported++
         } catch (error) {
           errors.push(`Failed to import "${item.name}": ${(error as Error).message}`)
@@ -219,7 +220,7 @@ export const importRouter = router({
             company_id: company.id,
           })
 
-          if (error) throw error
+          checkSupabaseError(error, 'Import')
           imported++
         } catch (error) {
           errors.push(
@@ -311,7 +312,7 @@ export const importRouter = router({
               .update(rateData)
               .eq('id', existing.id)
 
-            if (error) throw error
+            checkSupabaseError(error, 'Import')
             updated++
           } else {
             // Insert new
@@ -321,7 +322,7 @@ export const importRouter = router({
               model_id: model.id,
             })
 
-            if (error) throw error
+            checkSupabaseError(error, 'Import')
             imported++
           }
         } catch (error) {

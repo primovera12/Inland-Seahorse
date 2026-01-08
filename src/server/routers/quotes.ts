@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
 import { generateQuoteNumber } from '@/lib/utils'
 import { Resend } from 'resend'
+import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 // Lazy initialization to avoid build-time errors when API key is not set
 const getResend = () => {
@@ -91,7 +92,7 @@ export const quotesRouter = router({
 
       const { data, error, count } = await query
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       return { quotes: data, total: count }
     }),
 
@@ -105,7 +106,7 @@ export const quotesRouter = router({
         .eq('id', input.id)
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       return data
     }),
 
@@ -122,7 +123,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       return data
     }),
 
@@ -142,7 +143,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       return data
     }),
 
@@ -155,7 +156,7 @@ export const quotesRouter = router({
         .delete()
         .eq('id', input.id)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       return { success: true }
     }),
 
@@ -217,7 +218,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
 
       // Record status change in history
       if (currentQuote?.status !== input.status) {
@@ -281,7 +282,7 @@ export const quotesRouter = router({
         .eq('quote_type', input.quoteType)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       return data || []
     }),
 
@@ -318,7 +319,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
 
       // Record status history
       if (currentQuote?.status !== 'sent') {
@@ -358,7 +359,7 @@ export const quotesRouter = router({
           .select()
           .single()
 
-        if (error) throw error
+        checkSupabaseError(error, 'Quote')
 
         // Record status history
         await ctx.supabase.from('quote_status_history').insert({
@@ -404,7 +405,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
 
       // Record status history
       if (currentQuote?.status !== 'accepted') {
@@ -465,7 +466,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
 
       // Record status history
       if (currentQuote?.status !== 'rejected') {
@@ -522,7 +523,7 @@ export const quotesRouter = router({
           .select()
           .single()
 
-        if (error) throw error
+        checkSupabaseError(error, 'Quote')
         return data
       } else {
         // Create new draft
@@ -535,7 +536,7 @@ export const quotesRouter = router({
           .select()
           .single()
 
-        if (error) throw error
+        checkSupabaseError(error, 'Quote')
         return data
       }
     }),
@@ -548,7 +549,7 @@ export const quotesRouter = router({
       .eq('user_id', ctx.user.id)
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error
+    checkSupabaseError(error, 'Quote', true)
     return data
   }),
 
@@ -559,7 +560,7 @@ export const quotesRouter = router({
       .delete()
       .eq('user_id', ctx.user.id)
 
-    if (error) throw error
+    checkSupabaseError(error, 'Quote')
     return { success: true }
   }),
 
@@ -579,8 +580,8 @@ export const quotesRouter = router({
         .eq('id', input.sourceQuoteId)
         .single()
 
-      if (fetchError) throw fetchError
-      if (!sourceQuote) throw new Error('Source quote not found')
+      checkSupabaseError(fetchError, 'Quote')
+      assertDataExists(sourceQuote, 'Source quote')
 
       // Determine the parent quote ID (original in the chain)
       const parentQuoteId = sourceQuote.parent_quote_id || sourceQuote.id
@@ -629,7 +630,7 @@ export const quotesRouter = router({
         .select()
         .single()
 
-      if (createError) throw createError
+      checkSupabaseError(createError, 'Quote')
 
       // Record in status history
       await ctx.supabase.from('quote_status_history').insert({
@@ -678,7 +679,7 @@ export const quotesRouter = router({
         .or(`id.eq.${parentId},parent_quote_id.eq.${parentId}`)
         .order('version', { ascending: false })
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
 
       // Transform to include created_by_name
       return versions?.map(v => {
@@ -715,7 +716,7 @@ export const quotesRouter = router({
         .select('*')
         .in('id', [input.quoteId1, input.quoteId2])
 
-      if (error) throw error
+      checkSupabaseError(error, 'Quote')
       if (!quotes || quotes.length !== 2) {
         throw new Error('Could not find both quotes')
       }

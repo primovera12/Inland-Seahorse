@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 const roleSchema = z.enum(['admin', 'manager', 'member', 'viewer'])
 
@@ -24,7 +25,7 @@ export const userRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'User')
       return data
     }),
 
@@ -51,7 +52,7 @@ export const userRouter = router({
       }
 
       const { data, error, count } = await query
-      if (error) throw error
+      checkSupabaseError(error, 'User')
       return { users: data, total: count }
     }),
 
@@ -79,7 +80,7 @@ export const userRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'User')
       return data
     }),
 
@@ -99,7 +100,7 @@ export const userRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'User')
       return data
     }),
 
@@ -119,7 +120,7 @@ export const userRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'User')
       return data
     }),
 
@@ -132,7 +133,7 @@ export const userRouter = router({
         .delete()
         .eq('id', input.userId)
 
-      if (error) throw error
+      checkSupabaseError(error, 'User')
       return { success: true }
     }),
 })

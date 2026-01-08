@@ -33,7 +33,9 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2, Mail, Save } from 'lucide-react'
+import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2, Mail, Save, Trash2 } from 'lucide-react'
+import { useAutoSave } from '@/hooks/use-auto-save'
+import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 import type { InlandDestinationBlock } from '@/types/inland'
 import {
   downloadInlandQuotePDF,
@@ -107,6 +109,10 @@ export default function NewInlandQuotePage() {
   const [showEmailDialog, setShowEmailDialog] = useState(false)
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
 
+  // Draft management
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+
   // Generate quote number on mount
   useEffect(() => {
     setQuoteNumber(generateInlandQuoteNumber())
@@ -115,6 +121,19 @@ export default function NewInlandQuotePage() {
   // Fetch data
   const { data: truckTypes } = trpc.inland.getEquipmentTypes.useQuery()
   const { data: accessorialTypes } = trpc.inland.getAccessorialTypes.useQuery()
+
+  // Draft queries and mutations
+  const { data: existingDraft, isLoading: isDraftLoading } = trpc.inland.getDraft.useQuery(
+    undefined,
+    { enabled: !isInitialized }
+  )
+
+  const saveDraftMutation = trpc.inland.saveDraft.useMutation()
+  const deleteDraftMutation = trpc.inland.deleteDraft.useMutation({
+    onSuccess: () => {
+      toast.success('Draft discarded')
+    },
+  })
 
   // Company search
   const { data: searchResults } = trpc.companies.search.useQuery(
@@ -126,6 +145,87 @@ export default function NewInlandQuotePage() {
   const subtotal = destinationBlocks.reduce((sum, block) => sum + block.subtotal, 0)
   const marginAmount = Math.round(subtotal * (marginPercentage / 100))
   const total = subtotal + marginAmount
+
+  // Draft data for auto-save
+  const draftData = useMemo(
+    () => ({
+      quoteNumber,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerCompany,
+      selectedCompanyId,
+      marginPercentage,
+      internalNotes,
+      quoteNotes,
+      destinationBlocks,
+    }),
+    [
+      quoteNumber,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerCompany,
+      selectedCompanyId,
+      marginPercentage,
+      internalNotes,
+      quoteNotes,
+      destinationBlocks,
+    ]
+  )
+
+  // Auto-save hook
+  const { status: autoSaveStatus, lastSaved } = useAutoSave({
+    data: draftData,
+    onSave: async (data) => {
+      await saveDraftMutation.mutateAsync({ quote_data: data })
+    },
+    debounceMs: 2000,
+    enabled: isInitialized,
+  })
+
+  // Restore draft on mount
+  useEffect(() => {
+    if (!isDraftLoading && existingDraft && !isInitialized) {
+      const data = existingDraft.quote_data as typeof draftData
+      if (data) {
+        if (data.quoteNumber) setQuoteNumber(data.quoteNumber)
+        if (data.customerName) setCustomerName(data.customerName)
+        if (data.customerEmail) setCustomerEmail(data.customerEmail)
+        if (data.customerPhone) setCustomerPhone(data.customerPhone)
+        if (data.customerCompany) setCustomerCompany(data.customerCompany)
+        if (data.selectedCompanyId) setSelectedCompanyId(data.selectedCompanyId)
+        if (data.marginPercentage !== undefined) setMarginPercentage(data.marginPercentage)
+        if (data.internalNotes) setInternalNotes(data.internalNotes)
+        if (data.quoteNotes) setQuoteNotes(data.quoteNotes)
+        if (data.destinationBlocks && data.destinationBlocks.length > 0) {
+          setDestinationBlocks(data.destinationBlocks)
+        }
+        setDraftRestored(true)
+        toast.success('Draft restored', { description: 'Your previous work has been loaded.' })
+      }
+      setIsInitialized(true)
+    } else if (!isDraftLoading && !existingDraft && !isInitialized) {
+      setIsInitialized(true)
+    }
+  }, [existingDraft, isDraftLoading, isInitialized])
+
+  // Discard draft
+  const handleDiscardDraft = () => {
+    // Reset all fields
+    setQuoteNumber(generateInlandQuoteNumber())
+    setCustomerName('')
+    setCustomerEmail('')
+    setCustomerPhone('')
+    setCustomerCompany('')
+    setSelectedCompanyId(null)
+    setMarginPercentage(15)
+    setInternalNotes('')
+    setQuoteNotes('')
+    setDestinationBlocks([createEmptyDestination('A')])
+    setDraftRestored(false)
+    deleteDraftMutation.mutate()
+  }
 
   // Build PDF data
   const buildPdfData = useCallback((): InlandQuotePDFData => {
@@ -353,6 +453,8 @@ export default function NewInlandQuotePage() {
       if (data?.id) {
         setSavedQuoteId(data.id)
       }
+      // Clear draft on successful quote creation
+      deleteDraftMutation.mutate()
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
@@ -422,7 +524,15 @@ export default function NewInlandQuotePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">New Inland Quote</h1>
-          <p className="text-muted-foreground">Quote #{quoteNumber}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-muted-foreground">Quote #{quoteNumber}</p>
+            <AutoSaveIndicator status={autoSaveStatus} lastSaved={lastSaved} />
+            {draftRestored && (
+              <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">
+                Draft Restored
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
@@ -468,7 +578,17 @@ export default function NewInlandQuotePage() {
           >
             <Save className="h-4 w-4" />
           </Button>
-          <Button variant="outline">Save Draft</Button>
+          {(draftRestored || autoSaveStatus !== 'idle') && (
+            <Button
+              variant="outline"
+              onClick={handleDiscardDraft}
+              disabled={deleteDraftMutation.isPending}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Discard Draft
+            </Button>
+          )}
           <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
             {createQuote.isPending ? 'Saving...' : 'Create Quote'}
           </Button>

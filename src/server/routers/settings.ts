@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 export const settingsRouter = router({
   // Get company settings
@@ -9,7 +10,7 @@ export const settingsRouter = router({
       .select('*')
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error
+    checkSupabaseError(error, 'Settings', true)
     return data
   }),
 
@@ -73,7 +74,7 @@ export const settingsRouter = router({
           .select()
           .single()
 
-        if (error) throw error
+        checkSupabaseError(error, 'Settings')
         return data
       } else {
         const { data, error } = await ctx.supabase
@@ -96,7 +97,7 @@ export const settingsRouter = router({
           .select()
           .single()
 
-        if (error) throw error
+        checkSupabaseError(error, 'Settings')
         return data
       }
     }),
@@ -110,7 +111,7 @@ export const settingsRouter = router({
         .select(`terms_${input.type}, terms_version`)
         .single()
 
-      if (error && error.code !== 'PGRST116') throw error
+      checkSupabaseError(error, 'Settings', true)
       const termsKey = `terms_${input.type}` as 'terms_dismantle' | 'terms_inland'
       return {
         content: (data as Record<string, unknown>)?.[termsKey] || null,
@@ -149,7 +150,7 @@ export const settingsRouter = router({
           .select()
           .single()
 
-        if (error) throw error
+        checkSupabaseError(error, 'Settings')
         return { success: true, version: newVersion }
       } else {
         const { error } = await ctx.supabase
@@ -170,7 +171,7 @@ export const settingsRouter = router({
             terms_version: 1,
           })
 
-        if (error) throw error
+        checkSupabaseError(error, 'Settings')
         return { success: true, version: 1 }
       }
     }),
@@ -182,7 +183,7 @@ export const settingsRouter = router({
       .select('popular_makes')
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error
+    checkSupabaseError(error, 'Settings', true)
 
     // Return stored list or default
     const defaultMakes = [
@@ -211,7 +212,7 @@ export const settingsRouter = router({
           })
           .eq('id', existing.id)
 
-        if (error) throw error
+        checkSupabaseError(error, 'Settings')
       } else {
         const { error } = await ctx.supabase
           .from('company_settings')
@@ -231,7 +232,7 @@ export const settingsRouter = router({
             popular_makes: input.makes,
           })
 
-        if (error) throw error
+        checkSupabaseError(error, 'Settings')
       }
 
       return { success: true }

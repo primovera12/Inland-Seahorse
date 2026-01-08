@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure, rateLimitedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 export const emailRouter = router({
   // Send quote via email (rate limited: 10 per minute)
@@ -32,7 +33,7 @@ export const emailRouter = router({
         .select()
         .single()
 
-      if (logError) throw logError
+      checkSupabaseError(logError, 'Email log')
 
       // In production, integrate with Resend or similar service
       // For now, mark as sent and update the quote status
@@ -41,7 +42,7 @@ export const emailRouter = router({
         .update({ status: 'sent', sent_at: new Date().toISOString() })
         .eq('id', emailLog.id)
 
-      if (updateError) throw updateError
+      checkSupabaseError(updateError, 'Email log')
 
       // Update quote status to 'sent'
       const tableName = input.quoteType === 'dismantle' ? 'quotes' : 'inland_quotes'
@@ -69,7 +70,7 @@ export const emailRouter = router({
         .eq('quote_type', input.quoteType)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      checkSupabaseError(error, 'Email')
       return data
     }),
 })

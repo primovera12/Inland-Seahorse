@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { checkSupabaseError } from '@/lib/errors'
 
 export const notificationsRouter = router({
   // Get user notifications
@@ -24,7 +25,7 @@ export const notificationsRouter = router({
       }
 
       const { data, error, count } = await query
-      if (error) throw error
+      checkSupabaseError(error, 'Notification')
       return { notifications: data, total: count }
     }),
 
@@ -36,7 +37,7 @@ export const notificationsRouter = router({
       .eq('user_id', ctx.user.id)
       .eq('read', false)
 
-    if (error) throw error
+    checkSupabaseError(error, 'Notification')
     return { count: count || 0 }
   }),
 
@@ -50,7 +51,7 @@ export const notificationsRouter = router({
         .eq('id', input.id)
         .eq('user_id', ctx.user.id)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Notification')
       return { success: true }
     }),
 
@@ -62,7 +63,7 @@ export const notificationsRouter = router({
       .eq('user_id', ctx.user.id)
       .eq('read', false)
 
-    if (error) throw error
+    checkSupabaseError(error, 'Notification')
     return { success: true }
   }),
 
@@ -76,7 +77,7 @@ export const notificationsRouter = router({
         .eq('id', input.id)
         .eq('user_id', ctx.user.id)
 
-      if (error) throw error
+      checkSupabaseError(error, 'Notification')
       return { success: true }
     }),
 
@@ -87,7 +88,7 @@ export const notificationsRouter = router({
       .delete()
       .eq('user_id', ctx.user.id)
 
-    if (error) throw error
+    checkSupabaseError(error, 'Notification')
     return { success: true }
   }),
 
@@ -118,7 +119,7 @@ export const notificationsRouter = router({
         .select()
         .single()
 
-      if (error) throw error
+      checkSupabaseError(error, 'Notification')
       return data
     }),
 })
