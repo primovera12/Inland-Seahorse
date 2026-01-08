@@ -32,9 +32,13 @@
 ### 2. Unused Code Cleanup
 **Priority**: LOW
 **Location**: Various files
+**Status**: COMPLETED
 
 - [x] Remove unused `getFullAddressString` in `customer-form.tsx:106`
-- [ ] Audit for other unused functions/variables
+- [x] Remove unused imports across 10+ files
+- [x] Fix setState-in-effect anti-patterns
+- [x] Escape special characters in JSX text
+- [x] Remove unused variables (`editingTemplate`, `reminderStats`, etc.)
 
 ### 3. Type Safety Improvements
 **Priority**: MEDIUM
@@ -133,12 +137,14 @@
 
 ---
 
-## QUICK WINS (Can Fix Now)
+## QUICK WINS (Completed)
 
-| # | Issue | File | Effort |
-|---|-------|------|--------|
-| 1 | Remove unused `getFullAddressString` | customer-form.tsx | 2 min |
-| 2 | Add explicit types to query results | Various | 15 min |
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | Remove unused `getFullAddressString` | Done |
+| 2 | Add explicit types to query results | Done |
+| 3 | Clean up unused imports | Done |
+| 4 | Fix setState-in-effect patterns | Done |
 
 ---
 
@@ -148,3 +154,7 @@
 - Created status tracker
 - Fixed 5 TypeScript build errors
 - Fixed Resend lazy initialization for build
+- Cleaned up unused imports across 10+ files
+- Fixed setState-in-effect anti-patterns in settings pages
+- Escaped JSX special characters
+- Removed unused variables and function declarations
