@@ -160,8 +160,8 @@ export const equipmentRouter = router({
     .input(
       z.object({
         modelId: z.string().uuid(),
-        frontImageUrl: z.string().url().nullable().optional(),
-        sideImageUrl: z.string().url().nullable().optional(),
+        frontImageUrl: z.string().url().nullable().or(z.literal('')).transform(val => val === '' ? null : val).optional(),
+        sideImageUrl: z.string().url().nullable().or(z.literal('')).transform(val => val === '' ? null : val).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

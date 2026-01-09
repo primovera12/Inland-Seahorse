@@ -14,7 +14,7 @@ export const userRouter = router({
       z.object({
         first_name: z.string().min(1).optional(),
         last_name: z.string().min(1).optional(),
-        avatar_url: z.string().url().optional(),
+        avatar_url: z.string().url().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

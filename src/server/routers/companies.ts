@@ -57,7 +57,7 @@ export const companiesRouter = router({
       z.object({
         name: z.string().min(1),
         industry: z.string().optional(),
-        website: z.string().url().optional(),
+        website: z.string().url().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
         phone: z.string().optional(),
         address: z.string().optional(),
         city: z.string().optional(),
@@ -94,7 +94,7 @@ export const companiesRouter = router({
         data: z.object({
           name: z.string().min(1).optional(),
           industry: z.string().optional(),
-          website: z.string().url().optional(),
+          website: z.string().url().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
           phone: z.string().optional(),
           address: z.string().optional(),
           city: z.string().optional(),
@@ -171,7 +171,7 @@ export const contactsRouter = router({
         company_id: z.string().uuid(),
         first_name: z.string().min(1),
         last_name: z.string().min(1),
-        email: z.string().email().optional(),
+        email: z.string().email().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
         phone: z.string().optional(),
         mobile: z.string().optional(),
         title: z.string().optional(),
@@ -201,7 +201,7 @@ export const contactsRouter = router({
         data: z.object({
           first_name: z.string().min(1).optional(),
           last_name: z.string().min(1).optional(),
-          email: z.string().email().optional(),
+          email: z.string().email().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
           phone: z.string().optional(),
           mobile: z.string().optional(),
           title: z.string().optional(),

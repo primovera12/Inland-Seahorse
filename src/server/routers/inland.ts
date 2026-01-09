@@ -7,7 +7,7 @@ const inlandQuoteDataSchema = z.object({
   quote_number: z.string(),
   status: z.enum(['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired']),
   customer_name: z.string(),
-  customer_email: z.string().email().optional(),
+  customer_email: z.string().email().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
   customer_phone: z.string().optional(),
   customer_company: z.string().optional(),
   company_id: z.string().uuid().optional(),
@@ -1075,7 +1075,7 @@ export const inlandRouter = router({
         token: z.string().uuid(),
         signatureData: z.string().optional(),
         signedBy: z.string().min(1),
-        signerEmail: z.string().email().optional(),
+        signerEmail: z.string().email().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
         notes: z.string().optional(),
       })
     )
@@ -1146,7 +1146,7 @@ export const inlandRouter = router({
         token: z.string().uuid(),
         rejectionReason: z.string().optional(),
         respondentName: z.string().optional(),
-        respondentEmail: z.string().email().optional(),
+        respondentEmail: z.string().email().or(z.literal('')).transform(val => val === '' ? undefined : val).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
