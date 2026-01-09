@@ -147,14 +147,14 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Team Management</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage your team members and their permissions
           </p>
         </div>
-        <Button onClick={() => setShowInviteDialog(true)}>
+        <Button onClick={() => setShowInviteDialog(true)} className="w-full sm:w-auto">
           <UserPlus className="h-4 w-4 mr-2" />
           Invite Member
         </Button>
@@ -233,7 +233,8 @@ export default function TeamPage() {
               <p className="text-sm">Invite your first team member to get started</p>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+            <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Member</TableHead>
@@ -359,6 +360,7 @@ export default function TeamPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

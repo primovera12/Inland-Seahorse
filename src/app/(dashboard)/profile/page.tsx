@@ -103,8 +103,8 @@ export default function ProfilePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Profile</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Manage your account settings and preferences</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

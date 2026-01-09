@@ -245,20 +245,22 @@ export default function QuoteHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Quote History</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Quote History</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             View and manage all quotes
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportCSV} disabled={filteredQuotes.length === 0}>
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredQuotes.length === 0} className="flex-1 sm:flex-initial">
             <Download className="h-4 w-4 mr-2" />
-            Export CSV {selectedIds.size > 0 && `(${selectedIds.size})`}
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">Export</span>
+            {selectedIds.size > 0 && ` (${selectedIds.size})`}
           </Button>
-          <Link href="/quotes/new">
-            <Button>
+          <Link href="/quotes/new" className="flex-1 sm:flex-initial">
+            <Button className="w-full">
               <Plus className="h-4 w-4 mr-2" />
               New Quote
             </Button>
@@ -270,7 +272,7 @@ export default function QuoteHistoryPage() {
       {selectedIds.size > 0 && (
         <Card className="border-primary bg-primary/5">
           <CardContent className="py-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <CheckSquare className="h-5 w-5 text-primary" />
                 <span className="font-medium">{selectedIds.size} selected</span>
@@ -282,7 +284,7 @@ export default function QuoteHistoryPage() {
               <div className="flex items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={isBatchLoading}>
+                    <Button variant="outline" size="sm" disabled={isBatchLoading} className="flex-1 sm:flex-initial">
                       Change Status
                     </Button>
                   </DropdownMenuTrigger>
@@ -315,9 +317,11 @@ export default function QuoteHistoryPage() {
                   size="sm"
                   onClick={handleBatchDelete}
                   disabled={isBatchLoading}
+                  className="flex-1 sm:flex-initial"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Selected
+                  <span className="hidden sm:inline">Delete Selected</span>
+                  <span className="sm:hidden">Delete</span>
                 </Button>
               </div>
             </div>
@@ -334,8 +338,8 @@ export default function QuoteHistoryPage() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex gap-4 mb-6">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mb-6">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search quotes..."
@@ -348,7 +352,7 @@ export default function QuoteHistoryPage() {
               value={statusFilter}
               onValueChange={(value) => setStatusFilter(value as QuoteStatus | 'all')}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -380,8 +384,8 @@ export default function QuoteHistoryPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-md border">
-                <Table>
+              <div className="rounded-md border overflow-x-auto">
+                <Table className="min-w-[800px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">
@@ -551,11 +555,11 @@ export default function QuoteHistoryPage() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4">
+                  <p className="text-sm text-muted-foreground text-center sm:text-left">
                     Showing {page * limit + 1} to {Math.min((page + 1) * limit, total)} of {total} quotes
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 justify-center sm:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
@@ -563,7 +567,7 @@ export default function QuoteHistoryPage() {
                       disabled={page === 0}
                     >
                       <ChevronLeft className="h-4 w-4" />
-                      Previous
+                      <span className="hidden sm:inline">Previous</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -571,7 +575,7 @@ export default function QuoteHistoryPage() {
                       onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                       disabled={page >= totalPages - 1}
                     >
-                      Next
+                      <span className="hidden sm:inline">Next</span>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>

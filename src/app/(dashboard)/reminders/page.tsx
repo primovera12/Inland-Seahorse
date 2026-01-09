@@ -167,7 +167,7 @@ export default function RemindersPage() {
 
     return (
       <div
-        className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
+        className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4 p-4 rounded-lg border transition-colors ${
           reminder.is_completed
             ? 'bg-muted/30 opacity-60'
             : overdue
@@ -175,13 +175,14 @@ export default function RemindersPage() {
               : 'hover:bg-muted/50'
         }`}
       >
-        {showCheckbox && (
-          <Checkbox
-            checked={reminder.is_completed}
-            onCheckedChange={() => toggleComplete.mutate({ id: reminder.id })}
-            className="mt-1"
-          />
-        )}
+        <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+          {showCheckbox && (
+            <Checkbox
+              checked={reminder.is_completed}
+              onCheckedChange={() => toggleComplete.mutate({ id: reminder.id })}
+              className="mt-1"
+            />
+          )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Badge className={PRIORITY_COLORS[reminder.priority as ReminderPriority]}>
@@ -206,7 +207,7 @@ export default function RemindersPage() {
           {reminder.description && (
             <p className="text-sm text-muted-foreground mt-1">{reminder.description}</p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
             {reminder.company && (
               <span className="flex items-center gap-1">
                 <Building2 className="h-3 w-3" />
@@ -225,10 +226,11 @@ export default function RemindersPage() {
             )}
           </div>
         </div>
+        </div>
         <Button
           variant="ghost"
           size="icon"
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive self-start sm:self-center"
           onClick={() => deleteReminder.mutate({ id: reminder.id })}
         >
           <Trash2 className="h-4 w-4" />
@@ -240,23 +242,25 @@ export default function RemindersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Follow-up Reminders</h1>
-          <p className="text-muted-foreground">Track your follow-ups and never miss a deadline</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Follow-up Reminders</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Track your follow-ups and never miss a deadline</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/reminders/rules">
-            <Button variant="outline">
-              <Zap className="h-4 w-4 mr-2" />
-              Automation Rules
+          <Link href="/reminders/rules" className="flex-1 sm:flex-initial">
+            <Button variant="outline" className="w-full sm:w-auto">
+              <Zap className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Automation Rules</span>
+              <span className="sm:hidden">Rules</span>
             </Button>
           </Link>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="flex-1 sm:flex-initial">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Reminder
+                <span className="hidden sm:inline">Add Reminder</span>
+                <span className="sm:hidden">Add</span>
               </Button>
             </DialogTrigger>
           <DialogContent className="max-w-md">

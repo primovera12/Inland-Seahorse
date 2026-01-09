@@ -51,22 +51,22 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Welcome to Dismantle Pro. Manage your equipment quotes and transportation.
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/quotes/new">
-            <Button>
+          <Link href="/quotes/new" className="flex-1 sm:flex-initial">
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               New Quote
             </Button>
           </Link>
-          <Link href="/inland/new">
-            <Button variant="outline">
+          <Link href="/inland/new" className="flex-1 sm:flex-initial">
+            <Button variant="outline" className="w-full sm:w-auto">
               <Truck className="h-4 w-4 mr-2" />
               Inland Quote
             </Button>
@@ -172,9 +172,9 @@ export default function DashboardPage() {
               {overdueReminders.slice(0, 3).map((reminder) => (
                 <div
                   key={reminder.id}
-                  className="flex items-center justify-between p-2 rounded bg-white/50"
+                  className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between p-2 rounded bg-white/50"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge className={PRIORITY_COLORS[reminder.priority as ReminderPriority]}>
                       {reminder.priority}
                     </Badge>
@@ -221,23 +221,23 @@ export default function DashboardPage() {
               {upcomingReminders.slice(0, 5).map((reminder) => (
                 <div
                   key={reminder.id}
-                  className="flex items-center justify-between p-3 rounded-lg border"
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge className={PRIORITY_COLORS[reminder.priority as ReminderPriority]}>
                         {reminder.priority}
                       </Badge>
-                      <span className="font-medium">{reminder.title}</span>
+                      <span className="font-medium truncate">{reminder.title}</span>
                     </div>
                     {reminder.company && (
                       <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {(reminder.company as { name: string }).name}
+                        <Building2 className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{(reminder.company as { name: string }).name}</span>
                       </p>
                     )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right flex-shrink-0">
                     <p className="text-sm flex items-center gap-1 text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {formatDate(new Date(reminder.due_date))}
@@ -283,21 +283,21 @@ export default function DashboardPage() {
                 {recentQuotes.map((quote) => (
                   <div
                     key={quote.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{quote.quote_number}</span>
                         <Badge className={STATUS_COLORS[quote.status as QuoteStatus]}>
                           {quote.status}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {quote.customer_name}
                         {quote.customer_company && ` - ${quote.customer_company}`}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex justify-between sm:block text-left sm:text-right flex-shrink-0">
                       <p className="font-mono font-medium">{formatCurrency(quote.total)}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDate(quote.created_at)}
@@ -341,21 +341,21 @@ export default function DashboardPage() {
                 {recentInlandQuotes.map((quote) => (
                   <div
                     key={quote.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{quote.quote_number}</span>
                         <Badge className={STATUS_COLORS[quote.status as QuoteStatus]}>
                           {quote.status}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {quote.customer_name}
                         {quote.customer_company && ` - ${quote.customer_company}`}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex justify-between sm:block text-left sm:text-right flex-shrink-0">
                       <p className="font-mono font-medium">{formatCurrency(quote.total)}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDate(quote.created_at)}

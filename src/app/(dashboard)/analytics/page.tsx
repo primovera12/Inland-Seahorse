@@ -64,15 +64,15 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Margins, sales funnel, and win/loss analysis
           </p>
         </div>
         <Select value={quoteType} onValueChange={(v) => setQuoteType(v as QuoteType)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -148,18 +148,21 @@ export default function AnalyticsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="margins" className="flex items-center gap-2">
+        <TabsList className="w-full flex overflow-x-auto no-scrollbar sm:w-auto">
+          <TabsTrigger value="margins" className="flex-1 sm:flex-initial flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            Margins
+            <span className="hidden sm:inline">Margins</span>
+            <span className="sm:hidden">Margins</span>
           </TabsTrigger>
-          <TabsTrigger value="funnel" className="flex items-center gap-2">
+          <TabsTrigger value="funnel" className="flex-1 sm:flex-initial flex items-center gap-2">
             <PieChart className="h-4 w-4" />
-            Sales Funnel
+            <span className="hidden sm:inline">Sales Funnel</span>
+            <span className="sm:hidden">Funnel</span>
           </TabsTrigger>
-          <TabsTrigger value="winloss" className="flex items-center gap-2">
+          <TabsTrigger value="winloss" className="flex-1 sm:flex-initial flex items-center gap-2">
             <Target className="h-4 w-4" />
-            Win/Loss
+            <span className="hidden sm:inline">Win/Loss</span>
+            <span className="sm:hidden">W/L</span>
           </TabsTrigger>
         </TabsList>
 

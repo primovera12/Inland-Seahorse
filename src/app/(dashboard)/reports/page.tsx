@@ -65,8 +65,8 @@ export default function ReportsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-        <p className="text-muted-foreground">Track your business performance and insights</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reports & Analytics</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Track your business performance and insights</p>
       </div>
 
       {/* Key Metrics */}

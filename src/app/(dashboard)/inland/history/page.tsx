@@ -156,20 +156,22 @@ export default function InlandHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inland History</h1>
-          <p className="text-muted-foreground">View and manage inland transportation quotes</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Inland History</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">View and manage inland transportation quotes</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportCSV} disabled={filteredQuotes.length === 0}>
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredQuotes.length === 0} className="flex-1 sm:flex-initial">
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">Export</span>
           </Button>
-          <Link href="/inland/new">
-            <Button>
+          <Link href="/inland/new" className="flex-1 sm:flex-initial">
+            <Button className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              New Inland Quote
+              <span className="hidden sm:inline">New Inland Quote</span>
+              <span className="sm:hidden">New Quote</span>
             </Button>
           </Link>
         </div>
@@ -182,8 +184,8 @@ export default function InlandHistoryPage() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex gap-4 mb-6">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mb-6">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search quotes..."
@@ -196,7 +198,7 @@ export default function InlandHistoryPage() {
               value={statusFilter}
               onValueChange={(value) => setStatusFilter(value as QuoteStatus | 'all')}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -226,8 +228,8 @@ export default function InlandHistoryPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-md border">
-                <Table>
+              <div className="rounded-md border overflow-x-auto">
+                <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Quote #</TableHead>
@@ -333,12 +335,12 @@ export default function InlandHistoryPage() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4">
+                  <p className="text-sm text-muted-foreground text-center sm:text-left">
                     Showing {page * limit + 1} to {Math.min((page + 1) * limit, total)} of {total}{' '}
                     quotes
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 justify-center sm:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
@@ -346,7 +348,7 @@ export default function InlandHistoryPage() {
                       disabled={page === 0}
                     >
                       <ChevronLeft className="h-4 w-4" />
-                      Previous
+                      <span className="hidden sm:inline">Previous</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -354,7 +356,7 @@ export default function InlandHistoryPage() {
                       onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                       disabled={page >= totalPages - 1}
                     >
-                      Next
+                      <span className="hidden sm:inline">Next</span>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>

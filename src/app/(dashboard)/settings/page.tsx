@@ -126,12 +126,12 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Company Settings</h1>
-          <p className="text-muted-foreground">Manage your company information and preferences</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Company Settings</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage your company information and preferences</p>
         </div>
-        <Button onClick={handleSave} disabled={updateMutation.isPending}>
+        <Button onClick={handleSave} disabled={updateMutation.isPending} className="w-full sm:w-auto">
           <Save className="h-4 w-4 mr-2" />
           {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
         </Button>
@@ -166,8 +166,8 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
                 <Label htmlFor="company_city">City</Label>
                 <Input
                   id="company_city"
@@ -193,7 +193,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="company_phone">Phone</Label>
                 <Input
@@ -365,7 +365,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="default_margin_percentage">Default Margin (%)</Label>
                 <Input

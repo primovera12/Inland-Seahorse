@@ -60,7 +60,7 @@ export default function TermsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Link href="/settings">
             <Button variant="ghost" size="icon">
@@ -68,8 +68,8 @@ export default function TermsSettingsPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Terms & Conditions</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Terms & Conditions</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Manage terms and conditions for your quotes
             </p>
           </div>
@@ -83,6 +83,7 @@ export default function TermsSettingsPage() {
           <Button
             onClick={handleSave}
             disabled={!hasChanges || updateTermsMutation.isPending}
+            className="flex-1 sm:flex-initial"
           >
             <Save className="h-4 w-4 mr-2" />
             {updateTermsMutation.isPending ? 'Saving...' : 'Save Changes'}

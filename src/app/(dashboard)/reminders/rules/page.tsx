@@ -204,7 +204,7 @@ export default function ReminderRulesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Link href="/reminders">
             <Button variant="ghost" size="icon">
@@ -212,13 +212,13 @@ export default function ReminderRulesPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Reminder Rules</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reminder Rules</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Automate reminder creation based on events
             </p>
           </div>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
+        <Button onClick={() => setShowCreateDialog(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           New Rule
         </Button>
@@ -257,7 +257,7 @@ export default function ReminderRulesPage() {
                 return (
                   <div
                     key={rule.id}
-                    className={`flex items-start justify-between p-4 rounded-lg border ${
+                    className={`flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between p-4 rounded-lg border ${
                       rule.is_active ? 'bg-background' : 'bg-muted/30'
                     }`}
                   >
@@ -431,7 +431,7 @@ function RuleForm({
   return (
     <div className="space-y-6 py-4">
       {/* Basic Info */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Rule Name *</Label>
           <Input

@@ -129,14 +129,14 @@ export default function ContactsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-muted-foreground">Manage contacts for your companies</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Contacts</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage contacts for your companies</p>
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button disabled={!selectedCompanyId}>
+            <Button disabled={!selectedCompanyId} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Add Contact
             </Button>
@@ -290,8 +290,8 @@ export default function ContactsPage() {
                 </Button>
               </div>
             ) : (
-              <div className="rounded-md border">
-                <Table>
+              <div className="rounded-md border overflow-x-auto">
+                <Table className="min-w-[700px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>

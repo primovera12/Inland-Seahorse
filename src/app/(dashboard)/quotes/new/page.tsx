@@ -603,32 +603,38 @@ export default function NewQuotePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">New Quote</h1>
-          <div className="flex items-center gap-3">
-            <p className="text-muted-foreground">
-              Quote #{quoteNumber}
-            </p>
-            {hasDraft && (
-              <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-1 rounded-full">
-                <FolderOpen className="h-3 w-3" />
-                Draft Restored
-              </span>
-            )}
-            <AutoSaveIndicator
-              status={autoSave.status}
-              lastSaved={autoSave.lastSaved}
-              error={autoSave.error}
-            />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">New Quote</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <p className="text-sm sm:text-base text-muted-foreground">
+                Quote #{quoteNumber}
+              </p>
+              {hasDraft && (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-1 rounded-full">
+                  <FolderOpen className="h-3 w-3" />
+                  Draft Restored
+                </span>
+              )}
+              <AutoSaveIndicator
+                status={autoSave.status}
+                lastSaved={autoSave.lastSaved}
+                error={autoSave.error}
+              />
+            </div>
           </div>
+          <Button onClick={handleSaveQuote} disabled={createQuote.isPending} className="w-full sm:w-auto">
+            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
+          </Button>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button
             variant={showLivePdfPreview ? 'default' : 'outline'}
             size="icon"
             onClick={handleToggleLivePreview}
             title={showLivePdfPreview ? 'Hide Live Preview' : 'Show Live Preview'}
+            className="hidden lg:inline-flex"
           >
             <MonitorPlay className="h-4 w-4" />
           </Button>
@@ -667,9 +673,6 @@ export default function NewQuotePage() {
               <Trash2 className="h-4 w-4" />
             </Button>
           )}
-          <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
-            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
-          </Button>
         </div>
       </div>
 
@@ -702,14 +705,14 @@ export default function NewQuotePage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="customer" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="customer">Customer</TabsTrigger>
-              <TabsTrigger value="equipment">Equipment</TabsTrigger>
-              <TabsTrigger value="costs">Costs</TabsTrigger>
-              <TabsTrigger value="fees">Fees{miscFees.length > 0 ? ` (${miscFees.length})` : ''}</TabsTrigger>
-              <TabsTrigger value="inland" className="flex items-center gap-1">
-                <Truck className="h-3 w-3" />
-                Inland{inlandTransport.enabled ? ' *' : ''}
+            <TabsList className="w-full flex overflow-x-auto no-scrollbar">
+              <TabsTrigger value="customer" className="flex-1 min-w-[80px]">Customer</TabsTrigger>
+              <TabsTrigger value="equipment" className="flex-1 min-w-[80px]">Equipment</TabsTrigger>
+              <TabsTrigger value="costs" className="flex-1 min-w-[80px]">Costs</TabsTrigger>
+              <TabsTrigger value="fees" className="flex-1 min-w-[80px]">Fees{miscFees.length > 0 ? ` (${miscFees.length})` : ''}</TabsTrigger>
+              <TabsTrigger value="inland" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
+                <Truck className="h-3 w-3 hidden sm:inline" />
+                <span>Inland{inlandTransport.enabled ? ' *' : ''}</span>
               </TabsTrigger>
             </TabsList>
 

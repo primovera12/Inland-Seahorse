@@ -155,14 +155,14 @@ export default function ActivityPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Activity Log</h1>
-          <p className="text-muted-foreground">Track all customer interactions</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Activity Log</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Track all customer interactions</p>
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Log Activity
             </Button>
@@ -301,7 +301,7 @@ export default function ActivityPage() {
                 return (
                   <div
                     key={activity.id}
-                    className="flex items-start gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                   >
                     <div className={`p-2 rounded-lg ${colorClass}`}>
                       <Icon className="h-5 w-5" />

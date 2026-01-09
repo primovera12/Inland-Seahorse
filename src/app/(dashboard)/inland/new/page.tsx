@@ -504,25 +504,31 @@ export default function NewInlandQuotePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">New Inland Quote</h1>
-          <div className="flex items-center gap-3">
-            <p className="text-muted-foreground">Quote #{quoteNumber}</p>
-            <AutoSaveIndicator status={autoSaveStatus} lastSaved={lastSaved} />
-            {draftRestored && (
-              <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">
-                Draft Restored
-              </span>
-            )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">New Inland Quote</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <p className="text-sm sm:text-base text-muted-foreground">Quote #{quoteNumber}</p>
+              <AutoSaveIndicator status={autoSaveStatus} lastSaved={lastSaved} />
+              {draftRestored && (
+                <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">
+                  Draft Restored
+                </span>
+              )}
+            </div>
           </div>
+          <Button onClick={handleSaveQuote} disabled={createQuote.isPending} className="w-full sm:w-auto">
+            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
+          </Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={showLivePdfPreview ? 'default' : 'outline'}
             size="icon"
             title={showLivePdfPreview ? 'Hide Live Preview' : 'Show Live Preview'}
             onClick={handleToggleLivePreview}
+            className="hidden lg:inline-flex"
           >
             <MonitorPlay className="h-4 w-4" />
           </Button>
@@ -564,17 +570,15 @@ export default function NewInlandQuotePage() {
           {(draftRestored || autoSaveStatus !== 'idle') && (
             <Button
               variant="outline"
+              size="sm"
               onClick={handleDiscardDraft}
               disabled={deleteDraftMutation.isPending}
               className="text-destructive hover:text-destructive"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Discard Draft
+              <Trash2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Discard Draft</span>
             </Button>
           )}
-          <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
-            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
-          </Button>
         </div>
       </div>
 
@@ -685,15 +689,15 @@ export default function NewInlandQuotePage() {
 
           {/* Destinations */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Destinations</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg sm:text-xl font-semibold">Destinations</h2>
               <div className="flex items-center gap-2">
                 {destinationBlocks.length > 1 && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
                     Drag to reorder
                   </span>
                 )}
-                <Button onClick={addDestination} disabled={destinationBlocks.length >= 6}>
+                <Button onClick={addDestination} disabled={destinationBlocks.length >= 6} className="w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Destination
                 </Button>

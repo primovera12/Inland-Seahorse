@@ -405,26 +405,26 @@ export default function QuotePipelinePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Quote Pipeline</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Quote Pipeline</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Drag and drop quotes between stages to update their status
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="flex-1 sm:flex-initial">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button asChild>
+          <Button asChild className="flex-1 sm:flex-initial">
             <Link href="/quotes/new">New Quote</Link>
           </Button>
         </div>
       </div>
 
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5 overflow-x-auto">
         {PIPELINE_STATUSES.map((status) => (
           <Card key={status}>
             <CardHeader className="pb-2">

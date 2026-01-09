@@ -39,7 +39,7 @@ export default async function DashboardLayout({
             avatar_url: profile?.avatar_url,
           }}
         />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-4 md:p-6">{children}</main>
       </SidebarInset>
       <FeedbackButton />
     </SidebarProvider>

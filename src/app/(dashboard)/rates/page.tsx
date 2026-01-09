@@ -68,10 +68,10 @@ export default function RatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Rates</h1>
-          <p className="text-muted-foreground">View and manage equipment pricing by location</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Rates</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">View and manage equipment pricing by location</p>
         </div>
       </div>
 
