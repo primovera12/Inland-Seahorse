@@ -39,9 +39,6 @@ const LOCATIONS = [
 ]
 
 export default function DismantleSettingsPage() {
-  // Default margin
-  const [defaultMargin, setDefaultMargin] = useState(15)
-
   // Enabled cost fields
   const [enabledCosts, setEnabledCosts] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {}
@@ -227,27 +224,6 @@ export default function DismantleSettingsPage() {
             <CardDescription>Default values for new quotes</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="defaultMargin" className="flex items-center gap-2">
-                <Percent className="h-4 w-4" />
-                Default Margin (%)
-              </Label>
-              <Input
-                id="defaultMargin"
-                type="number"
-                min="0"
-                max="100"
-                value={defaultMargin}
-                onChange={(e) => setDefaultMargin(Number(e.target.value))}
-                className="max-w-[120px]"
-              />
-              <p className="text-sm text-muted-foreground">
-                Applied to new quotes by default
-              </p>
-            </div>
-
-            <Separator />
-
             <div className="space-y-2">
               <Label htmlFor="defaultLocation" className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />

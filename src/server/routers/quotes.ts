@@ -802,7 +802,6 @@ export const quotesRouter = router({
         { key: 'model_name', label: 'Model' },
         { key: 'location', label: 'Location' },
         { key: 'subtotal', label: 'Subtotal' },
-        { key: 'margin_percentage', label: 'Margin %' },
         { key: 'total', label: 'Total' },
         { key: 'internal_notes', label: 'Internal Notes' },
         { key: 'quote_notes', label: 'Quote Notes' },

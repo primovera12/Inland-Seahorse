@@ -28,7 +28,7 @@ export const importRouter = router({
               .from('equipment_makes')
               .select('id')
               .eq('name', item.name)
-              .single()
+              .maybeSingle()
 
             if (existing) {
               skipped++
@@ -75,7 +75,7 @@ export const importRouter = router({
             .from('equipment_makes')
             .select('id')
             .eq('name', item.make_name)
-            .single()
+            .maybeSingle()
 
           if (!make) {
             errors.push(`Make not found: "${item.make_name}"`)
@@ -88,7 +88,7 @@ export const importRouter = router({
               .select('id')
               .eq('make_id', make.id)
               .eq('name', item.name)
-              .single()
+              .maybeSingle()
 
             if (existing) {
               skipped++
@@ -141,7 +141,7 @@ export const importRouter = router({
               .from('companies')
               .select('id')
               .eq('name', item.name)
-              .single()
+              .maybeSingle()
 
             if (existing) {
               skipped++
@@ -194,7 +194,7 @@ export const importRouter = router({
             .from('companies')
             .select('id')
             .eq('name', item.company_name)
-            .single()
+            .maybeSingle()
 
           if (!company) {
             errors.push(`Company not found: "${item.company_name}"`)
@@ -206,7 +206,7 @@ export const importRouter = router({
               .from('contacts')
               .select('id')
               .eq('email', item.email)
-              .single()
+              .maybeSingle()
 
             if (existing) {
               skipped++
@@ -270,7 +270,7 @@ export const importRouter = router({
             .from('equipment_makes')
             .select('id')
             .eq('name', item.make_name)
-            .single()
+            .maybeSingle()
 
           if (!make) {
             errors.push(`Make not found: "${item.make_name}"`)
@@ -283,7 +283,7 @@ export const importRouter = router({
             .select('id')
             .eq('make_id', make.id)
             .eq('name', item.model_name)
-            .single()
+            .maybeSingle()
 
           if (!model) {
             errors.push(`Model not found: "${item.model_name}" for make "${item.make_name}"`)
@@ -299,7 +299,7 @@ export const importRouter = router({
             .eq('make_id', make.id)
             .eq('model_id', model.id)
             .eq('location', item.location)
-            .single()
+            .maybeSingle()
 
           if (existing) {
             if (input.skipDuplicates) {

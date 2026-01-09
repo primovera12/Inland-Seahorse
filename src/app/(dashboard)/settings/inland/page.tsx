@@ -57,9 +57,6 @@ export default function InlandSettingsPage() {
   const [fuelSurchargePercent, setFuelSurchargePercent] = useState(15)
   const [minimumCharge, setMinimumCharge] = useState(500)
 
-  // Default margin
-  const [defaultMargin, setDefaultMargin] = useState(15)
-
   // Features
   const [useGoogleMaps, setUseGoogleMaps] = useState(true)
   const [autoCalculateRoute, setAutoCalculateRoute] = useState(true)
@@ -225,22 +222,6 @@ export default function InlandSettingsPage() {
             </div>
 
             <Separator />
-
-            <div className="space-y-2">
-              <Label htmlFor="defaultMargin" className="flex items-center gap-2">
-                <Percent className="h-4 w-4" />
-                Default Margin (%)
-              </Label>
-              <Input
-                id="defaultMargin"
-                type="number"
-                min="0"
-                max="100"
-                value={defaultMargin}
-                onChange={(e) => setDefaultMargin(Number(e.target.value))}
-                className="max-w-[120px]"
-              />
-            </div>
           </CardContent>
         </Card>
 

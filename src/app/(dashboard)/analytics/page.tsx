@@ -33,23 +33,7 @@ type QuoteType = 'all' | 'dismantle' | 'inland'
 
 export default function AnalyticsPage() {
   const [quoteType, setQuoteType] = useState<QuoteType>('all')
-  const [activeTab, setActiveTab] = useState('margins')
-
-  const { data: marginOverview, isLoading: loadingOverview } = trpc.analytics.getMarginOverview.useQuery({
-    quoteType,
-  })
-
-  const { data: marginTrends, isLoading: loadingTrends } = trpc.analytics.getMarginTrends.useQuery({
-    quoteType,
-    months: 6,
-  })
-
-  const { data: customerMargins } = trpc.analytics.getMarginByCustomer.useQuery({
-    limit: 10,
-    sortBy: 'revenue',
-  })
-
-  const { data: locationMargins } = trpc.analytics.getMarginByLocation.useQuery()
+  const [activeTab, setActiveTab] = useState('funnel')
 
   const { data: salesFunnel } = trpc.analytics.getSalesFunnel.useQuery({
     quoteType,
@@ -83,77 +67,9 @@ export default function AnalyticsPage() {
         </Select>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Total Revenue</CardDescription>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loadingOverview ? '...' : formatCurrency(marginOverview?.totalRevenue || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              From {marginOverview?.acceptedCount || 0} accepted quotes
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Total Margin</CardDescription>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {loadingOverview ? '...' : formatCurrency(marginOverview?.totalMargin || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Revenue minus costs
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Avg Margin %</CardDescription>
-            <Percent className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${(marginOverview?.avgMarginPercent || 0) >= 20 ? 'text-green-600' : (marginOverview?.avgMarginPercent || 0) >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-              {loadingOverview ? '...' : formatPercent(marginOverview?.avgMarginPercent || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Across all accepted quotes
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Pipeline Value</CardDescription>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loadingOverview ? '...' : formatCurrency(marginOverview?.totalQuotedValue || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {marginOverview?.quoteCount || 0} total quotes
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex overflow-x-auto no-scrollbar sm:w-auto">
-          <TabsTrigger value="margins" className="flex-1 sm:flex-initial flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Margins</span>
-            <span className="sm:hidden">Margins</span>
-          </TabsTrigger>
           <TabsTrigger value="funnel" className="flex-1 sm:flex-initial flex items-center gap-2">
             <PieChart className="h-4 w-4" />
             <span className="hidden sm:inline">Sales Funnel</span>
@@ -165,130 +81,6 @@ export default function AnalyticsPage() {
             <span className="sm:hidden">W/L</span>
           </TabsTrigger>
         </TabsList>
-
-        {/* Margins Tab */}
-        <TabsContent value="margins" className="space-y-6">
-          {/* Margin Trends */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Margin Trends (6 Months)
-              </CardTitle>
-              <CardDescription>Monthly revenue and margin over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingTrends ? (
-                <div className="text-center py-10 text-muted-foreground">Loading trends...</div>
-              ) : !marginTrends || marginTrends.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">No data available</div>
-              ) : (
-                <div className="space-y-4">
-                  {marginTrends.map((month) => (
-                    <div key={month.month} className="flex items-center gap-4">
-                      <div className="w-20 text-sm font-medium">
-                        {new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="text-sm text-muted-foreground">Revenue:</div>
-                          <div className="text-sm font-medium">{formatCurrency(month.revenue)}</div>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${Math.min((month.revenue / (marginTrends[0]?.revenue || 1)) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="w-24 text-right">
-                        <Badge className={month.marginPercent >= 20 ? 'bg-green-100 text-green-800' : month.marginPercent >= 10 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}>
-                          {formatPercent(month.marginPercent)} margin
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* By Customer */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Margin by Customer
-                </CardTitle>
-                <CardDescription>Top 10 customers by revenue</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!customerMargins || customerMargins.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">No customer data</div>
-                ) : (
-                  <div className="space-y-3">
-                    {customerMargins.map((customer, index) => (
-                      <div key={customer.id} className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{customer.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {customer.count} quotes
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium">{formatCurrency(customer.revenue)}</p>
-                          <p className={`text-xs ${customer.marginPercent >= 20 ? 'text-green-600' : customer.marginPercent >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            {formatPercent(customer.marginPercent)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* By Location */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Margin by Location
-                </CardTitle>
-                <CardDescription>Dismantle quotes by location</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!locationMargins || locationMargins.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">No location data</div>
-                ) : (
-                  <div className="space-y-3">
-                    {locationMargins.map((loc) => (
-                      <div key={loc.location} className="flex items-center gap-3">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{loc.location}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {loc.count} quotes
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium">{formatCurrency(loc.revenue)}</p>
-                          <p className={`text-xs ${loc.marginPercent >= 20 ? 'text-green-600' : loc.marginPercent >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            {formatPercent(loc.marginPercent)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
         {/* Sales Funnel Tab */}
         <TabsContent value="funnel" className="space-y-6">

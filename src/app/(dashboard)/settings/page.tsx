@@ -365,24 +365,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="default_margin_percentage">Default Margin (%)</Label>
-                <Input
-                  id="default_margin_percentage"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={settings.default_margin_percentage}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      default_margin_percentage: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="quote_validity_days">Quote Validity (days)</Label>
                 <Input
                   id="quote_validity_days"

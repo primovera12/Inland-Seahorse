@@ -81,9 +81,11 @@ export const equipmentRouter = router({
         .from('equipment_dimensions')
         .select('*')
         .eq('model_id', input.modelId)
-        .single()
+        .maybeSingle()
 
-      checkSupabaseError(error, 'Equipment dimensions', true)
+      if (error && error.code !== 'PGRST116') {
+        checkSupabaseError(error, 'Equipment dimensions')
+      }
       return data
     }),
 
@@ -108,9 +110,11 @@ export const equipmentRouter = router({
         .select('*')
         .eq('model_id', input.modelId)
         .eq('location', input.location)
-        .single()
+        .maybeSingle()
 
-      checkSupabaseError(error, 'Equipment rates', true)
+      if (error && error.code !== 'PGRST116') {
+        checkSupabaseError(error, 'Equipment rates')
+      }
       return data
     }),
 

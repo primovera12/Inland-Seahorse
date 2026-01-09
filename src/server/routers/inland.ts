@@ -897,7 +897,6 @@ export const inlandRouter = router({
         { key: 'destination_city', label: 'Destination City' },
         { key: 'destination_state', label: 'Destination State' },
         { key: 'subtotal', label: 'Subtotal' },
-        { key: 'margin_percentage', label: 'Margin %' },
         { key: 'total', label: 'Total' },
       ]
 
