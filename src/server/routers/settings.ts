@@ -8,9 +8,18 @@ export const settingsRouter = router({
     const { data, error } = await ctx.supabase
       .from('company_settings')
       .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single()
 
-    checkSupabaseError(error, 'Settings', true)
+    // Return null if no settings found, check other errors
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null
+      }
+      checkSupabaseError(error, 'Settings')
+    }
+
     return data
   }),
 
@@ -45,14 +54,16 @@ export const settingsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Check if settings exist
+      // Check if settings exist - get the most recent row
       const { data: existing, error: existingError } = await ctx.supabase
         .from('company_settings')
         .select('id, terms_version')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
       // Ignore not found errors, but check for other errors
-      if (existingError && existingError.code !== 'PGRST116') {
+      if (existingError && existingError.code !== 'PGRST116' && existingError.code !== 'PGRST118') {
         checkSupabaseError(existingError, 'Settings')
       }
 
