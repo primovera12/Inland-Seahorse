@@ -31,7 +31,12 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { Plus, Users, Phone, Mail, Building2, Eye, Edit, Star } from 'lucide-react'
+import { Plus, Users, Phone, Mail, Building2, Eye, Edit, Star, Tag, X, Download } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { toast } from 'sonner'
 
 type ContactRole = 'general' | 'decision_maker' | 'billing' | 'operations' | 'technical'
@@ -292,6 +297,7 @@ export default function ContactsPage() {
                       <TableHead>Name</TableHead>
                       <TableHead>Title</TableHead>
                       <TableHead>Contact Info</TableHead>
+                      <TableHead>Tags</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -327,6 +333,13 @@ export default function ContactsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
+                          <ContactTags
+                            contactId={contact.id}
+                            tags={(contact as { tags?: string[] }).tags || []}
+                            onUpdate={() => utils.contacts.getByCompany.invalidate()}
+                          />
+                        </TableCell>
+                        <TableCell>
                           {contact.role && (
                             <Badge className={ROLE_COLORS[contact.role as ContactRole]}>
                               {ROLE_LABELS[contact.role as ContactRole]}
@@ -352,6 +365,95 @@ export default function ContactsPage() {
           </CardContent>
         </Card>
       )}
+    </div>
+  )
+}
+
+function ContactTags({
+  contactId,
+  tags,
+  onUpdate,
+}: {
+  contactId: string
+  tags: string[]
+  onUpdate: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const { data: availableTags } = trpc.crm.getTags.useQuery()
+
+  const addTag = trpc.crm.addTagsToContact.useMutation({
+    onSuccess: () => {
+      onUpdate()
+      toast.success('Tag added')
+    },
+  })
+
+  const removeTag = trpc.crm.removeTagFromContact.useMutation({
+    onSuccess: () => {
+      onUpdate()
+      toast.success('Tag removed')
+    },
+  })
+
+  const handleAddTag = (tagName: string) => {
+    addTag.mutate({ contactId, tags: [tagName] })
+  }
+
+  const handleRemoveTag = (tagName: string) => {
+    removeTag.mutate({ contactId, tag: tagName })
+  }
+
+  const unusedTags = (availableTags || []).filter((t) => !tags.includes(t.name))
+
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {tags.map((tag) => (
+        <Badge
+          key={tag}
+          variant="secondary"
+          className="text-xs gap-1 pr-1"
+        >
+          {tag}
+          <button
+            onClick={() => handleRemoveTag(tag)}
+            className="hover:bg-destructive/20 rounded p-0.5"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </Badge>
+      ))}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-6 w-6">
+            <Tag className="h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-2" align="start">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Add Tag</p>
+          {unusedTags.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No more tags available</p>
+          ) : (
+            <div className="space-y-1">
+              {unusedTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  onClick={() => {
+                    handleAddTag(tag.name)
+                    setOpen(false)
+                  }}
+                  className="flex items-center gap-2 w-full text-left text-sm p-1.5 rounded hover:bg-muted"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

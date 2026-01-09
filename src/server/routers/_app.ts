@@ -18,6 +18,7 @@ import { feedbackRouter } from './feedback'
 import { sequencesRouter } from './sequences'
 import { analyticsRouter } from './analytics'
 import { rateCardsRouter } from './rateCards'
+import { crmRouter } from './crm'
 
 export const appRouter = router({
   user: userRouter,
@@ -40,6 +41,7 @@ export const appRouter = router({
   sequences: sequencesRouter,
   analytics: analyticsRouter,
   rateCards: rateCardsRouter,
+  crm: crmRouter,
 })
 
 export type AppRouter = typeof appRouter

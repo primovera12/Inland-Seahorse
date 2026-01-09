@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Plus, Building2, Phone, MapPin, Eye, Edit, History } from 'lucide-react'
+import { Search, Plus, Building2, Phone, MapPin, Eye, Edit, History, Heart, TrendingUp, AlertTriangle } from 'lucide-react'
 import { CompanyTimeline } from '@/components/crm/company-timeline'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -45,6 +45,31 @@ const STATUS_COLORS: Record<CompanyStatus, string> = {
   prospect: 'bg-blue-100 text-blue-800',
   lead: 'bg-purple-100 text-purple-800',
   vip: 'bg-yellow-100 text-yellow-800',
+}
+
+function HealthScoreBadge({ score, churnRisk }: { score?: number; churnRisk?: string }) {
+  if (score === undefined || score === null) {
+    return <span className="text-muted-foreground text-sm">-</span>
+  }
+
+  const getColor = () => {
+    if (score >= 70) return 'bg-green-100 text-green-800'
+    if (score >= 40) return 'bg-yellow-100 text-yellow-800'
+    return 'bg-red-100 text-red-800'
+  }
+
+  const getIcon = () => {
+    if (churnRisk === 'high') return <AlertTriangle className="h-3 w-3" />
+    if (score >= 70) return <TrendingUp className="h-3 w-3" />
+    return <Heart className="h-3 w-3" />
+  }
+
+  return (
+    <Badge className={`${getColor()} gap-1`}>
+      {getIcon()}
+      {score}
+    </Badge>
+  )
 }
 
 export default function CompaniesPage() {
@@ -262,6 +287,7 @@ export default function CompaniesPage() {
                     <TableHead>Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Location</TableHead>
+                    <TableHead>Health</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -294,6 +320,12 @@ export default function CompaniesPage() {
                         ) : (
                           '-'
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <HealthScoreBadge
+                          score={(company as { health_score?: number }).health_score}
+                          churnRisk={(company as { churn_risk?: string }).churn_risk}
+                        />
                       </TableCell>
                       <TableCell>
                         <Badge className={STATUS_COLORS[company.status as CompanyStatus]}>
@@ -379,10 +411,14 @@ function CompanyDetailDialog({
       </DialogHeader>
 
       <Tabs defaultValue="timeline" className="mt-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="timeline">
             <History className="h-4 w-4 mr-2" />
-            Activity Timeline
+            Timeline
+          </TabsTrigger>
+          <TabsTrigger value="health">
+            <Heart className="h-4 w-4 mr-2" />
+            Health
           </TabsTrigger>
           <TabsTrigger value="details">
             <Building2 className="h-4 w-4 mr-2" />
@@ -394,6 +430,10 @@ function CompanyDetailDialog({
           <ScrollArea className="h-[400px] pr-4">
             <CompanyTimeline companyId={companyId} />
           </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="health" className="mt-4">
+          <CompanyHealthPanel companyId={companyId} />
         </TabsContent>
 
         <TabsContent value="details" className="mt-4">
@@ -452,5 +492,110 @@ function CompanyDetailDialog({
         </TabsContent>
       </Tabs>
     </>
+  )
+}
+
+function CompanyHealthPanel({ companyId }: { companyId: string }) {
+  const { data: health, isLoading, refetch } = trpc.crm.getCompanyHealth.useQuery({ companyId })
+  const recalculate = trpc.crm.recalculateHealth.useMutation({
+    onSuccess: () => {
+      refetch()
+      toast.success('Health score recalculated')
+    },
+    onError: () => {
+      toast.error('Failed to recalculate health score')
+    },
+  })
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading health data...</div>
+  }
+
+  if (!health) {
+    return <div className="text-center py-8 text-muted-foreground">No health data available</div>
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return 'text-green-600'
+    if (score >= 40) return 'text-yellow-600'
+    return 'text-red-600'
+  }
+
+  const getRiskBadge = (risk: string) => {
+    switch (risk) {
+      case 'low':
+        return <Badge className="bg-green-100 text-green-800">Low Risk</Badge>
+      case 'medium':
+        return <Badge className="bg-yellow-100 text-yellow-800">Medium Risk</Badge>
+      case 'high':
+        return <Badge className="bg-red-100 text-red-800">High Risk</Badge>
+      default:
+        return <Badge variant="secondary">Unknown</Badge>
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Health Score Overview */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className={`text-5xl font-bold ${getScoreColor(health.health_score || 0)}`}>
+            {health.health_score || 0}
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Health Score</p>
+            {getRiskBadge(health.churn_risk || 'low')}
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => recalculate.mutate({ companyId })}
+          disabled={recalculate.isPending}
+        >
+          {recalculate.isPending ? 'Recalculating...' : 'Recalculate'}
+        </Button>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <p className="text-sm text-muted-foreground">Total Quotes</p>
+          <p className="text-2xl font-semibold">{health.quote_count || 0}</p>
+        </div>
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <p className="text-sm text-muted-foreground">Accepted Quotes</p>
+          <p className="text-2xl font-semibold">{health.accepted_quote_count || 0}</p>
+        </div>
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <p className="text-sm text-muted-foreground">Win Rate</p>
+          <p className="text-2xl font-semibold">{(health.win_rate || 0).toFixed(1)}%</p>
+        </div>
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <p className="text-sm text-muted-foreground">Last Activity</p>
+          <p className="text-lg font-semibold">
+            {health.last_activity_at
+              ? new Date(health.last_activity_at).toLocaleDateString()
+              : 'Never'}
+          </p>
+        </div>
+      </div>
+
+      {/* Health Factors */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Health Factors</p>
+        <div className="text-sm text-muted-foreground space-y-1">
+          <p>
+            <span className="font-medium">Recency:</span> Score increases with recent activity
+          </p>
+          <p>
+            <span className="font-medium">Win Rate:</span> Higher acceptance rate = higher score
+          </p>
+          <p>
+            <span className="font-medium">Volume:</span> More quotes indicate engagement
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }
