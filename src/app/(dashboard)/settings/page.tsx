@@ -380,7 +380,6 @@ export default function SettingsPage() {
                   }
                 />
               </div>
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="default_payment_terms">Default Payment Terms</Label>
