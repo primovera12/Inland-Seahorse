@@ -46,10 +46,15 @@ export const settingsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       // Check if settings exist
-      const { data: existing } = await ctx.supabase
+      const { data: existing, error: existingError } = await ctx.supabase
         .from('company_settings')
         .select('id, terms_version')
-        .single()
+        .maybeSingle()
+
+      // Ignore not found errors, but check for other errors
+      if (existingError && existingError.code !== 'PGRST116') {
+        checkSupabaseError(existingError, 'Settings')
+      }
 
       // Increment terms version if T&C changed
       let termsVersion = existing?.terms_version || 1
