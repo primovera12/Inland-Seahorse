@@ -3,8 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
-import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
-import Image from 'next/image'
+import { Upload, X, Loader2, ImageIcon, AlertCircle } from 'lucide-react'
 
 interface ImageUploadProps {
   value?: string | null
@@ -31,6 +30,7 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [imageError, setImageError] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = useCallback(
@@ -80,6 +80,7 @@ export function ImageUpload({
           .getPublicUrl(filePath)
 
         onChange(urlData.publicUrl)
+        setImageError(false) // Reset image error on successful upload
       } catch (err) {
         console.error('Upload error:', err)
         setError('Failed to upload image. Please try again.')
@@ -143,13 +144,20 @@ export function ImageUpload({
       {value ? (
         <div className="relative group">
           <div className="relative aspect-video w-full rounded-lg overflow-hidden border bg-muted">
-            <Image
-              src={value}
-              alt={label}
-              fill
-              className="object-contain"
-              sizes="(max-width: 768px) 100vw, 300px"
-            />
+            {imageError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
+                <AlertCircle className="h-8 w-8 mb-2" />
+                <span className="text-xs">Failed to load image</span>
+              </div>
+            ) : (
+              <img
+                src={value}
+                alt={label}
+                className="absolute inset-0 w-full h-full object-contain"
+                onError={() => setImageError(true)}
+                onLoad={() => setImageError(false)}
+              />
+            )}
           </div>
           {!disabled && (
             <Button

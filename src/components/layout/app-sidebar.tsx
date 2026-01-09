@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Calculator,
-  FileText,
   History,
   Home,
   Settings,
@@ -48,7 +47,7 @@ const equipmentItems = [
     icon: BarChart3,
   },
   {
-    title: 'Generate Quote',
+    title: 'Dismantle Quote',
     url: '/quotes/new',
     icon: Calculator,
   },
@@ -58,19 +57,9 @@ const equipmentItems = [
     icon: History,
   },
   {
-    title: 'Pipeline',
-    url: '/quotes/pipeline',
-    icon: Kanban,
-  },
-  {
     title: 'Equipment',
     url: '/equipment',
     icon: Package,
-  },
-  {
-    title: 'Rates',
-    url: '/rates',
-    icon: FileText,
   },
 ]
 
@@ -88,6 +77,11 @@ const inlandItems = [
 ]
 
 const crmItems = [
+  {
+    title: 'Pipeline',
+    url: '/quotes/pipeline',
+    icon: Kanban,
+  },
   {
     title: 'Companies',
     url: '/customers',

@@ -19,8 +19,8 @@ import { formatWeight } from '@/lib/dimensions'
 import { useRecentEquipment } from '@/hooks/use-recent-equipment'
 import { useFavorites } from '@/hooks/use-favorites'
 import { Clock, X, Star, Ruler, DollarSign } from 'lucide-react'
-import Image from 'next/image'
 import { DimensionDisplay } from '@/components/ui/dimension-display'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface EquipmentSelectorProps {
   selectedMakeId: string
@@ -195,49 +195,45 @@ export function EquipmentSelector({
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="make">Make</Label>
-          <Select
+          <SearchableSelect
+            options={[
+              // Popular makes first
+              ...popularMakes.map((make) => ({
+                value: make.id,
+                label: make.name,
+                description: 'Popular',
+              })),
+              // Then other makes
+              ...otherMakes.map((make) => ({
+                value: make.id,
+                label: make.name,
+              })),
+            ]}
             value={selectedMakeId}
-            onValueChange={(value) => {
+            onChange={(value) => {
               const make = makes?.find((m) => m.id === value)
               onMakeChange(value, make?.name || '')
             }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={makesLoading ? 'Loading...' : 'Select make'} />
-            </SelectTrigger>
-            <SelectContent>
-              {popularMakes.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel className="text-xs text-muted-foreground">Popular Makes</SelectLabel>
-                  {popularMakes.map((make) => (
-                    <SelectItem key={make.id} value={make.id}>
-                      {make.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              )}
-              {popularMakes.length > 0 && otherMakes.length > 0 && (
-                <SelectSeparator />
-              )}
-              {otherMakes.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel className="text-xs text-muted-foreground">All Makes</SelectLabel>
-                  {otherMakes.map((make) => (
-                    <SelectItem key={make.id} value={make.id}>
-                      {make.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              )}
-            </SelectContent>
-          </Select>
+            placeholder={makesLoading ? 'Loading...' : 'Select make'}
+            searchPlaceholder="Search makes..."
+          />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="model">Model</Label>
-          <Select
+          <SearchableSelect
+            options={
+              models?.map((model) => ({
+                value: model.id,
+                label: model.name,
+                description: [
+                  model.has_dimensions ? 'Has Dimensions' : null,
+                  model.has_rates ? 'Has Rates' : null,
+                ].filter(Boolean).join(', ') || undefined,
+              })) || []
+            }
             value={selectedModelId}
-            onValueChange={(value) => {
+            onChange={(value) => {
               const model = models?.find((m) => m.id === value)
               const make = makes?.find((m) => m.id === selectedMakeId)
               onModelChange(value, model?.name || '')
@@ -252,36 +248,15 @@ export function EquipmentSelector({
               }
             }}
             disabled={!selectedMakeId}
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={
-                  !selectedMakeId
-                    ? 'Select make first'
-                    : modelsLoading
-                    ? 'Loading...'
-                    : 'Select model'
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {models?.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{model.name}</span>
-                    <div className="flex items-center gap-1 ml-auto">
-                      {model.has_dimensions && (
-                        <Ruler className="h-3 w-3 text-blue-500" />
-                      )}
-                      {model.has_rates && (
-                        <DollarSign className="h-3 w-3 text-green-500" />
-                      )}
-                    </div>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder={
+              !selectedMakeId
+                ? 'Select make first'
+                : modelsLoading
+                ? 'Loading...'
+                : 'Select model'
+            }
+            searchPlaceholder="Search models..."
+          />
 
           {/* Model Filters */}
           {selectedMakeId && (
