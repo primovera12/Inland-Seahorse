@@ -12,69 +12,106 @@ export interface GeneratePDFOptions {
   onProgress?: (progress: number) => void
 }
 
-// Helper to sanitize unsupported CSS color functions (lab, lch, oklch, oklab)
-function sanitizeColorFunctions(element: Element): void {
-  const colorProperties = [
-    'color',
-    'backgroundColor',
-    'borderColor',
-    'borderTopColor',
-    'borderRightColor',
-    'borderBottomColor',
-    'borderLeftColor',
-    'outlineColor',
-    'textDecorationColor',
-    'fill',
-    'stroke',
-  ]
+// Pattern to match unsupported CSS color functions
+const UNSUPPORTED_COLOR_PATTERN = /(lab|lch|oklch|oklab)\s*\([^)]+\)/gi
 
-  const unsupportedColorPattern = /\b(lab|lch|oklch|oklab)\s*\(/i
+// Temporarily disable stylesheets that contain unsupported color functions
+// Returns a restore function to re-enable them
+function disableProblematicStylesheets(): () => void {
+  const disabledSheets: { sheet: CSSStyleSheet; disabled: boolean }[] = []
 
-  // Process element's inline styles
-  const style = (element as HTMLElement).style
-  if (style) {
-    colorProperties.forEach((prop) => {
-      const value = style.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase())
-      if (value && unsupportedColorPattern.test(value)) {
-        // Replace with a safe fallback - use computed RGB if available, or default
-        const computed = window.getComputedStyle(element as HTMLElement)
-        const computedValue = computed.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase())
-
-        // If computed value still has unsupported function, use black as fallback
-        if (unsupportedColorPattern.test(computedValue)) {
-          style.setProperty(prop.replace(/([A-Z])/g, '-$1').toLowerCase(), '#000000')
+  // Check all stylesheets in the document
+  Array.from(document.styleSheets).forEach((sheet) => {
+    try {
+      // Try to access cssRules - this may throw for cross-origin stylesheets
+      const rules = sheet.cssRules || sheet.rules
+      if (rules) {
+        let hasProblematicColors = false
+        for (let i = 0; i < rules.length; i++) {
+          const rule = rules[i]
+          if (rule.cssText && UNSUPPORTED_COLOR_PATTERN.test(rule.cssText)) {
+            hasProblematicColors = true
+            break
+          }
+        }
+        if (hasProblematicColors) {
+          disabledSheets.push({ sheet, disabled: sheet.disabled })
+          sheet.disabled = true
         }
       }
-    })
-
-    // Also check CSS custom properties that might contain colors
-    const cssText = style.cssText
-    if (unsupportedColorPattern.test(cssText)) {
-      // Replace all lab/lch/oklch/oklab values with black
-      const sanitized = cssText.replace(
-        /(lab|lch|oklch|oklab)\s*\([^)]+\)/gi,
-        '#000000'
-      )
-      style.cssText = sanitized
+    } catch {
+      // Cross-origin stylesheet, skip it
     }
-  }
+  })
 
-  // Recursively process children
-  Array.from(element.children).forEach((child) => sanitizeColorFunctions(child))
+  // Return restore function
+  return () => {
+    disabledSheets.forEach(({ sheet, disabled }) => {
+      sheet.disabled = disabled
+    })
+  }
 }
 
-// Helper to remove style elements with unsupported colors
-function sanitizeStyleSheets(doc: Document): void {
+// Inject safe fallback styles for the PDF rendering
+function injectSafeStyles(): HTMLStyleElement {
+  const safeStyles = document.createElement('style')
+  safeStyles.id = 'pdf-safe-styles'
+  safeStyles.textContent = `
+    /* Safe fallback styles for PDF generation */
+    #quote-pdf-content * {
+      /* Override any oklch/lab colors with safe hex values */
+      --background: #ffffff;
+      --foreground: #0a0a0a;
+      --card: #ffffff;
+      --card-foreground: #0a0a0a;
+      --popover: #ffffff;
+      --popover-foreground: #0a0a0a;
+      --primary: #171717;
+      --primary-foreground: #fafafa;
+      --secondary: #f5f5f5;
+      --secondary-foreground: #171717;
+      --muted: #f5f5f5;
+      --muted-foreground: #737373;
+      --accent: #f5f5f5;
+      --accent-foreground: #171717;
+      --destructive: #ef4444;
+      --destructive-foreground: #fafafa;
+      --border: #e5e5e5;
+      --input: #e5e5e5;
+      --ring: #0a0a0a;
+    }
+  `
+  document.head.appendChild(safeStyles)
+  return safeStyles
+}
+
+// Helper to sanitize unsupported CSS color functions in cloned document
+function sanitizeClonedDocument(doc: Document): void {
+  // Sanitize all style elements
   const styleElements = doc.querySelectorAll('style')
   styleElements.forEach((styleEl) => {
     if (styleEl.textContent) {
-      // Replace unsupported color functions in stylesheets
       styleEl.textContent = styleEl.textContent.replace(
-        /(lab|lch|oklch|oklab)\s*\([^)]+\)/gi,
+        UNSUPPORTED_COLOR_PATTERN,
         '#000000'
       )
     }
   })
+
+  // Sanitize inline styles recursively
+  function sanitizeElement(element: Element): void {
+    const htmlEl = element as HTMLElement
+    if (htmlEl.style && htmlEl.style.cssText) {
+      if (UNSUPPORTED_COLOR_PATTERN.test(htmlEl.style.cssText)) {
+        htmlEl.style.cssText = htmlEl.style.cssText.replace(
+          UNSUPPORTED_COLOR_PATTERN,
+          '#000000'
+        )
+      }
+    }
+    Array.from(element.children).forEach(sanitizeElement)
+  }
+  sanitizeElement(doc.body)
 }
 
 // Generate PDF from HTML element
@@ -86,72 +123,80 @@ export async function generatePDFFromElement(
 
   onProgress?.(10)
 
-  // Use html2canvas to capture the element
-  const canvas = await html2canvas(element, {
-    scale,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: '#ffffff',
-    logging: false,
-    imageTimeout: 15000,
-    onclone: (clonedDoc) => {
-      // Sanitize unsupported CSS color functions (lab, lch, oklch, oklab)
-      // html2canvas doesn't support modern CSS color functions
-      sanitizeStyleSheets(clonedDoc)
-      sanitizeColorFunctions(clonedDoc.body)
+  // Disable problematic stylesheets and inject safe fallbacks
+  const restoreStylesheets = disableProblematicStylesheets()
+  const safeStyles = injectSafeStyles()
 
-      // Ensure all styles are applied in cloned document
-      const clonedElement = clonedDoc.getElementById('quote-pdf-content')
-      if (clonedElement) {
-        clonedElement.style.width = '210mm' // A4 width
-        clonedElement.style.minHeight = 'auto'
-      }
-    },
-  })
+  try {
+    // Use html2canvas to capture the element
+    const canvas = await html2canvas(element, {
+      scale,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      imageTimeout: 15000,
+      onclone: (clonedDoc) => {
+        // Sanitize unsupported CSS color functions in the cloned document
+        sanitizeClonedDocument(clonedDoc)
 
-  onProgress?.(60)
+        // Ensure all styles are applied in cloned document
+        const clonedElement = clonedDoc.getElementById('quote-pdf-content')
+        if (clonedElement) {
+          clonedElement.style.width = '210mm' // A4 width
+          clonedElement.style.minHeight = 'auto'
+        }
+      },
+    })
 
-  // Calculate PDF dimensions (A4 size)
-  const imgWidth = 210 // A4 width in mm
-  const imgHeight = (canvas.height * imgWidth) / canvas.width
-  const pageHeight = 297 // A4 height in mm
+    onProgress?.(60)
 
-  // Create PDF
-  const pdf = new jsPDF({
-    orientation: imgHeight > pageHeight ? 'portrait' : 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  })
+    // Calculate PDF dimensions (A4 size)
+    const imgWidth = 210 // A4 width in mm
+    const imgHeight = (canvas.height * imgWidth) / canvas.width
+    const pageHeight = 297 // A4 height in mm
 
-  // If content fits on one page
-  if (imgHeight <= pageHeight) {
-    const imgData = canvas.toDataURL('image/jpeg', quality)
-    pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight)
-  } else {
-    // Multi-page handling
-    let heightLeft = imgHeight
-    let position = 0
-    let pageNum = 1
+    // Create PDF
+    const pdf = new jsPDF({
+      orientation: imgHeight > pageHeight ? 'portrait' : 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    })
 
-    while (heightLeft > 0) {
-      if (pageNum > 1) {
-        pdf.addPage()
-      }
-
+    // If content fits on one page
+    if (imgHeight <= pageHeight) {
       const imgData = canvas.toDataURL('image/jpeg', quality)
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight)
+    } else {
+      // Multi-page handling
+      let heightLeft = imgHeight
+      let position = 0
+      let pageNum = 1
 
-      heightLeft -= pageHeight
-      position -= pageHeight
-      pageNum++
+      while (heightLeft > 0) {
+        if (pageNum > 1) {
+          pdf.addPage()
+        }
 
-      onProgress?.(60 + Math.min(30, (pageNum / Math.ceil(imgHeight / pageHeight)) * 30))
+        const imgData = canvas.toDataURL('image/jpeg', quality)
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
+
+        heightLeft -= pageHeight
+        position -= pageHeight
+        pageNum++
+
+        onProgress?.(60 + Math.min(30, (pageNum / Math.ceil(imgHeight / pageHeight)) * 30))
+      }
     }
+
+    onProgress?.(100)
+
+    return pdf
+  } finally {
+    // Restore original stylesheets and remove safe styles
+    restoreStylesheets()
+    safeStyles.remove()
   }
-
-  onProgress?.(100)
-
-  return pdf
 }
 
 // Download PDF with the unified template
