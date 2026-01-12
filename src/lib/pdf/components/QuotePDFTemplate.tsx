@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
-import { formatDimensionWithMetric, formatWeightWithMetric, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
+import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
 import type { UnifiedPDFData, ServiceLineItem, CostCategory } from '../types'
 import { generateServiceLineItems, CATEGORY_STYLES } from '../types'
 
@@ -316,25 +316,25 @@ function EquipmentSection({ equipment, primaryColor, showQuantity = false }: {
           <div className="flex justify-between border-b border-slate-200 pb-2">
             <span className="text-xs text-slate-500 font-medium">Length</span>
             <span className="text-xs font-bold text-slate-900">
-              {formatDimensionWithMetric(equipment.dimensions.length_inches)}
+              {formatDimension(equipment.dimensions.length_inches)}
             </span>
           </div>
           <div className="flex justify-between border-b border-slate-200 pb-2">
             <span className="text-xs text-slate-500 font-medium">Width</span>
             <span className="text-xs font-bold text-slate-900">
-              {formatDimensionWithMetric(equipment.dimensions.width_inches)}
+              {formatDimension(equipment.dimensions.width_inches)}
             </span>
           </div>
           <div className="flex justify-between border-b border-slate-200 pb-2">
             <span className="text-xs text-slate-500 font-medium">Height</span>
             <span className="text-xs font-bold text-slate-900">
-              {formatDimensionWithMetric(equipment.dimensions.height_inches)}
+              {formatDimension(equipment.dimensions.height_inches)}
             </span>
           </div>
           <div className="flex justify-between border-b border-slate-200 pb-2">
             <span className="text-xs text-slate-500 font-medium">Weight</span>
             <span className="text-xs font-bold text-slate-900">
-              {formatWeightWithMetric(equipment.dimensions.weight_lbs)}
+              {formatWeight(equipment.dimensions.weight_lbs)}
             </span>
           </div>
         </div>
