@@ -60,7 +60,7 @@ import {
   KeyRound,
 } from 'lucide-react'
 
-type UserRole = 'admin' | 'manager' | 'member' | 'viewer' | string
+type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
 type UserStatus = 'active' | 'inactive' | 'invited'
 
 // Permission categories and permissions
