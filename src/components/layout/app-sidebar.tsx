@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   Calculator,
@@ -132,12 +133,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-6 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Wrench className="h-4 w-4" />
-          </div>
-          <span className="text-lg font-semibold">Dismantle Pro</span>
+      <SidebarHeader className="border-b px-4 py-3">
+        <Link href="/dashboard" className="flex items-center">
+          <Image
+            src="/logo.png"
+            alt="Seahorse Express"
+            width={180}
+            height={45}
+            className="h-10 w-auto dark:invert"
+            priority
+          />
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -258,7 +263,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
         <p className="text-xs text-muted-foreground text-center">
-          Dismantle Pro v2.0
+          Seahorse Express v2.0
         </p>
       </SidebarFooter>
     </Sidebar>
