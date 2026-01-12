@@ -130,13 +130,15 @@ export default function CompaniesPage() {
     }
     updateCompany.mutate({
       id: editingCompany.id,
-      name: editingCompany.name,
-      phone: editingCompany.phone || undefined,
-      address: editingCompany.address || undefined,
-      city: editingCompany.city || undefined,
-      state: editingCompany.state || undefined,
-      zip: editingCompany.zip || undefined,
-      status: editingCompany.status,
+      data: {
+        name: editingCompany.name,
+        phone: editingCompany.phone || undefined,
+        address: editingCompany.address || undefined,
+        city: editingCompany.city || undefined,
+        state: editingCompany.state || undefined,
+        zip: editingCompany.zip || undefined,
+        status: editingCompany.status,
+      },
     })
   }
 
