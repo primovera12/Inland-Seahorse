@@ -224,4 +224,17 @@ export const contactsRouter = router({
       checkSupabaseError(error, 'Contact')
       return data
     }),
+
+  // Delete contact
+  delete: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('contacts')
+        .delete()
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Contact')
+      return { success: true }
+    }),
 })
