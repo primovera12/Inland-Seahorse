@@ -663,7 +663,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
     last_name: '',
     email: '',
     phone: '',
-    position: '',
+    title: '',
   })
   const [editingContact, setEditingContact] = useState<{
     id: string
@@ -671,7 +671,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
     last_name: string
     email: string
     phone: string
-    position: string
+    title: string
   } | null>(null)
 
   const utils = trpc.useUtils()
@@ -681,7 +681,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
     onSuccess: () => {
       toast.success('Contact added successfully')
       setShowAddContact(false)
-      setNewContact({ first_name: '', last_name: '', email: '', phone: '', position: '' })
+      setNewContact({ first_name: '', last_name: '', email: '', phone: '', title: '' })
       utils.companies.getById.invalidate({ id: companyId })
     },
     onError: (error) => {
@@ -741,7 +741,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
     last_name: string
     email?: string
     phone?: string
-    position?: string
+    title?: string
   }) => {
     setEditingContact({
       id: contact.id,
@@ -749,7 +749,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
       last_name: contact.last_name,
       email: contact.email || '',
       phone: contact.phone || '',
-      position: contact.position || '',
+      title: contact.title || '',
     })
     setShowAddContact(false)
   }
@@ -767,7 +767,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
         last_name: editingContact.last_name,
         email: editingContact.email || undefined,
         phone: editingContact.phone || undefined,
-        position: editingContact.position || undefined,
+        title: editingContact.title || undefined,
       },
     }, {
       onSuccess: () => {
@@ -838,8 +838,8 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
             <Label className="text-xs">Position</Label>
             <Input
               placeholder="e.g., Sales Manager, Owner, Purchasing"
-              value={newContact.position}
-              onChange={(e) => setNewContact({ ...newContact, position: e.target.value })}
+              value={newContact.title}
+              onChange={(e) => setNewContact({ ...newContact, title: e.target.value })}
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -897,8 +897,8 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
             <Label className="text-xs">Position</Label>
             <Input
               placeholder="e.g., Sales Manager, Owner, Purchasing"
-              value={editingContact.position}
-              onChange={(e) => setEditingContact({ ...editingContact, position: e.target.value })}
+              value={editingContact.title}
+              onChange={(e) => setEditingContact({ ...editingContact, title: e.target.value })}
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -924,7 +924,7 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
             last_name: string
             email?: string
             phone?: string
-            position?: string
+            title?: string
             is_primary?: boolean
           }) => (
             <div
@@ -942,9 +942,9 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
                       Primary
                     </Badge>
                   )}
-                  {contact.position && (
+                  {contact.title && (
                     <span className="text-xs text-muted-foreground">
-                      ({contact.position})
+                      ({contact.title})
                     </span>
                   )}
                 </div>
