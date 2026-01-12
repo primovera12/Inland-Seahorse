@@ -715,7 +715,9 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
   const handleSetPrimary = (contactId: string) => {
     updateContact.mutate({
       id: contactId,
-      is_primary: true,
+      data: {
+        is_primary: true,
+      },
     })
   }
 
