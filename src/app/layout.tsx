@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
+import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { TRPCProvider } from "@/lib/trpc/provider"
 import "./globals.css"
@@ -25,14 +26,21 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        <TRPCProvider>
-          {children}
-          <Toaster />
-        </TRPCProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <TRPCProvider>
+            {children}
+            <Toaster />
+          </TRPCProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

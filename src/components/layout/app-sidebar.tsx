@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 import {
   Calculator,
   History,
@@ -130,17 +132,26 @@ const settingsItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Use black logo by default, white logo for dark mode
+  const logoSrc = mounted && resolvedTheme === 'dark' ? '/logo-white.png' : '/logo.png'
 
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
         <Link href="/dashboard" className="flex items-center">
           <Image
-            src="/logo.png"
+            src={logoSrc}
             alt="Seahorse Express"
             width={180}
             height={45}
-            className="h-10 w-auto dark:invert"
+            className="h-10 w-auto"
             priority
           />
         </Link>

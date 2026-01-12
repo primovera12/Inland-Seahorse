@@ -16,6 +16,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 import { createClient } from '@/lib/supabase/client'
 import { GlobalSearch } from '@/components/global-search'
 import { NotificationCenter } from '@/components/notifications/notification-center'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 interface HeaderProps {
   user?: {
@@ -45,6 +46,7 @@ export function Header({ user }: HeaderProps) {
       <SidebarTrigger />
       <GlobalSearch />
       <div className="flex-1" />
+      <ThemeToggle />
       <NotificationCenter />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
