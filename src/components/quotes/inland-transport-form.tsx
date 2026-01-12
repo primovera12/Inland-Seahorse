@@ -230,6 +230,8 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
       width_inches: eq.width_inches || 0,
       height_inches: eq.height_inches || 0,
       weight_lbs: eq.weight_lbs || 0,
+      is_oversize: false,
+      is_overweight: false,
     }))
 
     // Only recommend if we have valid dimensions
