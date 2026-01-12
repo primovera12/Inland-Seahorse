@@ -538,59 +538,6 @@ export default function NewQuotePage() {
     })
   }
 
-  // Download PDF and auto-save if not already saved
-  const handleDownloadAndSave = () => {
-    // Validate required fields
-    if (!customerName) {
-      toast.error('Please enter a customer name before downloading')
-      return
-    }
-    if (!selectedModelId && !modelName) {
-      toast.error('Please select equipment before downloading')
-      return
-    }
-
-    // Download PDF
-    try {
-      const pdfData = buildPdfData()
-      downloadQuotePDF(pdfData)
-      toast.success('PDF downloaded')
-    } catch {
-      toast.error('Failed to download PDF')
-      return
-    }
-
-    // Auto-save the quote if not already saved
-    if (!savedQuoteId && !createQuote.isPending) {
-      createQuote.mutate({
-        quote_number: quoteNumber,
-        status: 'draft',
-        customer_name: customerName,
-        customer_email: customerEmail || undefined,
-        customer_phone: customerPhone || undefined,
-        customer_company: customerCompany || undefined,
-        customer_address: getFullAddressString(customerAddress),
-        company_id: selectedCompanyId || undefined,
-        contact_id: selectedContactId || undefined,
-        make_id: selectedMakeId || undefined,
-        model_id: selectedModelId || undefined,
-        make_name: makeName,
-        model_name: modelName,
-        location: selectedLocation,
-        subtotal,
-        total,
-        quote_data: {
-          costs,
-          enabledCosts,
-          costOverrides,
-          miscFees,
-          dimensions,
-          notes,
-        },
-      })
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
