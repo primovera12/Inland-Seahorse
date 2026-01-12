@@ -352,7 +352,7 @@ export default function InlandSettingsPage() {
               <div className="space-y-3">
                 {equipmentTypes.map((type) => (
                   <div key={type.id}>
-                    {editingEquipment?.id === type.id ? (
+                    {editingEquipment && editingEquipment.id === type.id ? (
                       <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
                         <div className="grid grid-cols-2 gap-2">
                           <div className="col-span-2 space-y-1">
