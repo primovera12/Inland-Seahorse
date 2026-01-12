@@ -30,6 +30,81 @@ export const inlandRouter = router({
     return data
   }),
 
+  // Create equipment type
+  createEquipmentType: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        max_length_inches: z.number().min(0),
+        max_width_inches: z.number().min(0),
+        max_height_inches: z.number().min(0),
+        max_weight_lbs: z.number().min(0).optional(),
+        base_rate_cents: z.number().min(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get the max sort_order to add at end
+      const { data: existing } = await ctx.supabase
+        .from('inland_equipment_types')
+        .select('sort_order')
+        .order('sort_order', { ascending: false })
+        .limit(1)
+
+      const nextSortOrder = (existing?.[0]?.sort_order || 0) + 1
+
+      const { data, error } = await ctx.supabase
+        .from('inland_equipment_types')
+        .insert({
+          ...input,
+          sort_order: nextSortOrder,
+          is_active: true,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Equipment type')
+      return data
+    }),
+
+  // Update equipment type
+  updateEquipmentType: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        max_length_inches: z.number().min(0).optional(),
+        max_width_inches: z.number().min(0).optional(),
+        max_height_inches: z.number().min(0).optional(),
+        max_weight_lbs: z.number().min(0).nullable().optional(),
+        base_rate_cents: z.number().min(0).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updateData } = input
+      const { data, error } = await ctx.supabase
+        .from('inland_equipment_types')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Equipment type')
+      return data
+    }),
+
+  // Delete equipment type (soft delete by setting is_active to false)
+  deleteEquipmentType: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('inland_equipment_types')
+        .update({ is_active: false })
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Equipment type')
+      return { success: true }
+    }),
+
   // Get accessorial types
   getAccessorialTypes: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase
