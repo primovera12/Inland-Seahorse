@@ -12,6 +12,71 @@ export interface GeneratePDFOptions {
   onProgress?: (progress: number) => void
 }
 
+// Helper to sanitize unsupported CSS color functions (lab, lch, oklch, oklab)
+function sanitizeColorFunctions(element: Element): void {
+  const colorProperties = [
+    'color',
+    'backgroundColor',
+    'borderColor',
+    'borderTopColor',
+    'borderRightColor',
+    'borderBottomColor',
+    'borderLeftColor',
+    'outlineColor',
+    'textDecorationColor',
+    'fill',
+    'stroke',
+  ]
+
+  const unsupportedColorPattern = /\b(lab|lch|oklch|oklab)\s*\(/i
+
+  // Process element's inline styles
+  const style = (element as HTMLElement).style
+  if (style) {
+    colorProperties.forEach((prop) => {
+      const value = style.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase())
+      if (value && unsupportedColorPattern.test(value)) {
+        // Replace with a safe fallback - use computed RGB if available, or default
+        const computed = window.getComputedStyle(element as HTMLElement)
+        const computedValue = computed.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase())
+
+        // If computed value still has unsupported function, use black as fallback
+        if (unsupportedColorPattern.test(computedValue)) {
+          style.setProperty(prop.replace(/([A-Z])/g, '-$1').toLowerCase(), '#000000')
+        }
+      }
+    })
+
+    // Also check CSS custom properties that might contain colors
+    const cssText = style.cssText
+    if (unsupportedColorPattern.test(cssText)) {
+      // Replace all lab/lch/oklch/oklab values with black
+      const sanitized = cssText.replace(
+        /(lab|lch|oklch|oklab)\s*\([^)]+\)/gi,
+        '#000000'
+      )
+      style.cssText = sanitized
+    }
+  }
+
+  // Recursively process children
+  Array.from(element.children).forEach((child) => sanitizeColorFunctions(child))
+}
+
+// Helper to remove style elements with unsupported colors
+function sanitizeStyleSheets(doc: Document): void {
+  const styleElements = doc.querySelectorAll('style')
+  styleElements.forEach((styleEl) => {
+    if (styleEl.textContent) {
+      // Replace unsupported color functions in stylesheets
+      styleEl.textContent = styleEl.textContent.replace(
+        /(lab|lch|oklch|oklab)\s*\([^)]+\)/gi,
+        '#000000'
+      )
+    }
+  })
+}
+
 // Generate PDF from HTML element
 export async function generatePDFFromElement(
   element: HTMLElement,
@@ -30,6 +95,11 @@ export async function generatePDFFromElement(
     logging: false,
     imageTimeout: 15000,
     onclone: (clonedDoc) => {
+      // Sanitize unsupported CSS color functions (lab, lch, oklch, oklab)
+      // html2canvas doesn't support modern CSS color functions
+      sanitizeStyleSheets(clonedDoc)
+      sanitizeColorFunctions(clonedDoc.body)
+
       // Ensure all styles are applied in cloned document
       const clonedElement = clonedDoc.getElementById('quote-pdf-content')
       if (clonedElement) {

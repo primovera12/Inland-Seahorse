@@ -625,6 +625,10 @@ export default function NewQuotePage() {
                 <Truck className="h-3 w-3 hidden sm:inline" />
                 <span>Inland{inlandTransport.enabled ? ' *' : ''}</span>
               </TabsTrigger>
+              <TabsTrigger value="preview" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
+                <Eye className="h-3 w-3 hidden sm:inline" />
+                <span>Preview</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="equipment" className="mt-4 space-y-4">
@@ -709,6 +713,83 @@ export default function NewQuotePage() {
                       : undefined
                 }
               />
+            </TabsContent>
+
+            <TabsContent value="preview" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quote Preview</CardTitle>
+                  <CardDescription>
+                    Preview how the quote will appear to the customer
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {settings ? (
+                    <QuotePDFPreview
+                      data={buildUnifiedPDFData({
+                        quoteNumber,
+                        quoteType: 'dismantle',
+                        customerName: customerName || 'N/A',
+                        customerEmail: customerEmail || undefined,
+                        customerPhone: customerPhone || undefined,
+                        customerCompany: customerCompany || undefined,
+                        customerAddress,
+                        makeName: makeName || 'Custom',
+                        modelName: modelName || 'Equipment',
+                        location: selectedLocation,
+                        dimensions,
+                        frontImageUrl: equipmentImages.frontImageUrl,
+                        sideImageUrl: equipmentImages.sideImageUrl,
+                        costs,
+                        enabledCosts,
+                        costOverrides,
+                        miscFees,
+                        isMultiEquipment,
+                        equipmentBlocks: isMultiEquipment ? equipmentBlocks : undefined,
+                        inlandTransport: inlandTransport.enabled ? {
+                          enabled: true,
+                          pickup_address: inlandTransport.pickup_address,
+                          pickup_city: inlandTransport.pickup_city,
+                          pickup_state: inlandTransport.pickup_state,
+                          pickup_zip: inlandTransport.pickup_zip,
+                          dropoff_address: inlandTransport.dropoff_address,
+                          dropoff_city: inlandTransport.dropoff_city,
+                          dropoff_state: inlandTransport.dropoff_state,
+                          dropoff_zip: inlandTransport.dropoff_zip,
+                          transport_cost: inlandTransport.transport_cost,
+                        } : undefined,
+                        subtotal: isMultiEquipment ? multiEquipmentSubtotal + inlandTransportCost : subtotal,
+                        total: isMultiEquipment ? multiEquipmentTotal + inlandTransportCost : total,
+                        inlandTransportCost,
+                        miscFeesTotal,
+                        notes: notes || undefined,
+                        settings: {
+                          company_name: settings.company_name,
+                          company_logo_url: settings.company_logo_url,
+                          logo_size_percentage: settings.logo_size_percentage,
+                          company_address: settings.company_address,
+                          company_city: settings.company_city,
+                          company_state: settings.company_state,
+                          company_zip: settings.company_zip,
+                          company_phone: settings.company_phone,
+                          company_email: settings.company_email,
+                          company_website: settings.company_website,
+                          primary_color: settings.primary_color,
+                          secondary_color: settings.secondary_color,
+                          terms_dismantle: settings.terms_dismantle,
+                          terms_inland: settings.terms_inland,
+                          quote_validity_days: settings.quote_validity_days,
+                        },
+                      })}
+                      showControls
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
