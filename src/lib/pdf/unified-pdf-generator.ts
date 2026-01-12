@@ -15,106 +15,105 @@ export interface GeneratePDFOptions {
 // Pattern to match unsupported CSS color functions
 const UNSUPPORTED_COLOR_PATTERN = /(lab|lch|oklch|oklab)\s*\([^)]+\)/gi
 
-// Temporarily disable stylesheets that contain unsupported color functions
-// Returns a restore function to re-enable them
-function disableProblematicStylesheets(): () => void {
-  const disabledSheets: { sheet: CSSStyleSheet; disabled: boolean }[] = []
-
-  // Check all stylesheets in the document
-  Array.from(document.styleSheets).forEach((sheet) => {
-    try {
-      // Try to access cssRules - this may throw for cross-origin stylesheets
-      const rules = sheet.cssRules || sheet.rules
-      if (rules) {
-        let hasProblematicColors = false
-        for (let i = 0; i < rules.length; i++) {
-          const rule = rules[i]
-          if (rule.cssText && UNSUPPORTED_COLOR_PATTERN.test(rule.cssText)) {
-            hasProblematicColors = true
-            break
-          }
-        }
-        if (hasProblematicColors) {
-          disabledSheets.push({ sheet, disabled: sheet.disabled })
-          sheet.disabled = true
-        }
-      }
-    } catch {
-      // Cross-origin stylesheet, skip it
+// Get safe inline styles for PDF generation (hex colors only, no CSS variables)
+function getSafeInlineStyles(): string {
+  return `
+    * {
+      box-sizing: border-box;
     }
-  })
-
-  // Return restore function
-  return () => {
-    disabledSheets.forEach(({ sheet, disabled }) => {
-      sheet.disabled = disabled
-    })
-  }
-}
-
-// Inject safe fallback styles for the PDF rendering
-function injectSafeStyles(): HTMLStyleElement {
-  const safeStyles = document.createElement('style')
-  safeStyles.id = 'pdf-safe-styles'
-  safeStyles.textContent = `
-    /* Safe fallback styles for PDF generation */
-    #quote-pdf-content * {
-      /* Override any oklch/lab colors with safe hex values */
-      --background: #ffffff;
-      --foreground: #0a0a0a;
-      --card: #ffffff;
-      --card-foreground: #0a0a0a;
-      --popover: #ffffff;
-      --popover-foreground: #0a0a0a;
-      --primary: #171717;
-      --primary-foreground: #fafafa;
-      --secondary: #f5f5f5;
-      --secondary-foreground: #171717;
-      --muted: #f5f5f5;
-      --muted-foreground: #737373;
-      --accent: #f5f5f5;
-      --accent-foreground: #171717;
-      --destructive: #ef4444;
-      --destructive-foreground: #fafafa;
-      --border: #e5e5e5;
-      --input: #e5e5e5;
-      --ring: #0a0a0a;
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #0a0a0a;
+      background: #ffffff;
     }
   `
-  document.head.appendChild(safeStyles)
-  return safeStyles
 }
 
-// Helper to sanitize unsupported CSS color functions in cloned document
-function sanitizeClonedDocument(doc: Document): void {
-  // Sanitize all style elements
-  const styleElements = doc.querySelectorAll('style')
-  styleElements.forEach((styleEl) => {
-    if (styleEl.textContent) {
-      styleEl.textContent = styleEl.textContent.replace(
-        UNSUPPORTED_COLOR_PATTERN,
-        '#000000'
-      )
+// Create an isolated iframe for PDF rendering
+// This avoids html2canvas parsing the main document's stylesheets
+async function createIsolatedPDFFrame(element: HTMLElement): Promise<{ iframe: HTMLIFrameElement; cleanup: () => void }> {
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'absolute'
+    iframe.style.left = '-9999px'
+    iframe.style.top = '0'
+    iframe.style.width = '210mm'
+    iframe.style.height = '297mm'
+    iframe.style.border = 'none'
+
+    document.body.appendChild(iframe)
+
+    iframe.onload = () => {
+      const doc = iframe.contentDocument!
+      const win = iframe.contentWindow!
+
+      // Clone the element
+      const clonedElement = element.cloneNode(true) as HTMLElement
+
+      // Get computed styles from the original element and apply them inline
+      applyComputedStylesInline(element, clonedElement, win)
+
+      // Add safe base styles
+      const styleEl = doc.createElement('style')
+      styleEl.textContent = getSafeInlineStyles()
+      doc.head.appendChild(styleEl)
+
+      // Add the cloned element to iframe body
+      doc.body.appendChild(clonedElement)
+
+      resolve({
+        iframe,
+        cleanup: () => {
+          document.body.removeChild(iframe)
+        },
+      })
+    }
+
+    // Trigger load by setting src
+    iframe.src = 'about:blank'
+  })
+}
+
+// Apply computed styles inline to avoid CSS variable resolution issues
+function applyComputedStylesInline(original: HTMLElement, clone: HTMLElement, win: Window): void {
+  const computedStyle = window.getComputedStyle(original)
+
+  // Properties we care about for visual rendering
+  const importantProps = [
+    'color', 'background-color', 'background', 'border', 'border-color',
+    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+    'font-family', 'font-size', 'font-weight', 'line-height', 'text-align',
+    'padding', 'margin', 'width', 'max-width', 'min-width',
+    'display', 'flex-direction', 'justify-content', 'align-items', 'gap',
+    'grid-template-columns', 'grid-column', 'grid-row',
+    'border-radius', 'box-shadow', 'opacity',
+  ]
+
+  importantProps.forEach((prop) => {
+    let value = computedStyle.getPropertyValue(prop)
+    // Replace any oklch/lab colors with fallback
+    if (value && UNSUPPORTED_COLOR_PATTERN.test(value)) {
+      value = value.replace(UNSUPPORTED_COLOR_PATTERN, '#000000')
+    }
+    if (value) {
+      clone.style.setProperty(prop, value)
     }
   })
 
-  // Sanitize inline styles recursively
-  function sanitizeElement(element: Element): void {
-    const htmlEl = element as HTMLElement
-    if (htmlEl.style && htmlEl.style.cssText) {
-      if (UNSUPPORTED_COLOR_PATTERN.test(htmlEl.style.cssText)) {
-        htmlEl.style.cssText = htmlEl.style.cssText.replace(
-          UNSUPPORTED_COLOR_PATTERN,
-          '#000000'
-        )
-      }
+  // Process children recursively
+  const originalChildren = Array.from(original.children) as HTMLElement[]
+  const cloneChildren = Array.from(clone.children) as HTMLElement[]
+
+  originalChildren.forEach((originalChild, index) => {
+    if (cloneChildren[index]) {
+      applyComputedStylesInline(originalChild, cloneChildren[index], win)
     }
-    Array.from(element.children).forEach(sanitizeElement)
-  }
-  sanitizeElement(doc.body)
+  })
 }
 
-// Generate PDF from HTML element
+// Generate PDF from HTML element using isolated iframe
 export async function generatePDFFromElement(
   element: HTMLElement,
   options: GeneratePDFOptions = {}
@@ -123,30 +122,29 @@ export async function generatePDFFromElement(
 
   onProgress?.(10)
 
-  // Disable problematic stylesheets and inject safe fallbacks
-  const restoreStylesheets = disableProblematicStylesheets()
-  const safeStyles = injectSafeStyles()
+  // Create isolated iframe with the element
+  const { iframe, cleanup } = await createIsolatedPDFFrame(element)
 
   try {
-    // Use html2canvas to capture the element
-    const canvas = await html2canvas(element, {
+    const doc = iframe.contentDocument!
+    const targetElement = doc.body.firstElementChild as HTMLElement
+
+    if (!targetElement) {
+      throw new Error('Failed to render element in iframe')
+    }
+
+    onProgress?.(30)
+
+    // Use html2canvas on the isolated iframe content
+    const canvas = await html2canvas(targetElement, {
       scale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
       imageTimeout: 15000,
-      onclone: (clonedDoc) => {
-        // Sanitize unsupported CSS color functions in the cloned document
-        sanitizeClonedDocument(clonedDoc)
-
-        // Ensure all styles are applied in cloned document
-        const clonedElement = clonedDoc.getElementById('quote-pdf-content')
-        if (clonedElement) {
-          clonedElement.style.width = '210mm' // A4 width
-          clonedElement.style.minHeight = 'auto'
-        }
-      },
+      windowWidth: 794, // A4 width in pixels at 96dpi
+      windowHeight: 1123, // A4 height in pixels at 96dpi
     })
 
     onProgress?.(60)
@@ -158,7 +156,7 @@ export async function generatePDFFromElement(
 
     // Create PDF
     const pdf = new jsPDF({
-      orientation: imgHeight > pageHeight ? 'portrait' : 'portrait',
+      orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
     })
@@ -193,9 +191,7 @@ export async function generatePDFFromElement(
 
     return pdf
   } finally {
-    // Restore original stylesheets and remove safe styles
-    restoreStylesheets()
-    safeStyles.remove()
+    cleanup()
   }
 }
 
