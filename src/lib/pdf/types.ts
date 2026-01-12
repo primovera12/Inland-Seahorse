@@ -230,7 +230,7 @@ export function transformQuoteDataToPDF(
 
   if (quoteData.is_multi_equipment && quoteData.equipment_blocks) {
     // Multi-equipment mode
-    quoteData.equipment_blocks.forEach((block, index) => {
+    quoteData.equipment_blocks.forEach((block) => {
       equipment.push({
         id: block.id,
         makeName: block.make_name,
@@ -317,6 +317,220 @@ export function transformQuoteDataToPDF(
     inlandTotal: 0,
     grandTotal: quoteData.total,
     customerNotes: quoteData.quote_notes,
+    termsAndConditions,
+  }
+}
+
+// Transform company settings to CompanyInfo
+export function settingsToCompanyInfo(settings: {
+  company_name: string
+  company_logo_url?: string
+  logo_size_percentage?: number
+  company_address?: string
+  company_city?: string
+  company_state?: string
+  company_zip?: string
+  company_phone?: string
+  company_email?: string
+  company_website?: string
+  primary_color?: string
+  secondary_color?: string
+}): CompanyInfo {
+  // Build full address
+  const addressParts = [
+    settings.company_address,
+    settings.company_city,
+    settings.company_state,
+    settings.company_zip,
+  ].filter(Boolean)
+
+  return {
+    name: settings.company_name,
+    address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
+    phone: settings.company_phone,
+    email: settings.company_email,
+    website: settings.company_website,
+    logoUrl: settings.company_logo_url,
+    logoSizePercentage: settings.logo_size_percentage || 100,
+    primaryColor: settings.primary_color || '#1e3a8a',
+    secondaryColor: settings.secondary_color,
+  }
+}
+
+// Build UnifiedPDFData from quote page state (for edit/new pages)
+export function buildUnifiedPDFData(params: {
+  quoteNumber: string
+  quoteType: 'dismantle' | 'inland'
+  // Customer
+  customerName: string
+  customerEmail?: string
+  customerPhone?: string
+  customerCompany?: string
+  customerAddress?: { address?: string; city?: string; state?: string; zip?: string }
+  // Equipment (single mode)
+  makeName?: string
+  modelName?: string
+  location?: string
+  dimensions?: EquipmentDimensions
+  frontImageUrl?: string
+  sideImageUrl?: string
+  costs?: Record<CostField, number>
+  enabledCosts?: Record<CostField, boolean>
+  costOverrides?: Record<CostField, number | null>
+  costDescriptions?: Record<CostField, string>
+  miscFees?: MiscellaneousFee[]
+  // Multi-equipment mode
+  isMultiEquipment?: boolean
+  equipmentBlocks?: EquipmentBlock[]
+  // Inland transport
+  inlandTransport?: {
+    enabled: boolean
+    pickup_address?: string
+    pickup_city?: string
+    pickup_state?: string
+    pickup_zip?: string
+    dropoff_address?: string
+    dropoff_city?: string
+    dropoff_state?: string
+    dropoff_zip?: string
+    transport_cost?: number
+  }
+  // Totals
+  subtotal: number
+  total: number
+  inlandTransportCost?: number
+  miscFeesTotal?: number
+  // Notes
+  notes?: string
+  // Settings
+  settings: {
+    company_name: string
+    company_logo_url?: string
+    logo_size_percentage?: number
+    company_address?: string
+    company_city?: string
+    company_state?: string
+    company_zip?: string
+    company_phone?: string
+    company_email?: string
+    company_website?: string
+    primary_color?: string
+    secondary_color?: string
+    terms_dismantle?: string
+    terms_inland?: string
+    quote_validity_days?: number
+  }
+}): UnifiedPDFData {
+  const company = settingsToCompanyInfo(params.settings)
+
+  // Calculate expiration date
+  const validityDays = params.settings.quote_validity_days || 30
+  const expirationDate = new Date()
+  expirationDate.setDate(expirationDate.getDate() + validityDays)
+
+  // Build equipment array
+  const equipment: EquipmentInfo[] = []
+
+  if (params.isMultiEquipment && params.equipmentBlocks) {
+    params.equipmentBlocks.forEach((block) => {
+      equipment.push({
+        id: block.id,
+        makeName: block.make_name,
+        modelName: block.model_name,
+        location: block.location,
+        quantity: block.quantity,
+        dimensions: {
+          length_inches: block.length_inches || 0,
+          width_inches: block.width_inches || 0,
+          height_inches: block.height_inches || 0,
+          weight_lbs: block.weight_lbs || 0,
+        },
+        frontImageUrl: block.front_image_url,
+        sideImageUrl: block.side_image_url,
+        costs: block.costs,
+        enabledCosts: block.enabled_costs,
+        costOverrides: block.cost_overrides,
+        miscFees: block.misc_fees || [],
+        subtotal: block.subtotal,
+        miscFeesTotal: block.misc_fees_total,
+        totalWithQuantity: block.total_with_quantity,
+      })
+    })
+  } else {
+    equipment.push({
+      id: 'main',
+      makeName: params.makeName || 'Custom',
+      modelName: params.modelName || 'Equipment',
+      location: params.location || '',
+      quantity: 1,
+      dimensions: params.dimensions || { length_inches: 0, width_inches: 0, height_inches: 0, weight_lbs: 0 },
+      frontImageUrl: params.frontImageUrl,
+      sideImageUrl: params.sideImageUrl,
+      costs: params.costs || {} as Record<CostField, number>,
+      enabledCosts: params.enabledCosts || {} as Record<CostField, boolean>,
+      costOverrides: params.costOverrides || {} as Record<CostField, number | null>,
+      costDescriptions: params.costDescriptions,
+      miscFees: params.miscFees || [],
+      subtotal: params.subtotal,
+      totalWithQuantity: params.subtotal,
+    })
+  }
+
+  // Terms based on quote type
+  const termsAndConditions = params.quoteType === 'dismantle'
+    ? params.settings.terms_dismantle
+    : params.settings.terms_inland
+
+  return {
+    quoteType: params.quoteType,
+    quoteNumber: params.quoteNumber,
+    issueDate: new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    validUntil: expirationDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    company,
+    customer: {
+      name: params.customerName || 'N/A',
+      company: params.customerCompany,
+      email: params.customerEmail,
+      phone: params.customerPhone,
+      address: params.customerAddress?.address,
+      city: params.customerAddress?.city,
+      state: params.customerAddress?.state,
+      zip: params.customerAddress?.zip,
+    },
+    equipment,
+    isMultiEquipment: params.isMultiEquipment || false,
+    location: params.location,
+    inlandTransport: params.inlandTransport?.enabled
+      ? {
+          enabled: true,
+          pickup: {
+            address: params.inlandTransport.pickup_address || '',
+            city: params.inlandTransport.pickup_city,
+            state: params.inlandTransport.pickup_state,
+            zip: params.inlandTransport.pickup_zip,
+          },
+          dropoff: {
+            address: params.inlandTransport.dropoff_address || '',
+            city: params.inlandTransport.dropoff_city,
+            state: params.inlandTransport.dropoff_state,
+            zip: params.inlandTransport.dropoff_zip,
+          },
+          total: params.inlandTransport.transport_cost || 0,
+        }
+      : undefined,
+    equipmentSubtotal: params.subtotal - (params.inlandTransportCost || 0),
+    miscFeesTotal: params.miscFeesTotal || 0,
+    inlandTotal: params.inlandTransportCost || 0,
+    grandTotal: params.total,
+    customerNotes: params.notes,
     termsAndConditions,
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,8 +20,8 @@ import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipmen
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { FileDown, Eye, Plus, Layers, MonitorPlay, Loader2, Mail, ArrowLeft, Truck } from 'lucide-react'
-import { downloadQuotePDF, getQuotePDFDataUrl, type QuotePDFData } from '@/lib/pdf/quote-generator'
+import { Eye, Plus, Layers, Loader2, Mail, ArrowLeft, Truck } from 'lucide-react'
+import { QuotePDFPreview, buildUnifiedPDFData, type UnifiedPDFData } from '@/lib/pdf'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 
 type CostState = Record<CostField, number>
@@ -132,13 +132,7 @@ export default function EditQuotePage() {
 
   // PDF Preview
   const [showPdfPreview, setShowPdfPreview] = useState(false)
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
-
-  // Live PDF Preview
-  const [showLivePdfPreview, setShowLivePdfPreview] = useState(false)
-  const [livePdfUrl, setLivePdfUrl] = useState<string | null>(null)
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [pdfData, setPdfData] = useState<UnifiedPDFData | null>(null)
 
   // Email dialog
   const [showEmailDialog, setShowEmailDialog] = useState(false)
@@ -328,17 +322,18 @@ export default function EditQuotePage() {
     return formatDate(expirationDate)
   }, [settings?.quote_validity_days])
 
-  // Build PDF data object
-  const buildPdfData = useCallback((): QuotePDFData => {
-    return {
+  // Build PDF data object using settings
+  const buildPdfDataFromState = useCallback((): UnifiedPDFData | null => {
+    if (!settings) return null
+
+    return buildUnifiedPDFData({
       quoteNumber,
-      date: formatDate(new Date()),
-      expiresAt: getExpirationDate,
+      quoteType: 'dismantle',
       customerName: customerName || 'N/A',
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
       customerCompany: customerCompany || undefined,
-      customerAddress: getFullAddressString(customerAddress),
+      customerAddress,
       makeName: makeName || 'Custom',
       modelName: modelName || 'Equipment',
       location: selectedLocation,
@@ -349,128 +344,60 @@ export default function EditQuotePage() {
       enabledCosts,
       costOverrides,
       miscFees,
-      costsSubtotal,
-      miscFeesTotal,
-      inlandTransport: inlandTransport.enabled ? inlandTransport : undefined,
+      isMultiEquipment,
+      equipmentBlocks: isMultiEquipment ? equipmentBlocks : undefined,
+      inlandTransport: inlandTransport.enabled ? {
+        enabled: true,
+        pickup_address: inlandTransport.pickup_address,
+        pickup_city: inlandTransport.pickup_city,
+        pickup_state: inlandTransport.pickup_state,
+        pickup_zip: inlandTransport.pickup_zip,
+        dropoff_address: inlandTransport.dropoff_address,
+        dropoff_city: inlandTransport.dropoff_city,
+        dropoff_state: inlandTransport.dropoff_state,
+        dropoff_zip: inlandTransport.dropoff_zip,
+        transport_cost: inlandTransport.transport_cost,
+      } : undefined,
+      subtotal: isMultiEquipment ? multiEquipmentSubtotal + inlandTransportCost : subtotal,
+      total: isMultiEquipment ? multiEquipmentTotal + inlandTransportCost : total,
       inlandTransportCost,
-      subtotal,
-      total,
+      miscFeesTotal,
       notes: notes || undefined,
-      companyName: 'Seahorse Express',
-      primaryColor: '#6366F1',
-    }
+      settings: {
+        company_name: settings.company_name,
+        company_logo_url: settings.company_logo_url,
+        logo_size_percentage: settings.logo_size_percentage,
+        company_address: settings.company_address,
+        company_city: settings.company_city,
+        company_state: settings.company_state,
+        company_zip: settings.company_zip,
+        company_phone: settings.company_phone,
+        company_email: settings.company_email,
+        company_website: settings.company_website,
+        primary_color: settings.primary_color,
+        secondary_color: settings.secondary_color,
+        terms_dismantle: settings.terms_dismantle,
+        terms_inland: settings.terms_inland,
+        quote_validity_days: settings.quote_validity_days,
+      },
+    })
   }, [
-    quoteNumber, getExpirationDate, customerName, customerEmail, customerPhone, customerCompany, customerAddress,
+    settings, quoteNumber, customerName, customerEmail, customerPhone, customerCompany, customerAddress,
     makeName, modelName, selectedLocation, dimensions, equipmentImages, costs, enabledCosts,
-    costOverrides, miscFees, costsSubtotal, miscFeesTotal, inlandTransport, inlandTransportCost, subtotal, total, notes
+    costOverrides, miscFees, isMultiEquipment, equipmentBlocks, inlandTransport, inlandTransportCost,
+    subtotal, total, multiEquipmentSubtotal, multiEquipmentTotal, miscFeesTotal, notes
   ])
 
   // Generate PDF preview
   const handlePreviewPdf = useCallback(() => {
-    try {
-      const pdfData = buildPdfData()
-      const dataUrl = getQuotePDFDataUrl(pdfData)
-      setPdfDataUrl(dataUrl)
+    const data = buildPdfDataFromState()
+    if (data) {
+      setPdfData(data)
       setShowPdfPreview(true)
-    } catch {
-      toast.error('Failed to generate PDF preview')
+    } else {
+      toast.error('Please wait for settings to load')
     }
-  }, [buildPdfData])
-
-  // Download PDF
-  const handleDownloadPdf = useCallback(() => {
-    try {
-      const pdfData = buildPdfData()
-      downloadQuotePDF(pdfData)
-      toast.success('PDF downloaded')
-    } catch {
-      toast.error('Failed to download PDF')
-    }
-  }, [buildPdfData])
-
-  // Create a stable hash of the PDF data to detect changes
-  const pdfDataHash = useMemo(() => {
-    return JSON.stringify({
-      quoteNumber,
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerCompany,
-      makeName,
-      modelName,
-      selectedLocation,
-      dimensions,
-      costs,
-      enabledCosts,
-      costOverrides,
-      miscFees,
-      subtotal,
-      notes,
-      isMultiEquipment,
-      equipmentBlocks: isMultiEquipment ? equipmentBlocks.map(b => ({
-        make_name: b.make_name,
-        model_name: b.model_name,
-        location: b.location,
-        quantity: b.quantity,
-        total_with_quantity: b.total_with_quantity,
-      })) : [],
-    })
-  }, [
-    quoteNumber, customerName, customerEmail, customerPhone, customerCompany,
-    makeName, modelName, selectedLocation, dimensions, costs, enabledCosts,
-    costOverrides, miscFees, subtotal, notes, isMultiEquipment, equipmentBlocks
-  ])
-
-  // Live PDF preview with debouncing
-  useEffect(() => {
-    // Only generate if live preview is enabled
-    if (!showLivePdfPreview) return
-
-    // Clear existing timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
-
-    // Set generating state
-    setIsGeneratingPdf(true)
-
-    // Debounce the PDF generation by 800ms
-    debounceTimerRef.current = setTimeout(() => {
-      try {
-        const pdfData = buildPdfData()
-        const dataUrl = getQuotePDFDataUrl(pdfData)
-        setLivePdfUrl(dataUrl)
-      } catch (error) {
-        console.error('Failed to generate live PDF preview:', error)
-      } finally {
-        setIsGeneratingPdf(false)
-      }
-    }, 800)
-
-    // Cleanup
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-    }
-  }, [pdfDataHash, showLivePdfPreview, buildPdfData])
-
-  // Toggle live preview
-  const handleToggleLivePreview = useCallback(() => {
-    setShowLivePdfPreview((prev) => {
-      if (!prev) {
-        // Generate initial preview when enabling
-        try {
-          const pdfData = buildPdfData()
-          const dataUrl = getQuotePDFDataUrl(pdfData)
-          setLivePdfUrl(dataUrl)
-        } catch (error) {
-          console.error('Failed to generate initial PDF preview:', error)
-        }
-      }
-      return !prev
-    })
-  }, [buildPdfData])
+  }, [buildPdfDataFromState])
 
   // Update quote mutation
   const updateQuote = trpc.quotes.update.useMutation({
@@ -561,19 +488,8 @@ export default function EditQuotePage() {
           </p>
         </div>
         <div className="flex gap-2 items-center">
-          <Button
-            variant={showLivePdfPreview ? 'default' : 'outline'}
-            size="icon"
-            onClick={handleToggleLivePreview}
-            title={showLivePdfPreview ? 'Hide Live Preview' : 'Show Live Preview'}
-          >
-            <MonitorPlay className="h-4 w-4" />
-          </Button>
           <Button variant="outline" size="icon" onClick={handlePreviewPdf} title="Preview PDF">
             <Eye className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleDownloadPdf} title="Download PDF">
-            <FileDown className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
@@ -591,25 +507,13 @@ export default function EditQuotePage() {
 
       {/* PDF Preview Modal */}
       <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
-        <DialogContent className="max-w-4xl h-[90vh]">
+        <DialogContent className="max-w-6xl h-[90vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Quote Preview</span>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleDownloadPdf}>
-                  <FileDown className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-              </div>
-            </DialogTitle>
+            <DialogTitle>Quote Preview</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
-            {pdfDataUrl && (
-              <iframe
-                src={pdfDataUrl}
-                className="w-full h-full rounded border"
-                title="Quote PDF Preview"
-              />
+          <div className="flex-1 min-h-0 overflow-auto">
+            {pdfData && (
+              <QuotePDFPreview data={pdfData} showControls />
             )}
           </div>
         </DialogContent>
@@ -807,39 +711,6 @@ export default function EditQuotePage() {
             inlandTransportCost={inlandTransportCost}
           />
 
-          {/* Live PDF Preview Panel */}
-          {showLivePdfPreview && (
-            <Card className="overflow-hidden">
-              <CardHeader className="py-3 px-4 border-b">
-                <CardTitle className="text-sm font-medium flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <MonitorPlay className="h-4 w-4" />
-                    Live Preview
-                  </span>
-                  {isGeneratingPdf && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Updating...
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <div className="h-[600px] bg-muted/30">
-                {livePdfUrl ? (
-                  <iframe
-                    src={livePdfUrl}
-                    className="w-full h-full"
-                    title="Live Quote PDF Preview"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    Generating preview...
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
         </div>
       </div>
 

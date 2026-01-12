@@ -19,6 +19,8 @@ export {
   CATEGORY_STYLES,
   COST_LABELS,
   transformQuoteDataToPDF,
+  settingsToCompanyInfo,
+  buildUnifiedPDFData,
   generateServiceLineItems,
 } from './types'
 
