@@ -43,8 +43,11 @@ function HeaderSection({ data }: { data: UnifiedPDFData }) {
             <img
               src={data.company.logoUrl}
               alt={data.company.name}
-              className="h-12 w-auto object-contain"
-              style={{ maxWidth: `${(data.company.logoSizePercentage || 100) * 0.5}px` }}
+              className="w-auto object-contain"
+              style={{
+                height: `${Math.max(60, (data.company.logoSizePercentage || 100) * 0.8)}px`,
+                maxWidth: `${(data.company.logoSizePercentage || 100) * 2.5}px`
+              }}
             />
           ) : (
             <div className="text-2xl font-extrabold tracking-tighter uppercase" style={{ color: primaryColor }}>
@@ -161,14 +164,16 @@ function ClientSection({ data }: { data: UnifiedPDFData }) {
   )
 }
 
-// Location section for dismantle quotes
+// Location section - handles both dismantle and inland quotes
 function LocationSection({ data }: { data: UnifiedPDFData }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const hasInlandTransport = data.inlandTransport?.enabled && data.inlandTransport.pickup && data.inlandTransport.dropoff
+  const isInlandOnlyQuote = data.quoteType === 'inland'
 
-  if (data.quoteType === 'inland' && data.inlandTransport) {
-    // Inland quote - show pickup and dropoff
-    const pickup = data.inlandTransport.pickup
-    const dropoff = data.inlandTransport.dropoff
+  // For inland-only quotes, just show pickup/dropoff
+  if (isInlandOnlyQuote && hasInlandTransport) {
+    const pickup = data.inlandTransport!.pickup
+    const dropoff = data.inlandTransport!.dropoff
 
     return (
       <div className="grid grid-cols-2 gap-0 border-b border-slate-100">
@@ -218,30 +223,81 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
     )
   }
 
-  // Dismantle quote - show single equipment location
-  if (!data.location) return null
-
-  const locationInfo = getLocationInfo(data.location)
+  // For dismantle quotes, show equipment location (and optionally inland transport)
+  const locationInfo = data.location ? getLocationInfo(data.location) : null
 
   return (
-    <div className="p-8 border-b border-slate-100">
-      <h3
-        className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-        style={{ color: primaryColor }}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        Equipment Location
-      </h3>
-      <div className="space-y-1">
-        <p className="text-base font-bold text-slate-900">{locationInfo.name}</p>
-        {locationInfo.address && (
-          <p className="text-sm text-slate-500">{locationInfo.address}</p>
-        )}
-      </div>
-    </div>
+    <>
+      {/* Equipment Location (for dismantle quotes) */}
+      {locationInfo && (
+        <div className="p-8 border-b border-slate-100">
+          <h3
+            className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+            style={{ color: primaryColor }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Equipment Location
+          </h3>
+          <div className="space-y-1">
+            <p className="text-base font-bold text-slate-900">{locationInfo.name}</p>
+            {locationInfo.address && (
+              <p className="text-sm text-slate-500">{locationInfo.address}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Inland Transport (if enabled for dismantle quote) */}
+      {hasInlandTransport && !isInlandOnlyQuote && (
+        <div className="grid grid-cols-2 gap-0 border-b border-slate-100">
+          {/* Pickup */}
+          <div className="p-8 border-r border-slate-100">
+            <h3
+              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: primaryColor }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Transport Pick-up
+            </h3>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-slate-900">{data.inlandTransport!.pickup.address || '-'}</p>
+              {(data.inlandTransport!.pickup.city || data.inlandTransport!.pickup.state || data.inlandTransport!.pickup.zip) && (
+                <p className="text-sm text-slate-500">
+                  {[data.inlandTransport!.pickup.city, data.inlandTransport!.pickup.state, data.inlandTransport!.pickup.zip].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Dropoff */}
+          <div className="p-8">
+            <h3
+              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: primaryColor }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Transport Delivery
+            </h3>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-slate-900">{data.inlandTransport!.dropoff.address || '-'}</p>
+              {(data.inlandTransport!.dropoff.city || data.inlandTransport!.dropoff.state || data.inlandTransport!.dropoff.zip) && (
+                <p className="text-sm text-slate-500">
+                  {[data.inlandTransport!.dropoff.city, data.inlandTransport!.dropoff.state, data.inlandTransport!.dropoff.zip].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
