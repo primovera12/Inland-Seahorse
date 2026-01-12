@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>3PL Quote - Client Info with Contact Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary": "#1e3a8a", // Navy Blue
+                "secondary": "#475569", // Slate Grey
+                "background-light": "#f8fafc",
+                "background-dark": "#0f172a",
+              },
+              fontFamily: {
+                "display": ["Manrope"]
+              },
+              borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+            },
+          },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-shadow-none {
+                box-shadow: none !important;
+            }
+            body {
+                background-color: white !important;
+            }
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-700 dark:text-slate-300 min-h-screen">
+<header class="no-print sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-3">
+<div class="max-w-5xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary">
+<svg class="size-8" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight">LogiLink Integrated Systems</h2>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-primary hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold text-sm transition-all" onclick="window.print()">
+                Download PDF
+            </button>
+</div>
+</div>
+</header>
+<main class="max-w-5xl mx-auto px-6 py-10">
+<div class="bg-white dark:bg-slate-900 shadow-xl print-shadow-none rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+<div class="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50/50 dark:bg-slate-800/50">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="text-primary">
+<svg class="size-12" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z" fill="currentColor"></path>
+</svg>
+</div>
+<span class="text-2xl font-extrabold tracking-tighter text-slate-900 dark:text-white uppercase">LogiLink</span>
+</div>
+<div class="text-sm space-y-1 text-secondary dark:text-slate-400">
+<p class="font-bold text-slate-800 dark:text-slate-200">Corporate HQ</p>
+<p>128 Logistics Way, Chicago, IL 60601</p>
+<p>contact@logilink-systems.com</p>
+</div>
+</div>
+<div class="text-right">
+<h1 class="text-3xl font-extrabold text-primary dark:text-blue-400 mb-2">QUOTATION</h1>
+<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+<span class="text-slate-500 font-medium">Quote ID</span>
+<span class="font-bold text-slate-900 dark:text-white">#QL-2023-0892</span>
+<span class="text-slate-500 font-medium">Issue Date</span>
+<span class="text-slate-900 dark:text-white">Oct 24, 2023</span>
+<span class="text-slate-500 font-medium">Valid Until</span>
+<span class="text-slate-900 dark:text-white">Nov 24, 2023</span>
+</div>
+</div>
+</div>
+<div class="p-8 border-b border-slate-100 dark:border-slate-800">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">person</span> Client Information
+            </h3>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-8">
+<div>
+<p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">Company Name</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white leading-tight">Apex Global Traders Inc.</p>
+</div>
+<div>
+<p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">Contact Person</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white">Robert Chen</p>
+<p class="text-[11px] text-secondary dark:text-slate-400">Director of Operations</p>
+</div>
+<div>
+<p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">Phone Number</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white">+1 (415) 555-0128</p>
+</div>
+<div>
+<p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">Email Address</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white break-words">r.chen@apex-global.com</p>
+</div>
+<div>
+<p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">Billing Address</p>
+<p class="text-sm font-bold text-slate-900 dark:text-white leading-tight">452 Commerce Blvd, Suite 800,<br/>San Francisco, CA 94105, USA</p>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-0 border-b border-slate-100 dark:border-slate-800">
+<div class="p-8 border-r border-slate-100 dark:border-slate-800">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">hail</span> Pick-up Location
+                </h3>
+<div class="space-y-1">
+<p class="text-base font-bold text-slate-900 dark:text-white">Global Manufacturing Center</p>
+<p class="text-sm text-secondary dark:text-slate-400">77 Industrial Pkwy, East Dock</p>
+<p class="text-sm text-secondary dark:text-slate-400">Shanghai, CN 200001</p>
+<p class="text-xs text-slate-500 mt-2 italic">Ref: Gate 4A Access Required</p>
+</div>
+</div>
+<div class="p-8">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">local_shipping</span> Shipping Destination
+                </h3>
+<div class="space-y-1">
+<p class="text-base font-bold text-slate-900 dark:text-white">West Coast Logistics Hub</p>
+<p class="text-sm text-secondary dark:text-slate-400">88 Terminal Road, Port of LB</p>
+<p class="text-sm text-secondary dark:text-slate-400">Long Beach, CA 90802</p>
+<p class="text-xs text-slate-500 mt-2 italic">Contact: Sarah Jenkins (+1 555-0982)</p>
+</div>
+</div>
+</div>
+<div class="p-8 border-b border-slate-100 dark:border-slate-800">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4">Route Visualization</h3>
+<div class="aspect-[21/9] w-full bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative border border-slate-200 dark:border-slate-700">
+<img alt="Route Map" class="w-full h-full object-cover opacity-80 mix-blend-multiply dark:mix-blend-normal" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvpsEDJZqNbyGS5IGP0mGpIgJIbtTPQHuI5J8_O6V3WChJ_FNGJ0gH9Lt4GKaYdE6TVr3yIJ4VptH5vfczL5KGKOQigombCCssQRvClZZexgGef8abP8YRQYEnWq5wh3TzO9111BjfL775W1xgwMk7KgbsaM8BSJbhmq59qegRM-mhp-IDFKCjT_28QxCCMrgB-D11rylQSEs5fuXPmcALxyHhjthJ5UqUoctVqn6J0DwAWqiJk8gUUXqxFleadby5_OLJL6nsgy0"/>
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<div class="bg-white/90 dark:bg-slate-900/90 px-4 py-2 rounded-full shadow-lg border border-primary/20 flex items-center gap-4">
+<span class="text-xs font-bold">SHA</span>
+<div class="w-32 h-[2px] bg-primary relative">
+<div class="absolute -top-1 right-0 size-2 bg-primary rounded-full"></div>
+</div>
+<span class="text-xs font-bold">LGB</span>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-0 border-b border-slate-100 dark:border-slate-800">
+<div class="col-span-8 p-8 border-r border-slate-100 dark:border-slate-800">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4">Equipment Showcase</h3>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<div class="aspect-video bg-slate-50 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+<img alt="Front View" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQpzOJVjt5yQhB744-zRT4gRZnSswxPh9T3mJlnJsxjsrI382I27Vi8urx_Mn9WvMewIri8quetnFTyXi1_weS8bhO8OqLhckq6_bjb7Qepr1JD9uoD9_nyecj_uGjHRRm2BoEHutGeSLQFQJQduyyr2JJxl_KUuW3JtpTktxRXIdJcx3Kcv0VQ51IfFxAvCBXX_XCeO8P82ia1tMjhl25ALH_iXRxlX-TkfX_011408Sk-25oONWzA9aKnpBoIcmIInNrEY86WMc"/>
+</div>
+<p class="text-[10px] uppercase font-bold text-slate-400 text-center tracking-widest">Front Perspective</p>
+</div>
+<div class="space-y-2">
+<div class="aspect-video bg-slate-50 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+<img alt="Side View" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaUky0uX2bMNwO04fgSTD_EsfG1lMzlfsJ_XjqjjK-FVDutooBSwuFuxEhcMFnucEty9PddMdXNSanUkCj3OTAxvekyhl29OOZbEkBTVZ4S-CFg7XWxYREP4jayuP2FLONA7hlXCIbidXpufS6pAgY_OdwzV5BQSO887YhSY_38Qmhr6s49kD-EGwVgixRVGJy5cEvvgHZH6ZqUmzqCaMwjLizvPyxGaJaXeoN5TefPi5V1W0_f5WxEiqhNJpvYrFwgqtU_PmcAYE"/>
+</div>
+<p class="text-[10px] uppercase font-bold text-slate-400 text-center tracking-widest">Profile View</p>
+</div>
+</div>
+</div>
+<div class="col-span-4 p-8 bg-slate-50/30 dark:bg-slate-800/20">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4">Technical Specifications</h3>
+<div class="space-y-3">
+<div class="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+<span class="text-xs text-secondary font-medium">Length</span>
+<span class="text-xs font-bold text-slate-900 dark:text-white">6,058 mm (20')</span>
+</div>
+<div class="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+<span class="text-xs text-secondary font-medium">Width</span>
+<span class="text-xs font-bold text-slate-900 dark:text-white">2,438 mm (8')</span>
+</div>
+<div class="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+<span class="text-xs text-secondary font-medium">Height</span>
+<span class="text-xs font-bold text-slate-900 dark:text-white">2,896 mm (9'6")</span>
+</div>
+<div class="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+<span class="text-xs text-secondary font-medium">Max Payload</span>
+<span class="text-xs font-bold text-slate-900 dark:text-white">28,200 kg</span>
+</div>
+<div class="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+<span class="text-xs text-secondary font-medium">Tare Weight</span>
+<span class="text-xs font-bold text-slate-900 dark:text-white">2,340 kg</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-grow">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-100 dark:bg-slate-800">
+<th class="px-8 py-4 text-[10px] font-extrabold uppercase tracking-widest text-secondary dark:text-slate-400">Service Description</th>
+<th class="px-6 py-4 text-[10px] font-extrabold uppercase tracking-widest text-secondary dark:text-slate-400">Category</th>
+<th class="px-6 py-4 text-[10px] font-extrabold uppercase tracking-widest text-secondary dark:text-slate-400 text-center">Qty</th>
+<th class="px-6 py-4 text-[10px] font-extrabold uppercase tracking-widest text-secondary dark:text-slate-400 text-right">Unit Rate</th>
+<th class="px-8 py-4 text-[10px] font-extrabold uppercase tracking-widest text-secondary dark:text-slate-400 text-right">Line Total</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr>
+<td class="px-8 py-5">
+<p class="font-bold text-slate-900 dark:text-white">Ocean Freight (FCL)</p>
+<p class="text-xs text-slate-500">20ft High Cube Container - Trans-Pacific Service</p>
+</td>
+<td class="px-6 py-5">
+<span class="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase">Maritime</span>
+</td>
+<td class="px-6 py-5 text-center text-sm font-medium">4</td>
+<td class="px-6 py-5 text-right text-sm font-medium">$3,250.00</td>
+<td class="px-8 py-5 text-right font-bold text-slate-900 dark:text-white">$13,000.00</td>
+</tr>
+<tr>
+<td class="px-8 py-5">
+<p class="font-bold text-slate-900 dark:text-white">Port Handling &amp; Storage</p>
+<p class="text-xs text-slate-500">Terminal handling charges and 3-day buffer storage</p>
+</td>
+<td class="px-6 py-5">
+<span class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase">Logistics</span>
+</td>
+<td class="px-6 py-5 text-center text-sm font-medium">4</td>
+<td class="px-6 py-5 text-right text-sm font-medium">$450.00</td>
+<td class="px-8 py-5 text-right font-bold text-slate-900 dark:text-white">$1,800.00</td>
+</tr>
+<tr>
+<td class="px-8 py-5">
+<p class="font-bold text-slate-900 dark:text-white">Drayage Services</p>
+<p class="text-xs text-slate-500">Port to Distribution Hub short-haul trucking</p>
+</td>
+<td class="px-6 py-5">
+<span class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase">Intermodal</span>
+</td>
+<td class="px-6 py-5 text-center text-sm font-medium">4</td>
+<td class="px-6 py-5 text-right text-sm font-medium">$225.00</td>
+<td class="px-8 py-5 text-right font-bold text-slate-900 dark:text-white">$900.00</td>
+</tr>
+<tr>
+<td class="px-8 py-5">
+<p class="font-bold text-slate-900 dark:text-white">Customs Brokerage</p>
+<p class="text-xs text-slate-500">Import filing and regulatory compliance management</p>
+</td>
+<td class="px-6 py-5">
+<span class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase">Compliance</span>
+</td>
+<td class="px-6 py-5 text-center text-sm font-medium">1</td>
+<td class="px-6 py-5 text-right text-sm font-medium">$550.00</td>
+<td class="px-8 py-5 text-right font-bold text-slate-900 dark:text-white">$550.00</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-8 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800">
+<div class="flex flex-col md:flex-row justify-between gap-10">
+<div class="max-w-md">
+<h4 class="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white mb-3">Service Terms</h4>
+<p class="text-[11px] text-secondary leading-relaxed">
+                        Quote is based on current market rates and is subject to fuel surcharge (BAF) and currency adjustment (CAF) at the time of shipment. Rates include standard insurance coverage up to $50,000 per unit. Demurrage and detention fees apply after 4 free days at terminal.
+                    </p>
+</div>
+<div class="w-full md:w-80 space-y-3">
+<div class="flex justify-between text-sm">
+<span class="text-secondary font-medium">Subtotal (Freight &amp; Fees)</span>
+<span class="text-slate-900 dark:text-white font-bold">$16,250.00</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-secondary font-medium">Fuel Surcharge (8.5%)</span>
+<span class="text-slate-900 dark:text-white font-bold">$1,381.25</span>
+</div>
+<div class="flex justify-between text-sm border-b border-slate-200 dark:border-slate-700 pb-3">
+<span class="text-secondary font-medium">Insurance Premium</span>
+<span class="text-slate-900 dark:text-white font-bold">$125.00</span>
+</div>
+<div class="flex justify-between items-center pt-2">
+<span class="text-lg font-extrabold text-slate-900 dark:text-white">Grand Total (USD)</span>
+<span class="text-2xl font-black text-primary dark:text-blue-400">$17,756.25</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<footer class="mt-8 text-center text-slate-400 text-[10px] no-print">
+<p>© 2023 LogiLink Solutions Ltd. All rights reserved. This document is a confidential price quotation.</p>
+<p class="mt-1">Generated via LogiLink Enterprise Portal. Tracking ID: LOG-4492-X</p>
+</footer>
+</main>
+
+</body></html>

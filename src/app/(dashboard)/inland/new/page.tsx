@@ -639,12 +639,16 @@ export default function NewInlandQuotePage() {
             customerEmail={customerEmail}
             customerPhone={customerPhone}
             customerCompany={customerCompany}
-            onCustomerChange={{
-              setName: setCustomerName,
-              setEmail: setCustomerEmail,
-              setPhone: setCustomerPhone,
-              setCompany: setCustomerCompany,
+            onCustomerNameChange={setCustomerName}
+            onCustomerEmailChange={setCustomerEmail}
+            onCustomerPhoneChange={setCustomerPhone}
+            onCustomerCompanyChange={setCustomerCompany}
+            onCompanySelect={(id, name) => {
+              setSelectedCompanyId(id)
+              setCustomerCompany(name)
             }}
+            notes={internalNotes}
+            onNotesChange={setInternalNotes}
           />
 
           {/* Destinations */}
