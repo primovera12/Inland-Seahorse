@@ -505,6 +505,50 @@ export default function NewInlandQuotePage() {
     })
   }
 
+  // Download PDF and auto-save if not already saved
+  const handleDownloadAndSave = () => {
+    // Validate required fields
+    if (!customerName) {
+      toast.error('Please enter a customer name before downloading')
+      return
+    }
+    if (destinationBlocks.every((b) => !b.pickup_address && !b.dropoff_address)) {
+      toast.error('Please enter at least one destination before downloading')
+      return
+    }
+
+    // Download PDF
+    try {
+      const pdfData = buildPdfData()
+      downloadInlandQuotePDF(pdfData, `inland-quote-${quoteNumber}.pdf`)
+      toast.success('PDF downloaded successfully')
+    } catch (error) {
+      console.error('Error downloading PDF:', error)
+      toast.error('Failed to download PDF')
+      return
+    }
+
+    // Auto-save the quote if not already saved
+    if (!savedQuoteId && !createQuote.isPending) {
+      createQuote.mutate({
+        quote_number: quoteNumber,
+        status: 'draft',
+        customer_name: customerName,
+        customer_email: customerEmail || undefined,
+        customer_phone: customerPhone || undefined,
+        customer_company: customerCompany || undefined,
+        company_id: selectedCompanyId || undefined,
+        subtotal,
+        total,
+        quote_data: {
+          destination_blocks: destinationBlocks,
+          internal_notes: internalNotes,
+          quote_notes: quoteNotes,
+        },
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -549,7 +593,7 @@ export default function NewInlandQuotePage() {
             variant="outline"
             size="icon"
             title="Download PDF"
-            onClick={handleDownloadPdf}
+            onClick={handleDownloadAndSave}
           >
             <FileDown className="h-4 w-4" />
           </Button>
@@ -768,7 +812,7 @@ export default function NewInlandQuotePage() {
             <DialogTitle className="flex items-center justify-between">
               <span>Quote Preview - {quoteNumber}</span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
+                <Button variant="outline" size="sm" onClick={handleDownloadAndSave}>
                   <FileDown className="h-4 w-4 mr-2" />
                   Download PDF
                 </Button>
