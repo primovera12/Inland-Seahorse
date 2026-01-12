@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,23 +9,39 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { trpc } from '@/lib/trpc/client'
 import { toast } from 'sonner'
-import { Wrench, Save, DollarSign, Percent, MapPin, Calculator, Ruler, Scale, FileText, Plus, Trash2, Copy, Star, GripVertical, X } from 'lucide-react'
+import { Wrench, Save, DollarSign, MapPin, Calculator, Ruler, Scale, FileText, Plus, Trash2, Copy, Star, GripVertical, X, Pencil, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
-// Cost fields that can be enabled/disabled
-const COST_FIELDS = [
-  { id: 'dismantling_loading_cost', label: 'Dismantling & Loading', description: 'Labor for dismantling and loading equipment' },
-  { id: 'loading_cost', label: 'Loading Only', description: 'Labor for loading pre-dismantled equipment' },
-  { id: 'blocking_bracing_cost', label: 'Blocking & Bracing', description: 'Securing equipment for transport' },
-  { id: 'processing_cost', label: 'Processing', description: 'Administrative processing fees' },
-  { id: 'certification_cost', label: 'Certification', description: 'Equipment certification and documentation' },
-  { id: 'equipment_cost', label: 'Equipment', description: 'Special equipment rental' },
-  { id: 'labor_cost', label: 'Additional Labor', description: 'Extra labor charges' },
-  { id: 'crane_cost', label: 'Crane', description: 'Crane services for heavy lifts' },
-  { id: 'rigging_cost', label: 'Rigging', description: 'Rigging and specialized lifting' },
-  { id: 'permits_cost', label: 'Permits', description: 'Required permits and licenses' },
-  { id: 'escort_cost', label: 'Escort', description: 'Pilot car / escort services' },
-  { id: 'misc_cost', label: 'Miscellaneous', description: 'Other miscellaneous costs' },
+// Cost category type
+interface CostCategory {
+  id: string
+  label: string
+  description: string
+  isSystem: boolean // System categories cannot be deleted
+}
+
+// Default system cost fields
+const DEFAULT_COST_FIELDS: CostCategory[] = [
+  { id: 'dismantling_loading_cost', label: 'Dismantling & Loading', description: 'Labor for dismantling and loading equipment', isSystem: true },
+  { id: 'loading_cost', label: 'Loading Only', description: 'Labor for loading pre-dismantled equipment', isSystem: true },
+  { id: 'blocking_bracing_cost', label: 'Blocking & Bracing', description: 'Securing equipment for transport', isSystem: true },
+  { id: 'processing_cost', label: 'Processing', description: 'Administrative processing fees', isSystem: false },
+  { id: 'certification_cost', label: 'Certification', description: 'Equipment certification and documentation', isSystem: false },
+  { id: 'equipment_cost', label: 'Equipment', description: 'Special equipment rental', isSystem: false },
+  { id: 'labor_cost', label: 'Additional Labor', description: 'Extra labor charges', isSystem: false },
+  { id: 'crane_cost', label: 'Crane', description: 'Crane services for heavy lifts', isSystem: false },
+  { id: 'rigging_cost', label: 'Rigging', description: 'Rigging and specialized lifting', isSystem: false },
+  { id: 'permits_cost', label: 'Permits', description: 'Required permits and licenses', isSystem: false },
+  { id: 'escort_cost', label: 'Escort', description: 'Pilot car / escort services', isSystem: false },
+  { id: 'misc_cost', label: 'Miscellaneous', description: 'Other miscellaneous costs', isSystem: false },
 ]
 
 // Locations
@@ -39,10 +55,18 @@ const LOCATIONS = [
 ]
 
 export default function DismantleSettingsPage() {
+  // Cost categories (dynamic - can be added/removed)
+  const [costCategories, setCostCategories] = useState<CostCategory[]>(DEFAULT_COST_FIELDS)
+
+  // Cost category dialog state
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<CostCategory | null>(null)
+  const [categoryForm, setCategoryForm] = useState({ label: '', description: '' })
+
   // Enabled cost fields
   const [enabledCosts, setEnabledCosts] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {}
-    COST_FIELDS.forEach(field => {
+    DEFAULT_COST_FIELDS.forEach(field => {
       defaults[field.id] = true
     })
     return defaults
@@ -197,6 +221,87 @@ export default function DismantleSettingsPage() {
       ...prev,
       [fieldId]: !prev[fieldId]
     }))
+  }
+
+  // Cost category management functions
+  const openNewCategoryDialog = () => {
+    setEditingCategory(null)
+    setCategoryForm({ label: '', description: '' })
+    setShowCategoryDialog(true)
+  }
+
+  const openEditCategoryDialog = (category: CostCategory) => {
+    setEditingCategory(category)
+    setCategoryForm({ label: category.label, description: category.description })
+    setShowCategoryDialog(true)
+  }
+
+  const closeCategoryDialog = () => {
+    setShowCategoryDialog(false)
+    setEditingCategory(null)
+    setCategoryForm({ label: '', description: '' })
+  }
+
+  const saveCostCategory = () => {
+    if (!categoryForm.label.trim()) {
+      toast.error('Category name is required')
+      return
+    }
+
+    if (editingCategory) {
+      // Update existing category
+      setCostCategories(prev =>
+        prev.map(cat =>
+          cat.id === editingCategory.id
+            ? { ...cat, label: categoryForm.label.trim(), description: categoryForm.description.trim() }
+            : cat
+        )
+      )
+      toast.success('Cost category updated')
+    } else {
+      // Add new category
+      const newId = categoryForm.label.toLowerCase().replace(/\s+/g, '_') + '_cost'
+      // Check for duplicate IDs
+      if (costCategories.some(cat => cat.id === newId)) {
+        toast.error('A category with a similar name already exists')
+        return
+      }
+      const newCategory: CostCategory = {
+        id: newId,
+        label: categoryForm.label.trim(),
+        description: categoryForm.description.trim(),
+        isSystem: false,
+      }
+      setCostCategories(prev => [...prev, newCategory])
+      // Enable the new category by default
+      setEnabledCosts(prev => ({ ...prev, [newId]: true }))
+      toast.success('Cost category added')
+    }
+    closeCategoryDialog()
+  }
+
+  const deleteCostCategory = (categoryId: string) => {
+    const category = costCategories.find(c => c.id === categoryId)
+    if (category?.isSystem) {
+      toast.error('System categories cannot be deleted')
+      return
+    }
+    setCostCategories(prev => prev.filter(cat => cat.id !== categoryId))
+    // Also remove from enabled costs
+    setEnabledCosts(prev => {
+      const updated = { ...prev }
+      delete updated[categoryId]
+      return updated
+    })
+    // Remove from location templates
+    setLocationTemplates(prev =>
+      prev.map(template => {
+        const updatedCosts = { ...template.costs }
+        delete updatedCosts[categoryId]
+        return { ...template, costs: updatedCosts }
+      })
+    )
+    toast.success('Cost category removed')
   }
 
   return (
@@ -487,33 +592,71 @@ export default function DismantleSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Cost Fields */}
+        {/* Cost Categories */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Cost Categories
-            </CardTitle>
-            <CardDescription>Enable or disable cost categories shown on quotes</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Cost Categories
+                </CardTitle>
+                <CardDescription>Manage and configure cost categories for quotes</CardDescription>
+              </div>
+              <Button onClick={openNewCategoryDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Category
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {COST_FIELDS.map(field => (
+              {costCategories.map(category => (
                 <div
-                  key={field.id}
-                  className="flex items-center justify-between p-3 rounded-lg border"
+                  key={category.id}
+                  className="flex items-center justify-between p-3 rounded-lg border group hover:border-primary/50 transition-colors"
                 >
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">{field.label}</Label>
-                    <p className="text-xs text-muted-foreground">{field.description}</p>
+                  <div className="space-y-0.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-medium truncate">{category.label}</Label>
+                      {category.isSystem && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5">System</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{category.description}</p>
                   </div>
-                  <Switch
-                    checked={enabledCosts[field.id] ?? true}
-                    onCheckedChange={() => toggleCostField(field.id)}
-                  />
+                  <div className="flex items-center gap-1 ml-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => openEditCategoryDialog(category)}
+                      title="Edit category"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    {!category.isSystem && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                        onClick={() => deleteCostCategory(category.id)}
+                        title="Delete category"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Switch
+                      checked={enabledCosts[category.id] ?? true}
+                      onCheckedChange={() => toggleCostField(category.id)}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground mt-4">
+              System categories (marked with &quot;System&quot; badge) cannot be deleted but can be disabled. Custom categories can be edited or removed.
+            </p>
           </CardContent>
         </Card>
 
@@ -586,7 +729,7 @@ export default function DismantleSettingsPage() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-                  {COST_FIELDS.slice(0, 6).map((field) => (
+                  {costCategories.filter(c => enabledCosts[c.id]).slice(0, 6).map((field) => (
                     <div key={field.id} className="space-y-1">
                       <Label className="text-xs">{field.label}</Label>
                       <div className="relative">
@@ -622,6 +765,50 @@ export default function DismantleSettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cost Category Dialog */}
+      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? 'Edit Cost Category' : 'Add Cost Category'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingCategory
+                ? 'Update the cost category details below.'
+                : 'Add a new cost category that can be used in quotes.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="category-label">Category Name</Label>
+              <Input
+                id="category-label"
+                value={categoryForm.label}
+                onChange={(e) => setCategoryForm({ ...categoryForm, label: e.target.value })}
+                placeholder="e.g., Storage Fees"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category-description">Description</Label>
+              <Input
+                id="category-description"
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                placeholder="e.g., Fees for equipment storage"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCategoryDialog}>
+              Cancel
+            </Button>
+            <Button onClick={saveCostCategory}>
+              {editingCategory ? 'Update Category' : 'Add Category'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

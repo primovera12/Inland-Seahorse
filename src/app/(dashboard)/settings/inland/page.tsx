@@ -13,17 +13,14 @@ import { toast } from 'sonner'
 import {
   Truck,
   Save,
-  DollarSign,
-  Percent,
   MapPin,
-  Fuel,
   Clock,
   Route,
   Plus,
   Trash2,
-  TrendingUp,
-  Calendar,
-  History,
+  Edit,
+  X,
+  Check,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
@@ -51,12 +48,26 @@ const BILLING_UNITS = [
   { value: 'month', label: 'Per Month' },
 ]
 
-export default function InlandSettingsPage() {
-  // Rate settings
-  const [baseRatePerMile, setBaseRatePerMile] = useState(3.50)
-  const [fuelSurchargePercent, setFuelSurchargePercent] = useState(15)
-  const [minimumCharge, setMinimumCharge] = useState(500)
+interface EquipmentType {
+  id: string
+  name: string
+  max_length_inches: number
+  max_width_inches: number
+  max_height_inches: number
+  max_weight_lbs: number | null
+  base_rate_cents: number
+}
 
+interface NewEquipmentType {
+  name: string
+  max_length_inches: number
+  max_width_inches: number
+  max_height_inches: number
+  max_weight_lbs: number
+  base_rate_cents: number
+}
+
+export default function InlandSettingsPage() {
   // Features
   const [useGoogleMaps, setUseGoogleMaps] = useState(true)
   const [autoCalculateRoute, setAutoCalculateRoute] = useState(true)
@@ -65,58 +76,93 @@ export default function InlandSettingsPage() {
   // Accessorials
   const [accessorials, setAccessorials] = useState(DEFAULT_ACCESSORIALS)
 
-  // Fuel Surcharge Index
-  const [currentFuelPrice, setCurrentFuelPrice] = useState(3.85)
-  const [baseFuelPrice, setBaseFuelPrice] = useState(2.50)
-  const [fuelSurchargeFormula] = useState('linear') // linear, tiered
-  const [fuelPriceEffectiveDate, setFuelPriceEffectiveDate] = useState(
-    new Date().toISOString().split('T')[0]
-  )
+  // Equipment type editing
+  const [editingEquipment, setEditingEquipment] = useState<EquipmentType | null>(null)
+  const [showAddEquipment, setShowAddEquipment] = useState(false)
+  const [newEquipment, setNewEquipment] = useState<NewEquipmentType>({
+    name: '',
+    max_length_inches: 0,
+    max_width_inches: 0,
+    max_height_inches: 0,
+    max_weight_lbs: 0,
+    base_rate_cents: 0,
+  })
 
-  // Historical fuel prices
-  interface FuelPriceEntry {
-    id: string
-    date: string
-    price: number
-    surchargePercent: number
-  }
-
-  const [fuelHistory, setFuelHistory] = useState<FuelPriceEntry[]>([
-    { id: '1', date: '2026-01-01', price: 3.85, surchargePercent: 15 },
-    { id: '2', date: '2025-12-15', price: 3.72, surchargePercent: 14 },
-    { id: '3', date: '2025-12-01', price: 3.65, surchargePercent: 13 },
-  ])
-
-  // Calculate surcharge based on formula
-  const calculateSurcharge = (fuelPrice: number): number => {
-    if (fuelSurchargeFormula === 'linear') {
-      // Linear: 1% surcharge for every $0.10 above base price
-      const diff = fuelPrice - baseFuelPrice
-      return Math.max(0, Math.round((diff / 0.10) * 1))
-    }
-    // Tiered formula could be added here
-    return 0
-  }
-
-  const calculatedSurcharge = calculateSurcharge(currentFuelPrice)
-
-  const addFuelPriceEntry = () => {
-    const newEntry: FuelPriceEntry = {
-      id: crypto.randomUUID(),
-      date: fuelPriceEffectiveDate,
-      price: currentFuelPrice,
-      surchargePercent: calculatedSurcharge,
-    }
-    setFuelHistory([newEntry, ...fuelHistory])
-    toast.success('Fuel price recorded')
-  }
+  const utils = trpc.useUtils()
 
   // Fetch equipment types
   const { data: equipmentTypes } = trpc.inland.getEquipmentTypes.useQuery()
 
+  // Equipment type mutations
+  const createEquipmentType = trpc.inland.createEquipmentType.useMutation({
+    onSuccess: () => {
+      toast.success('Equipment type added')
+      setShowAddEquipment(false)
+      setNewEquipment({
+        name: '',
+        max_length_inches: 0,
+        max_width_inches: 0,
+        max_height_inches: 0,
+        max_weight_lbs: 0,
+        base_rate_cents: 0,
+      })
+      utils.inland.getEquipmentTypes.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to add equipment type: ${error.message}`)
+    },
+  })
+
+  const updateEquipmentType = trpc.inland.updateEquipmentType.useMutation({
+    onSuccess: () => {
+      toast.success('Equipment type updated')
+      setEditingEquipment(null)
+      utils.inland.getEquipmentTypes.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to update equipment type: ${error.message}`)
+    },
+  })
+
+  const deleteEquipmentType = trpc.inland.deleteEquipmentType.useMutation({
+    onSuccess: () => {
+      toast.success('Equipment type removed')
+      utils.inland.getEquipmentTypes.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to remove equipment type: ${error.message}`)
+    },
+  })
+
   const handleSave = () => {
-    // In production, this would save to the database
     toast.success('Inland settings saved successfully')
+  }
+
+  const handleAddEquipment = () => {
+    if (!newEquipment.name) {
+      toast.error('Equipment name is required')
+      return
+    }
+    createEquipmentType.mutate(newEquipment)
+  }
+
+  const handleUpdateEquipment = () => {
+    if (!editingEquipment) return
+    updateEquipmentType.mutate({
+      id: editingEquipment.id,
+      name: editingEquipment.name,
+      max_length_inches: editingEquipment.max_length_inches,
+      max_width_inches: editingEquipment.max_width_inches,
+      max_height_inches: editingEquipment.max_height_inches,
+      max_weight_lbs: editingEquipment.max_weight_lbs || undefined,
+      base_rate_cents: editingEquipment.base_rate_cents,
+    })
+  }
+
+  const handleDeleteEquipment = (id: string) => {
+    if (confirm('Are you sure you want to remove this equipment type?')) {
+      deleteEquipmentType.mutate({ id })
+    }
   }
 
   const updateAccessorial = (index: number, field: string, value: string | number) => {
@@ -151,80 +197,6 @@ export default function InlandSettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Rate Defaults */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Rate Defaults
-            </CardTitle>
-            <CardDescription>Default rates for new quotes</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="baseRate" className="flex items-center gap-2">
-                <Route className="h-4 w-4" />
-                Base Rate per Mile ($)
-              </Label>
-              <Input
-                id="baseRate"
-                type="number"
-                step="0.01"
-                min="0"
-                value={baseRatePerMile}
-                onChange={(e) => setBaseRatePerMile(Number(e.target.value))}
-                className="max-w-[150px]"
-              />
-              <p className="text-sm text-muted-foreground">
-                Starting rate per mile before adjustments
-              </p>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Label htmlFor="fuelSurcharge" className="flex items-center gap-2">
-                <Fuel className="h-4 w-4" />
-                Fuel Surcharge (%)
-              </Label>
-              <Input
-                id="fuelSurcharge"
-                type="number"
-                min="0"
-                max="100"
-                value={fuelSurchargePercent}
-                onChange={(e) => setFuelSurchargePercent(Number(e.target.value))}
-                className="max-w-[120px]"
-              />
-              <p className="text-sm text-muted-foreground">
-                Additional percentage for fuel costs
-              </p>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Label htmlFor="minimumCharge" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Minimum Charge ($)
-              </Label>
-              <Input
-                id="minimumCharge"
-                type="number"
-                min="0"
-                value={minimumCharge}
-                onChange={(e) => setMinimumCharge(Number(e.target.value))}
-                className="max-w-[150px]"
-              />
-              <p className="text-sm text-muted-foreground">
-                Minimum charge per load
-              </p>
-            </div>
-
-            <Separator />
-          </CardContent>
-        </Card>
-
         {/* Features */}
         <Card>
           <CardHeader>
@@ -292,177 +264,194 @@ export default function InlandSettingsPage() {
         {/* Equipment Types */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" />
-              Equipment Types
-            </CardTitle>
-            <CardDescription>Available truck types for quotes</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Equipment Types
+                </CardTitle>
+                <CardDescription>Manage truck types for quotes</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddEquipment(!showAddEquipment)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Type
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Add New Equipment Form */}
+            {showAddEquipment && (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      placeholder="e.g., Flatbed"
+                      value={newEquipment.name}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Length (in)</Label>
+                    <Input
+                      type="number"
+                      value={newEquipment.max_length_inches}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_length_inches: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Width (in)</Label>
+                    <Input
+                      type="number"
+                      value={newEquipment.max_width_inches}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_width_inches: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Height (in)</Label>
+                    <Input
+                      type="number"
+                      value={newEquipment.max_height_inches}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_height_inches: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Weight (lbs)</Label>
+                    <Input
+                      type="number"
+                      value={newEquipment.max_weight_lbs}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_weight_lbs: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs">Base Rate (cents/mile)</Label>
+                    <Input
+                      type="number"
+                      value={newEquipment.base_rate_cents}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, base_rate_cents: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowAddEquipment(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleAddEquipment} disabled={createEquipmentType.isPending}>
+                    {createEquipmentType.isPending ? 'Adding...' : 'Add Equipment Type'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Equipment List */}
             {equipmentTypes && equipmentTypes.length > 0 ? (
               <div className="space-y-3">
                 {equipmentTypes.map((type) => (
-                  <div
-                    key={type.id}
-                    className="flex items-center justify-between p-3 rounded-lg border"
-                  >
-                    <div>
-                      <p className="font-medium">{type.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Max: {type.max_length_inches}&quot;L x {type.max_width_inches}&quot;W x{' '}
-                        {type.max_height_inches}&quot;H, {type.max_weight_lbs?.toLocaleString()} lbs
-                      </p>
-                    </div>
-                    <Badge variant="outline">
-                      {formatCurrency(type.base_rate_cents / 100)}/mile
-                    </Badge>
+                  <div key={type.id}>
+                    {editingEquipment?.id === type.id ? (
+                      <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs">Name</Label>
+                            <Input
+                              value={editingEquipment.name}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, name: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Max Length</Label>
+                            <Input
+                              type="number"
+                              value={editingEquipment.max_length_inches}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_length_inches: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Max Width</Label>
+                            <Input
+                              type="number"
+                              value={editingEquipment.max_width_inches}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_width_inches: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Max Height</Label>
+                            <Input
+                              type="number"
+                              value={editingEquipment.max_height_inches}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_height_inches: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Max Weight</Label>
+                            <Input
+                              type="number"
+                              value={editingEquipment.max_weight_lbs || 0}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_weight_lbs: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs">Base Rate (cents/mile)</Label>
+                            <Input
+                              type="number"
+                              value={editingEquipment.base_rate_cents}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, base_rate_cents: Number(e.target.value) })}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingEquipment(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" className="h-8 w-8" onClick={handleUpdateEquipment} disabled={updateEquipmentType.isPending}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">{type.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Max: {type.max_length_inches}&quot;L x {type.max_width_inches}&quot;W x{' '}
+                            {type.max_height_inches}&quot;H, {type.max_weight_lbs?.toLocaleString()} lbs
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {formatCurrency(type.base_rate_cents / 100)}/mile
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditingEquipment(type as EquipmentType)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => handleDeleteEquipment(type.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-6 text-muted-foreground">
-                No equipment types configured
+                No equipment types configured. Click &quot;Add Type&quot; to add one.
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Fuel Surcharge Index */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Fuel className="h-5 w-5" />
-              Fuel Surcharge Index
-            </CardTitle>
-            <CardDescription>
-              Track fuel prices and automatically calculate surcharges based on DOE index
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Current Fuel Price */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="currentFuelPrice" className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Current DOE Diesel Price ($/gal)
-                  </Label>
-                  <Input
-                    id="currentFuelPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={currentFuelPrice}
-                    onChange={(e) => setCurrentFuelPrice(Number(e.target.value))}
-                    className="max-w-[150px]"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="baseFuelPrice" className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Base Fuel Price ($/gal)
-                  </Label>
-                  <Input
-                    id="baseFuelPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={baseFuelPrice}
-                    onChange={(e) => setBaseFuelPrice(Number(e.target.value))}
-                    className="max-w-[150px]"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Surcharges are calculated above this baseline
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="effectiveDate" className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Effective Date
-                  </Label>
-                  <Input
-                    id="effectiveDate"
-                    type="date"
-                    value={fuelPriceEffectiveDate}
-                    onChange={(e) => setFuelPriceEffectiveDate(e.target.value)}
-                    className="max-w-[180px]"
-                  />
-                </div>
-              </div>
-
-              {/* Calculated Surcharge */}
-              <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Calculated Surcharge</p>
-                  <p className="text-4xl font-bold text-primary">{calculatedSurcharge}%</p>
-                </div>
-
-                <div className="text-sm space-y-1">
-                  <p>
-                    <span className="text-muted-foreground">Current price:</span>{' '}
-                    ${currentFuelPrice.toFixed(2)}/gal
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Base price:</span>{' '}
-                    ${baseFuelPrice.toFixed(2)}/gal
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Difference:</span>{' '}
-                    ${(currentFuelPrice - baseFuelPrice).toFixed(2)}/gal
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t text-xs text-muted-foreground">
-                  Formula: 1% surcharge for every $0.10 above base price
-                </div>
-
-                <Button onClick={addFuelPriceEntry} className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Record Current Price
-                </Button>
-              </div>
-            </div>
-
-            {/* Price History */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Price History
-              </Label>
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="px-4 py-2 text-left font-medium">Date</th>
-                      <th className="px-4 py-2 text-right font-medium">Price</th>
-                      <th className="px-4 py-2 text-right font-medium">Surcharge</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fuelHistory.slice(0, 5).map((entry, index) => (
-                      <tr key={entry.id} className={index === 0 ? 'bg-primary/5' : ''}>
-                        <td className="px-4 py-2">
-                          {new Date(entry.date).toLocaleDateString()}
-                          {index === 0 && (
-                            <Badge variant="secondary" className="ml-2 text-xs">
-                              Current
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          ${entry.price.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {entry.surchargePercent}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

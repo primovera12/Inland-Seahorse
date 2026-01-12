@@ -30,7 +30,7 @@ export function QuoteSummary({
   inlandTransportCost,
 }: QuoteSummaryProps) {
   return (
-    <Card className="sticky top-20">
+    <Card>
       <CardHeader>
         <CardTitle>Quote Summary</CardTitle>
       </CardHeader>

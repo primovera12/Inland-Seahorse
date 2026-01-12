@@ -33,7 +33,8 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, Building2, Search, X, MonitorPlay, Loader2, Mail, Save, Trash2 } from 'lucide-react'
+import { Plus, FileDown, Eye, X, MonitorPlay, Loader2, Mail, Save, Trash2 } from 'lucide-react'
+import { CustomerForm } from '@/components/quotes/customer-form'
 import { useAutoSave } from '@/hooks/use-auto-save'
 import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 import type { InlandDestinationBlock } from '@/types/inland'
@@ -87,9 +88,6 @@ export default function NewInlandQuotePage() {
   const [internalNotes, setInternalNotes] = useState('')
   const [quoteNotes, setQuoteNotes] = useState('')
 
-  // Company search
-  const [showCompanySearch, setShowCompanySearch] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
 
   // PDF Preview
   const [showPdfPreview, setShowPdfPreview] = useState(false)
@@ -132,11 +130,6 @@ export default function NewInlandQuotePage() {
     },
   })
 
-  // Company search
-  const { data: searchResults } = trpc.companies.search.useQuery(
-    { query: searchQuery },
-    { enabled: searchQuery.length >= 2 }
-  )
 
   // Calculate totals
   const subtotal = destinationBlocks.reduce((sum, block) => sum + block.subtotal, 0)
@@ -432,15 +425,26 @@ export default function NewInlandQuotePage() {
     }
   }
 
+  // TRPC utils for cache invalidation
+  const utils = trpc.useUtils()
+
   // Create quote mutation
   const createQuote = trpc.inland.create.useMutation({
     onSuccess: (data) => {
-      toast.success('Inland quote created successfully')
+      toast.success('Inland quote created successfully', {
+        description: 'Quote saved to history.',
+        action: {
+          label: 'View History',
+          onClick: () => window.location.href = '/inland/history',
+        },
+      })
       if (data?.id) {
         setSavedQuoteId(data.id)
       }
       // Clear draft on successful quote creation
       deleteDraftMutation.mutate()
+      // Invalidate the inland quotes history cache so new quotes appear immediately
+      utils.inland.getHistory.invalidate()
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
@@ -585,107 +589,19 @@ export default function NewInlandQuotePage() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Customer Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Customer Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Button
-                  type="button"
-                  variant={showCompanySearch ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setShowCompanySearch(!showCompanySearch)}
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  {showCompanySearch ? 'Manual Entry' : 'Search Companies'}
-                </Button>
-              </div>
-
-              {showCompanySearch && (
-                <div className="space-y-2 mb-4 p-4 rounded-lg border bg-muted/30">
-                  <Label>Search Existing Companies</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search by company name..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  {searchResults && searchResults.length > 0 && (
-                    <div className="mt-2 border rounded-lg divide-y">
-                      {searchResults.map((company) => (
-                        <button
-                          key={company.id}
-                          type="button"
-                          className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-                          onClick={() => {
-                            setSelectedCompanyId(company.id)
-                            setCustomerCompany(company.name)
-                            if (company.phone) setCustomerPhone(company.phone)
-                            setShowCompanySearch(false)
-                            setSearchQuery('')
-                          }}
-                        >
-                          <p className="font-medium">{company.name}</p>
-                          {company.phone && (
-                            <p className="text-sm text-muted-foreground">{company.phone}</p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="customerName">Contact Name *</Label>
-                  <Input
-                    id="customerName"
-                    placeholder="John Smith"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerCompany">Company</Label>
-                  <Input
-                    id="customerCompany"
-                    placeholder="Acme Construction"
-                    value={customerCompany}
-                    onChange={(e) => setCustomerCompany(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerEmail">Email</Label>
-                  <Input
-                    id="customerEmail"
-                    type="email"
-                    placeholder="john@company.com"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerPhone">Phone</Label>
-                  <Input
-                    id="customerPhone"
-                    type="tel"
-                    placeholder="(555) 123-4567"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Customer Info - using same component as Dismantle Quote */}
+          <CustomerForm
+            customerName={customerName}
+            customerEmail={customerEmail}
+            customerPhone={customerPhone}
+            customerCompany={customerCompany}
+            onCustomerChange={{
+              setName: setCustomerName,
+              setEmail: setCustomerEmail,
+              setPhone: setCustomerPhone,
+              setCompany: setCustomerCompany,
+            }}
+          />
 
           {/* Destinations */}
           <div className="space-y-4">
@@ -759,13 +675,11 @@ export default function NewInlandQuotePage() {
             </CardContent>
           </Card>
 
-          {/* Route Map */}
-          <RouteMap destinationBlocks={destinationBlocks} />
         </div>
 
         {/* Summary Sidebar */}
-        <div className="space-y-4">
-          <Card className="sticky top-20">
+        <div className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+          <Card>
             <CardHeader>
               <CardTitle>Quote Summary</CardTitle>
             </CardHeader>
@@ -808,10 +722,13 @@ export default function NewInlandQuotePage() {
             </CardContent>
           </Card>
 
+          {/* Route Map - moved here under Quote Summary */}
+          <RouteMap destinationBlocks={destinationBlocks} />
+
           {/* Live PDF Preview Panel */}
           {showLivePdfPreview && (
             <Card className="overflow-hidden">
-              <CardHeader className="py-3 px-4 border-b">
+              <CardHeader className="py-2 px-3 border-b">
                 <CardTitle className="text-sm font-medium flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <MonitorPlay className="h-4 w-4" />
@@ -825,15 +742,15 @@ export default function NewInlandQuotePage() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <div className="h-[600px] bg-muted/30">
+              <div className="h-[600px]">
                 {livePdfUrl ? (
                   <iframe
                     src={livePdfUrl}
-                    className="w-full h-full"
+                    className="w-full h-full border-0"
                     title="Live Inland Quote PDF Preview"
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <div className="flex items-center justify-center h-full text-muted-foreground bg-muted/30">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
                     Generating preview...
                   </div>
@@ -846,8 +763,8 @@ export default function NewInlandQuotePage() {
 
       {/* PDF Preview Dialog */}
       <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
-        <DialogContent className="max-w-4xl h-[90vh]">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
             <DialogTitle className="flex items-center justify-between">
               <span>Quote Preview - {quoteNumber}</span>
               <div className="flex gap-2">
@@ -869,7 +786,7 @@ export default function NewInlandQuotePage() {
             {pdfDataUrl ? (
               <iframe
                 src={pdfDataUrl}
-                className="w-full h-full border rounded-lg"
+                className="w-full h-full border-0"
                 title="PDF Preview"
               />
             ) : (

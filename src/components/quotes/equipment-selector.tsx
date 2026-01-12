@@ -19,9 +19,11 @@ import { SelectSeparator, SelectGroup, SelectLabel } from '@/components/ui/selec
 import { formatWeight } from '@/lib/dimensions'
 import { useRecentEquipment } from '@/hooks/use-recent-equipment'
 import { useFavorites } from '@/hooks/use-favorites'
-import { Clock, X, Star, Ruler, DollarSign } from 'lucide-react'
+import { Clock, X, Star, Ruler, DollarSign, Upload } from 'lucide-react'
 import { DimensionDisplay } from '@/components/ui/dimension-display'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { ImageUpload } from '@/components/ui/image-upload'
+import { toast } from 'sonner'
 
 interface EquipmentSelectorProps {
   selectedMakeId: string
@@ -79,10 +81,21 @@ export function EquipmentSelector({
   }, [modelsWithAvailability, filterHasDimensions, filterHasRates])
 
   // Fetch full dimensions with images
-  const { data: fullDimensions } = trpc.equipment.getDimensions.useQuery(
+  const { data: fullDimensions, refetch: refetchDimensions } = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId },
     { enabled: !!selectedModelId }
   )
+
+  // Mutation to update equipment images
+  const updateImagesMutation = trpc.equipment.updateImages.useMutation({
+    onSuccess: () => {
+      refetchDimensions()
+      toast.success('Image updated successfully')
+    },
+    onError: (error) => {
+      toast.error(`Failed to update image: ${error.message}`)
+    },
+  })
 
   // Helper to check if a make is in the popular list (case-insensitive)
   const isPopularMake = useMemo(() => {
@@ -344,9 +357,11 @@ export function EquipmentSelector({
           </div>
 
           {/* Equipment Images */}
-          {(fullDimensions?.front_image_url || fullDimensions?.side_image_url) && (
-            <div className="grid gap-4 md:grid-cols-2 mb-4">
-              {fullDimensions?.front_image_url && (
+          <div className="grid gap-4 md:grid-cols-2 mb-4">
+            {/* Front Image */}
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Front View</p>
+              {fullDimensions?.front_image_url ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
                   <Image
                     src={fullDimensions.front_image_url}
@@ -354,13 +369,29 @@ export function EquipmentSelector({
                     fill
                     className="object-contain"
                     sizes="(max-width: 768px) 100vw, 300px"
+                    unoptimized={fullDimensions.front_image_url.endsWith('.svg')}
                   />
-                  <span className="absolute bottom-2 left-2 text-xs bg-background/80 px-2 py-1 rounded">
-                    Front View
-                  </span>
                 </div>
+              ) : (
+                <ImageUpload
+                  value={null}
+                  onChange={(url) => {
+                    if (url && selectedModelId) {
+                      updateImagesMutation.mutate({
+                        modelId: selectedModelId,
+                        frontImageUrl: url,
+                      })
+                    }
+                  }}
+                  label="Upload Front Image"
+                  folder={`equipment/${selectedModelId}`}
+                />
               )}
-              {fullDimensions?.side_image_url && (
+            </div>
+            {/* Side Image */}
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Side View</p>
+              {fullDimensions?.side_image_url ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
                   <Image
                     src={fullDimensions.side_image_url}
@@ -368,14 +399,26 @@ export function EquipmentSelector({
                     fill
                     className="object-contain"
                     sizes="(max-width: 768px) 100vw, 300px"
+                    unoptimized={fullDimensions.side_image_url.endsWith('.svg')}
                   />
-                  <span className="absolute bottom-2 left-2 text-xs bg-background/80 px-2 py-1 rounded">
-                    Side View
-                  </span>
                 </div>
+              ) : (
+                <ImageUpload
+                  value={null}
+                  onChange={(url) => {
+                    if (url && selectedModelId) {
+                      updateImagesMutation.mutate({
+                        modelId: selectedModelId,
+                        sideImageUrl: url,
+                      })
+                    }
+                  }}
+                  label="Upload Side Image"
+                  folder={`equipment/${selectedModelId}`}
+                />
               )}
             </div>
-          )}
+          </div>
 
           <div className="grid gap-4 md:grid-cols-4">
             <div>

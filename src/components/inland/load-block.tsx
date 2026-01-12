@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Package, DollarSign, Truck, AlertTriangle, FileText, Lightbulb } from 'lucide-react'
+import { Trash2, Plus, Package, DollarSign, Truck, AlertTriangle, Lightbulb } from 'lucide-react'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import type {
   InlandLoadBlock,
   CargoItem,
@@ -126,23 +127,46 @@ export function LoadBlockCard({
   }
 
   // Accessorial Charges
-  const addAccessorial = (typeId: string) => {
-    const type = accessorialTypes.find((t) => t.id === typeId)
-    if (!type) return
-
+  const addEmptyAccessorial = () => {
     const newCharge: AccessorialCharge = {
       id: crypto.randomUUID(),
-      accessorial_type_id: typeId,
-      name: type.name,
-      billing_unit: type.billing_unit as AccessorialBillingUnit,
-      rate: type.default_rate,
+      accessorial_type_id: '',
+      name: 'Select accessorial',
+      billing_unit: 'flat' as AccessorialBillingUnit,
+      rate: 0,
       quantity: 1,
-      total: type.default_rate,
+      total: 0,
     }
 
     const newAccessorials = [...loadBlock.accessorial_charges, newCharge]
     const subtotal = calculateSubtotal(loadBlock.service_items, newAccessorials)
     onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal })
+  }
+
+  const updateAccessorialType = (index: number, typeId: string) => {
+    const type = accessorialTypes.find((t) => t.id === typeId)
+    if (!type) return
+
+    const newAccessorials = [...loadBlock.accessorial_charges]
+    const charge = { ...newAccessorials[index] }
+    charge.accessorial_type_id = typeId
+    charge.name = type.name
+    charge.billing_unit = type.billing_unit as AccessorialBillingUnit
+    charge.rate = type.default_rate
+    charge.total = charge.rate * charge.quantity
+
+    newAccessorials[index] = charge
+    const subtotal = calculateSubtotal(loadBlock.service_items, newAccessorials)
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal })
+  }
+
+  const updateAccessorialBillingUnit = (index: number, billingUnit: AccessorialBillingUnit) => {
+    const newAccessorials = [...loadBlock.accessorial_charges]
+    const charge = { ...newAccessorials[index] }
+    charge.billing_unit = billingUnit
+
+    newAccessorials[index] = charge
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials })
   }
 
   const updateAccessorial = (
@@ -242,18 +266,17 @@ export function LoadBlockCard({
             <Package className="h-5 w-5 text-muted-foreground" />
             <div className="space-y-1">
               <Label>Truck Type</Label>
-              <Select value={loadBlock.truck_type_id} onValueChange={updateTruckType}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select truck" />
-                </SelectTrigger>
-                <SelectContent>
-                  {truckTypes.map((truck) => (
-                    <SelectItem key={truck.id} value={truck.id}>
-                      {truck.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={loadBlock.truck_type_id}
+                onChange={updateTruckType}
+                options={truckTypes.map((truck): SearchableSelectOption => ({
+                  value: truck.id,
+                  label: truck.name,
+                }))}
+                placeholder="Select truck"
+                searchPlaceholder="Search trucks..."
+                className="w-[180px]"
+              />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -440,20 +463,10 @@ export function LoadBlockCard({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Accessorials</Label>
-            {availableAccessorials.length > 0 && (
-              <Select onValueChange={addAccessorial}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Add accessorial" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableAccessorials.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Button variant="outline" size="sm" onClick={addEmptyAccessorial}>
+              <Plus className="h-3 w-3 mr-1" />
+              Add Accessorial
+            </Button>
           </div>
 
           {loadBlock.accessorial_charges.length > 0 && (
@@ -463,23 +476,47 @@ export function LoadBlockCard({
                   key={charge.id}
                   className="flex items-center gap-2 p-2 rounded bg-muted/50"
                 >
-                  <span className="flex-1 text-sm">{charge.name}</span>
+                  <SearchableSelect
+                    value={charge.accessorial_type_id}
+                    onChange={(typeId) => updateAccessorialType(index, typeId)}
+                    options={accessorialTypes.map((type): SearchableSelectOption => ({
+                      value: type.id,
+                      label: type.name,
+                    }))}
+                    placeholder="Select type"
+                    searchPlaceholder="Search accessorials..."
+                    className="w-[160px]"
+                  />
                   <Input
-                    className="w-20"
+                    className="w-16"
                     type="number"
                     min={1}
                     value={charge.quantity}
                     onChange={(e) => updateAccessorial(index, 'quantity', e.target.value)}
                   />
-                  <span className="text-xs text-muted-foreground">
-                    {BILLING_UNIT_LABELS[charge.billing_unit]}
-                  </span>
+                  <Select
+                    value={charge.billing_unit}
+                    onValueChange={(value) => updateAccessorialBillingUnit(index, value as AccessorialBillingUnit)}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="flat">Flat</SelectItem>
+                      <SelectItem value="hour">/hr</SelectItem>
+                      <SelectItem value="day">/day</SelectItem>
+                      <SelectItem value="way">/way</SelectItem>
+                      <SelectItem value="week">/wk</SelectItem>
+                      <SelectItem value="month">/mo</SelectItem>
+                      <SelectItem value="stop">/stop</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Input
                     className="w-24 text-right font-mono"
                     value={formatCurrency(charge.rate).replace('$', '')}
                     onChange={(e) => updateAccessorial(index, 'rate', e.target.value)}
                   />
-                  <span className="w-24 text-right font-mono text-sm">
+                  <span className="w-20 text-right font-mono text-sm">
                     {formatCurrency(charge.total)}
                   </span>
                   <Button

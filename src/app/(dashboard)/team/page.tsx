@@ -1,12 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
 import {
   Dialog,
   DialogContent,
@@ -48,24 +51,149 @@ import {
   UserX,
   Mail,
   Users,
+  Settings,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  KeyRound,
 } from 'lucide-react'
 
-type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
+type UserRole = 'admin' | 'manager' | 'member' | 'viewer' | string
 type UserStatus = 'active' | 'inactive' | 'invited'
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Admin',
-  manager: 'Manager',
-  member: 'Member',
-  viewer: 'Viewer',
+// Permission categories and permissions
+const PERMISSION_CATEGORIES = [
+  {
+    id: 'quotes',
+    name: 'Quotes',
+    permissions: [
+      { id: 'quotes_view', label: 'View Quotes' },
+      { id: 'quotes_create', label: 'Create Quotes' },
+      { id: 'quotes_edit', label: 'Edit Quotes' },
+      { id: 'quotes_delete', label: 'Delete Quotes' },
+      { id: 'quotes_export', label: 'Export Quotes' },
+    ],
+  },
+  {
+    id: 'customers',
+    name: 'Customers',
+    permissions: [
+      { id: 'customers_view', label: 'View Customers' },
+      { id: 'customers_create', label: 'Create Customers' },
+      { id: 'customers_edit', label: 'Edit Customers' },
+      { id: 'customers_delete', label: 'Delete Customers' },
+    ],
+  },
+  {
+    id: 'equipment',
+    name: 'Equipment',
+    permissions: [
+      { id: 'equipment_view', label: 'View Equipment' },
+      { id: 'equipment_create', label: 'Create Equipment' },
+      { id: 'equipment_edit', label: 'Edit Equipment' },
+      { id: 'equipment_delete', label: 'Delete Equipment' },
+    ],
+  },
+  {
+    id: 'reports',
+    name: 'Reports',
+    permissions: [
+      { id: 'reports_view', label: 'View Reports' },
+      { id: 'reports_export', label: 'Export Reports' },
+    ],
+  },
+  {
+    id: 'settings',
+    name: 'Settings',
+    permissions: [
+      { id: 'settings_view', label: 'View Settings' },
+      { id: 'settings_edit', label: 'Edit Settings' },
+    ],
+  },
+  {
+    id: 'team',
+    name: 'Team Management',
+    permissions: [
+      { id: 'team_view', label: 'View Team' },
+      { id: 'team_invite', label: 'Invite Members' },
+      { id: 'team_edit', label: 'Edit Members' },
+      { id: 'team_delete', label: 'Remove Members' },
+      { id: 'team_roles', label: 'Manage Roles' },
+    ],
+  },
+]
+
+// Role type with permissions
+interface Role {
+  id: string
+  name: string
+  description: string
+  isSystem: boolean // System roles cannot be deleted
+  permissions: string[]
+  color: string
 }
 
-const ROLE_COLORS: Record<UserRole, string> = {
-  admin: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  manager: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  member: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  viewer: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
-}
+// Default roles
+const DEFAULT_ROLES: Role[] = [
+  {
+    id: 'admin',
+    name: 'Admin',
+    description: 'Full access to all features',
+    isSystem: true,
+    permissions: PERMISSION_CATEGORIES.flatMap(c => c.permissions.map(p => p.id)),
+    color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  },
+  {
+    id: 'manager',
+    name: 'Manager',
+    description: 'Manage quotes, customers, and equipment',
+    isSystem: true,
+    permissions: [
+      'quotes_view', 'quotes_create', 'quotes_edit', 'quotes_delete', 'quotes_export',
+      'customers_view', 'customers_create', 'customers_edit', 'customers_delete',
+      'equipment_view', 'equipment_create', 'equipment_edit',
+      'reports_view', 'reports_export',
+      'settings_view',
+      'team_view',
+    ],
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  },
+  {
+    id: 'member',
+    name: 'Member',
+    description: 'Create and manage own quotes',
+    isSystem: true,
+    permissions: [
+      'quotes_view', 'quotes_create', 'quotes_edit', 'quotes_export',
+      'customers_view', 'customers_create',
+      'equipment_view',
+      'reports_view',
+    ],
+    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  },
+  {
+    id: 'viewer',
+    name: 'Viewer',
+    description: 'View only access',
+    isSystem: true,
+    permissions: ['quotes_view', 'customers_view', 'equipment_view', 'reports_view'],
+    color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  },
+]
+
+// Available colors for custom roles
+const ROLE_COLOR_OPTIONS = [
+  { id: 'red', class: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  { id: 'blue', class: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  { id: 'green', class: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  { id: 'yellow', class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+  { id: 'purple', class: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+  { id: 'orange', class: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+  { id: 'pink', class: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' },
+  { id: 'gray', class: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
+]
 
 const STATUS_COLORS: Record<UserStatus, string> = {
   active: 'bg-green-100 text-green-800',
@@ -74,6 +202,7 @@ const STATUS_COLORS: Record<UserStatus, string> = {
 }
 
 export default function TeamPage() {
+  const [activeTab, setActiveTab] = useState('members')
   const [searchQuery, setSearchQuery] = useState('')
   const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [inviteForm, setInviteForm] = useState({
@@ -82,6 +211,28 @@ export default function TeamPage() {
     last_name: '',
     role: 'member' as UserRole,
   })
+
+  // Roles management state
+  const [roles, setRoles] = useState<Role[]>(DEFAULT_ROLES)
+  const [showRoleDialog, setShowRoleDialog] = useState(false)
+  const [editingRole, setEditingRole] = useState<Role | null>(null)
+  const [roleForm, setRoleForm] = useState({
+    name: '',
+    description: '',
+    color: ROLE_COLOR_OPTIONS[0].class,
+    permissions: [] as string[],
+  })
+
+  // Get role helpers
+  const getRoleLabel = (roleId: string) => {
+    const role = roles.find(r => r.id === roleId)
+    return role?.name || roleId
+  }
+
+  const getRoleColor = (roleId: string) => {
+    const role = roles.find(r => r.id === roleId)
+    return role?.color || 'bg-gray-100 text-gray-800'
+  }
 
   // Fetch team members
   const { data, isLoading, refetch } = trpc.user.getTeamMembers.useQuery({
@@ -145,6 +296,130 @@ export default function TeamPage() {
     return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase()
   }
 
+  // Role management functions
+  const openNewRoleDialog = () => {
+    setEditingRole(null)
+    setRoleForm({
+      name: '',
+      description: '',
+      color: ROLE_COLOR_OPTIONS[4].class, // Purple for new roles
+      permissions: [],
+    })
+    setShowRoleDialog(true)
+  }
+
+  const openEditRoleDialog = (role: Role) => {
+    setEditingRole(role)
+    setRoleForm({
+      name: role.name,
+      description: role.description,
+      color: role.color,
+      permissions: [...role.permissions],
+    })
+    setShowRoleDialog(true)
+  }
+
+  const closeRoleDialog = () => {
+    setShowRoleDialog(false)
+    setEditingRole(null)
+    setRoleForm({
+      name: '',
+      description: '',
+      color: ROLE_COLOR_OPTIONS[0].class,
+      permissions: [],
+    })
+  }
+
+  const togglePermission = (permissionId: string) => {
+    setRoleForm(prev => ({
+      ...prev,
+      permissions: prev.permissions.includes(permissionId)
+        ? prev.permissions.filter(p => p !== permissionId)
+        : [...prev.permissions, permissionId],
+    }))
+  }
+
+  const toggleCategoryPermissions = (categoryId: string) => {
+    const category = PERMISSION_CATEGORIES.find(c => c.id === categoryId)
+    if (!category) return
+
+    const categoryPermissionIds = category.permissions.map(p => p.id)
+    const allSelected = categoryPermissionIds.every(id => roleForm.permissions.includes(id))
+
+    if (allSelected) {
+      // Remove all category permissions
+      setRoleForm(prev => ({
+        ...prev,
+        permissions: prev.permissions.filter(p => !categoryPermissionIds.includes(p)),
+      }))
+    } else {
+      // Add all category permissions
+      setRoleForm(prev => ({
+        ...prev,
+        permissions: [...new Set([...prev.permissions, ...categoryPermissionIds])],
+      }))
+    }
+  }
+
+  const saveRole = () => {
+    if (!roleForm.name.trim()) {
+      toast.error('Role name is required')
+      return
+    }
+
+    if (editingRole) {
+      // Update existing role
+      setRoles(prev =>
+        prev.map(r =>
+          r.id === editingRole.id
+            ? {
+                ...r,
+                name: roleForm.name.trim(),
+                description: roleForm.description.trim(),
+                color: roleForm.color,
+                permissions: roleForm.permissions,
+              }
+            : r
+        )
+      )
+      toast.success('Role updated successfully')
+    } else {
+      // Create new role
+      const newId = roleForm.name.toLowerCase().replace(/\s+/g, '_')
+      if (roles.some(r => r.id === newId)) {
+        toast.error('A role with a similar name already exists')
+        return
+      }
+      const newRole: Role = {
+        id: newId,
+        name: roleForm.name.trim(),
+        description: roleForm.description.trim(),
+        isSystem: false,
+        color: roleForm.color,
+        permissions: roleForm.permissions,
+      }
+      setRoles(prev => [...prev, newRole])
+      toast.success('Role created successfully')
+    }
+    closeRoleDialog()
+  }
+
+  const deleteRole = (roleId: string) => {
+    const role = roles.find(r => r.id === roleId)
+    if (role?.isSystem) {
+      toast.error('System roles cannot be deleted')
+      return
+    }
+    // Check if any users have this role
+    const usersWithRole = data?.users?.filter(u => u.role === roleId).length || 0
+    if (usersWithRole > 0) {
+      toast.error(`Cannot delete role: ${usersWithRole} user(s) have this role assigned`)
+      return
+    }
+    setRoles(prev => prev.filter(r => r.id !== roleId))
+    toast.success('Role deleted successfully')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -154,13 +429,33 @@ export default function TeamPage() {
             Manage your team members and their permissions
           </p>
         </div>
-        <Button onClick={() => setShowInviteDialog(true)} className="w-full sm:w-auto">
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite Member
-        </Button>
+        {activeTab === 'members' ? (
+          <Button onClick={() => setShowInviteDialog(true)} className="w-full sm:w-auto">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite Member
+          </Button>
+        ) : (
+          <Button onClick={openNewRoleDialog} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Role
+          </Button>
+        )}
       </div>
 
-      {/* Stats */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="members" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Members
+          </TabsTrigger>
+          <TabsTrigger value="permissions" className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Roles & Permissions
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="members" className="space-y-6">
+          {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -267,8 +562,8 @@ export default function TeamPage() {
                       {user.email}
                     </TableCell>
                     <TableCell>
-                      <Badge className={ROLE_COLORS[user.role as UserRole] || ''}>
-                        {ROLE_LABELS[user.role as UserRole] || user.role}
+                      <Badge className={getRoleColor(user.role)}>
+                        {getRoleLabel(user.role)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -364,6 +659,125 @@ export default function TeamPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Permissions Tab */}
+        <TabsContent value="permissions" className="space-y-6">
+          <div className="grid gap-6">
+            {/* Roles List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Roles
+                </CardTitle>
+                <CardDescription>
+                  Manage roles and their associated permissions. Click on a role to edit its permissions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {roles.map(role => (
+                    <div
+                      key={role.id}
+                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Badge className={role.color}>{role.name}</Badge>
+                        <div>
+                          <p className="text-sm text-muted-foreground">{role.description}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {role.permissions.length} permissions
+                            {role.isSystem && ' • System role'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditRoleDialog(role)}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        {!role.isSystem && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteRole(role.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Permissions Overview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  Permissions Overview
+                </CardTitle>
+                <CardDescription>
+                  See which permissions are assigned to each role
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[200px]">Permission</TableHead>
+                        {roles.map(role => (
+                          <TableHead key={role.id} className="text-center">
+                            <Badge variant="outline" className={role.color}>
+                              {role.name}
+                            </Badge>
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {PERMISSION_CATEGORIES.map(category => (
+                        <>
+                          <TableRow key={category.id} className="bg-muted/50">
+                            <TableCell colSpan={roles.length + 1} className="font-semibold">
+                              {category.name}
+                            </TableCell>
+                          </TableRow>
+                          {category.permissions.map(permission => (
+                            <TableRow key={permission.id}>
+                              <TableCell className="text-sm pl-6">
+                                {permission.label}
+                              </TableCell>
+                              {roles.map(role => (
+                                <TableCell key={role.id} className="text-center">
+                                  {role.permissions.includes(permission.id) ? (
+                                    <Check className="h-4 w-4 text-green-600 mx-auto" />
+                                  ) : (
+                                    <X className="h-4 w-4 text-muted-foreground/30 mx-auto" />
+                                  )}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Invite Dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
@@ -420,10 +834,14 @@ export default function TeamPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin - Full access</SelectItem>
-                  <SelectItem value="manager">Manager - Manage quotes & customers</SelectItem>
-                  <SelectItem value="member">Member - Create quotes</SelectItem>
-                  <SelectItem value="viewer">Viewer - View only</SelectItem>
+                  {roles.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${role.color.split(' ')[0]}`} />
+                        {role.name} - {role.description}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -434,6 +852,123 @@ export default function TeamPage() {
             </Button>
             <Button onClick={handleInvite} disabled={inviteMember.isPending}>
               {inviteMember.isPending ? 'Sending...' : 'Send Invite'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Role Edit/Create Dialog */}
+      <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingRole ? `Edit Role: ${editingRole.name}` : 'Create New Role'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingRole
+                ? 'Modify the role settings and permissions below.'
+                : 'Define a new role with custom permissions.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Role Details */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="roleName">Role Name *</Label>
+                <Input
+                  id="roleName"
+                  value={roleForm.name}
+                  onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                  placeholder="e.g., Sales Rep"
+                  disabled={editingRole?.isSystem}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="roleDescription">Description</Label>
+                <Input
+                  id="roleDescription"
+                  value={roleForm.description}
+                  onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                  placeholder="e.g., Can create and manage quotes"
+                />
+              </div>
+            </div>
+
+            {/* Role Color */}
+            <div className="space-y-2">
+              <Label>Badge Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {ROLE_COLOR_OPTIONS.map(color => (
+                  <button
+                    key={color.id}
+                    type="button"
+                    onClick={() => setRoleForm({ ...roleForm, color: color.class })}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${color.class} ${
+                      roleForm.color === color.class ? 'ring-2 ring-offset-2 ring-primary' : ''
+                    }`}
+                  >
+                    {color.id.charAt(0).toUpperCase() + color.id.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Permissions */}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base">Permissions</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select which permissions this role should have
+                </p>
+              </div>
+
+              {PERMISSION_CATEGORIES.map(category => {
+                const categoryPermissionIds = category.permissions.map(p => p.id)
+                const allSelected = categoryPermissionIds.every(id => roleForm.permissions.includes(id))
+                const someSelected = categoryPermissionIds.some(id => roleForm.permissions.includes(id))
+
+                return (
+                  <div key={category.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={allSelected}
+                          onCheckedChange={() => toggleCategoryPermissions(category.id)}
+                        />
+                        <Label className="font-medium">{category.name}</Label>
+                        {someSelected && !allSelected && (
+                          <span className="text-xs text-muted-foreground">(partial)</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid gap-2 pl-6 md:grid-cols-2">
+                      {category.permissions.map(permission => (
+                        <label
+                          key={permission.id}
+                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1 rounded"
+                        >
+                          <Switch
+                            checked={roleForm.permissions.includes(permission.id)}
+                            onCheckedChange={() => togglePermission(permission.id)}
+                            className="scale-75"
+                          />
+                          <span>{permission.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeRoleDialog}>
+              Cancel
+            </Button>
+            <Button onClick={saveRole}>
+              {editingRole ? 'Update Role' : 'Create Role'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -31,7 +31,8 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { trpc } from '@/lib/trpc/client'
-import { Search, Plus, Building2, Phone, MapPin, Eye, Edit, History, Heart, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Search, Plus, Building2, Phone, MapPin, Eye, Edit, History, ChevronDown, ChevronUp, Users, Mail, Star, UserPlus, Trash2 } from 'lucide-react'
+import { AddressAutocomplete, type AddressComponents } from '@/components/ui/address-autocomplete'
 import { CompanyTimeline } from '@/components/crm/company-timeline'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -47,36 +48,22 @@ const STATUS_COLORS: Record<CompanyStatus, string> = {
   vip: 'bg-yellow-100 text-yellow-800',
 }
 
-function HealthScoreBadge({ score, churnRisk }: { score?: number; churnRisk?: string }) {
-  if (score === undefined || score === null) {
-    return <span className="text-muted-foreground text-sm">-</span>
-  }
-
-  const getColor = () => {
-    if (score >= 70) return 'bg-green-100 text-green-800'
-    if (score >= 40) return 'bg-yellow-100 text-yellow-800'
-    return 'bg-red-100 text-red-800'
-  }
-
-  const getIcon = () => {
-    if (churnRisk === 'high') return <AlertTriangle className="h-3 w-3" />
-    if (score >= 70) return <TrendingUp className="h-3 w-3" />
-    return <Heart className="h-3 w-3" />
-  }
-
-  return (
-    <Badge className={`${getColor()} gap-1`}>
-      {getIcon()}
-      {score}
-    </Badge>
-  )
-}
-
 export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<CompanyStatus | 'all'>('all')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
+  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null)
+  const [editingCompany, setEditingCompany] = useState<{
+    id: string
+    name: string
+    phone: string
+    address: string
+    city: string
+    state: string
+    zip: string
+    status: CompanyStatus
+  } | null>(null)
   const [newCompany, setNewCompany] = useState({
     name: '',
     phone: '',
@@ -116,12 +103,75 @@ export default function CompaniesPage() {
     },
   })
 
+  const updateCompany = trpc.companies.update.useMutation({
+    onSuccess: () => {
+      toast.success('Company updated successfully')
+      setEditingCompany(null)
+      utils.companies.getAll.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to update company: ${error.message}`)
+    },
+  })
+
   const handleCreateCompany = () => {
     if (!newCompany.name) {
       toast.error('Company name is required')
       return
     }
     createCompany.mutate(newCompany)
+  }
+
+  const handleUpdateCompany = () => {
+    if (!editingCompany) return
+    if (!editingCompany.name) {
+      toast.error('Company name is required')
+      return
+    }
+    updateCompany.mutate({
+      id: editingCompany.id,
+      name: editingCompany.name,
+      phone: editingCompany.phone || undefined,
+      address: editingCompany.address || undefined,
+      city: editingCompany.city || undefined,
+      state: editingCompany.state || undefined,
+      zip: editingCompany.zip || undefined,
+      status: editingCompany.status,
+    })
+  }
+
+  const handleAddressSelect = (components: AddressComponents) => {
+    setNewCompany({
+      ...newCompany,
+      address: components.address,
+      city: components.city || '',
+      state: components.state || '',
+      zip: components.zip || '',
+    })
+  }
+
+  const handleEditAddressSelect = (components: AddressComponents) => {
+    if (!editingCompany) return
+    setEditingCompany({
+      ...editingCompany,
+      address: components.address,
+      city: components.city || '',
+      state: components.state || '',
+      zip: components.zip || '',
+    })
+  }
+
+  const openEditDialog = (company: typeof companies[0]) => {
+    setEditingCompany({
+      id: company.id,
+      name: company.name,
+      phone: company.phone || '',
+      address: company.address || '',
+      city: company.city || '',
+      state: company.state || '',
+      zip: company.zip || '',
+      status: company.status as CompanyStatus,
+    })
   }
 
   const companies = data?.companies || []
@@ -167,11 +217,11 @@ export default function CompaniesPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Input
-                  id="address"
+                <AddressAutocomplete
+                  placeholder="Start typing an address..."
                   value={newCompany.address}
-                  onChange={(e) => setNewCompany({ ...newCompany, address: e.target.value })}
-                  placeholder="123 Main St"
+                  onChange={(value) => setNewCompany({ ...newCompany, address: value })}
+                  onSelect={handleAddressSelect}
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -284,70 +334,94 @@ export default function CompaniesPage() {
               <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8"></TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Location</TableHead>
-                    <TableHead>Health</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {companies.map((company) => (
-                    <TableRow key={company.id}>
-                      <TableCell>
-                        <div className="font-medium">{company.name}</div>
-                        {company.industry && (
-                          <div className="text-sm text-muted-foreground">{company.industry}</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {company.phone && (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Phone className="h-3 w-3" />
-                              {company.phone}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {company.city && company.state ? (
-                          <div className="flex items-center gap-1 text-sm">
-                            <MapPin className="h-3 w-3" />
-                            {company.city}, {company.state}
-                          </div>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <HealthScoreBadge
-                          score={(company as { health_score?: number }).health_score}
-                          churnRisk={(company as { churn_risk?: string }).churn_risk}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={STATUS_COLORS[company.status as CompanyStatus]}>
-                          {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+                    <>
+                      <TableRow key={company.id}>
+                        <TableCell>
                           <Button
                             variant="ghost"
                             size="icon"
-                            title="View company"
-                            onClick={() => setSelectedCompanyId(company.id)}
+                            className="h-6 w-6"
+                            onClick={() => setExpandedCompanyId(
+                              expandedCompanyId === company.id ? null : company.id
+                            )}
                           >
-                            <Eye className="h-4 w-4" />
+                            {expandedCompanyId === company.id ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
                           </Button>
-                          <Button variant="ghost" size="icon" title="Edit company">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{company.name}</div>
+                          {company.industry && (
+                            <div className="text-sm text-muted-foreground">{company.industry}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {company.phone && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <Phone className="h-3 w-3" />
+                                {company.phone}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {company.city && company.state ? (
+                            <div className="flex items-center gap-1 text-sm">
+                              <MapPin className="h-3 w-3" />
+                              {company.city}, {company.state}
+                            </div>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={STATUS_COLORS[company.status as CompanyStatus]}>
+                            {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="View company"
+                              onClick={() => setSelectedCompanyId(company.id)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Edit company"
+                              onClick={() => openEditDialog(company)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {expandedCompanyId === company.id && (
+                        <TableRow key={`${company.id}-contacts`}>
+                          <TableCell colSpan={6} className="bg-muted/30 p-4">
+                            <CompanyContactsSection companyId={company.id} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   ))}
                 </TableBody>
               </Table>
@@ -365,6 +439,99 @@ export default function CompaniesPage() {
               onClose={() => setSelectedCompanyId(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Company Dialog */}
+      <Dialog open={!!editingCompany} onOpenChange={(open) => !open && setEditingCompany(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Company</DialogTitle>
+            <DialogDescription>Update company information</DialogDescription>
+          </DialogHeader>
+          {editingCompany && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Company Name *</Label>
+                <Input
+                  id="edit-name"
+                  value={editingCompany.name}
+                  onChange={(e) => setEditingCompany({ ...editingCompany, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editingCompany.phone}
+                  onChange={(e) => setEditingCompany({ ...editingCompany, phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-address">Address</Label>
+                <AddressAutocomplete
+                  placeholder="Start typing an address..."
+                  value={editingCompany.address}
+                  onChange={(value) => setEditingCompany({ ...editingCompany, address: value })}
+                  onSelect={handleEditAddressSelect}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-city">City</Label>
+                  <Input
+                    id="edit-city"
+                    value={editingCompany.city}
+                    onChange={(e) => setEditingCompany({ ...editingCompany, city: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-state">State</Label>
+                  <Input
+                    id="edit-state"
+                    value={editingCompany.state}
+                    onChange={(e) => setEditingCompany({ ...editingCompany, state: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-zip">ZIP</Label>
+                  <Input
+                    id="edit-zip"
+                    value={editingCompany.zip}
+                    onChange={(e) => setEditingCompany({ ...editingCompany, zip: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Status</Label>
+                <Select
+                  value={editingCompany.status}
+                  onValueChange={(value) =>
+                    setEditingCompany({ ...editingCompany, status: value as CompanyStatus })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="prospect">Prospect</SelectItem>
+                    <SelectItem value="lead">Lead</SelectItem>
+                    <SelectItem value="vip">VIP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCompany(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateCompany} disabled={updateCompany.isPending}>
+              {updateCompany.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -411,14 +578,10 @@ function CompanyDetailDialog({
       </DialogHeader>
 
       <Tabs defaultValue="timeline" className="mt-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="timeline">
             <History className="h-4 w-4 mr-2" />
             Timeline
-          </TabsTrigger>
-          <TabsTrigger value="health">
-            <Heart className="h-4 w-4 mr-2" />
-            Health
           </TabsTrigger>
           <TabsTrigger value="details">
             <Building2 className="h-4 w-4 mr-2" />
@@ -430,10 +593,6 @@ function CompanyDetailDialog({
           <ScrollArea className="h-[400px] pr-4">
             <CompanyTimeline companyId={companyId} />
           </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="health" className="mt-4">
-          <CompanyHealthPanel companyId={companyId} />
         </TabsContent>
 
         <TabsContent value="details" className="mt-4">
@@ -495,107 +654,229 @@ function CompanyDetailDialog({
   )
 }
 
-function CompanyHealthPanel({ companyId }: { companyId: string }) {
-  const { data: health, isLoading, refetch } = trpc.crm.getCompanyHealth.useQuery({ companyId })
-  const recalculate = trpc.crm.recalculateHealth.useMutation({
+function CompanyContactsSection({ companyId }: { companyId: string }) {
+  const [showAddContact, setShowAddContact] = useState(false)
+  const [newContact, setNewContact] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    position: '',
+  })
+
+  const utils = trpc.useUtils()
+  const { data: company, isLoading } = trpc.companies.getById.useQuery({ id: companyId })
+
+  const createContact = trpc.contacts.create.useMutation({
     onSuccess: () => {
-      refetch()
-      toast.success('Health score recalculated')
+      toast.success('Contact added successfully')
+      setShowAddContact(false)
+      setNewContact({ first_name: '', last_name: '', email: '', phone: '', position: '' })
+      utils.companies.getById.invalidate({ id: companyId })
     },
-    onError: () => {
-      toast.error('Failed to recalculate health score')
+    onError: (error) => {
+      toast.error(`Failed to add contact: ${error.message}`)
     },
   })
 
-  if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading health data...</div>
+  const updateContact = trpc.contacts.update.useMutation({
+    onSuccess: () => {
+      toast.success('Contact updated')
+      utils.companies.getById.invalidate({ id: companyId })
+    },
+    onError: (error) => {
+      toast.error(`Failed to update contact: ${error.message}`)
+    },
+  })
+
+  const deleteContact = trpc.contacts.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Contact removed')
+      utils.companies.getById.invalidate({ id: companyId })
+    },
+    onError: (error) => {
+      toast.error(`Failed to remove contact: ${error.message}`)
+    },
+  })
+
+  const handleAddContact = () => {
+    if (!newContact.first_name || !newContact.last_name) {
+      toast.error('First and last name are required')
+      return
+    }
+    createContact.mutate({
+      company_id: companyId,
+      ...newContact,
+    })
   }
 
-  if (!health) {
-    return <div className="text-center py-8 text-muted-foreground">No health data available</div>
+  const handleSetPrimary = (contactId: string) => {
+    updateContact.mutate({
+      id: contactId,
+      is_primary: true,
+    })
   }
 
-  const getScoreColor = (score: number) => {
-    if (score >= 70) return 'text-green-600'
-    if (score >= 40) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const getRiskBadge = (risk: string) => {
-    switch (risk) {
-      case 'low':
-        return <Badge className="bg-green-100 text-green-800">Low Risk</Badge>
-      case 'medium':
-        return <Badge className="bg-yellow-100 text-yellow-800">Medium Risk</Badge>
-      case 'high':
-        return <Badge className="bg-red-100 text-red-800">High Risk</Badge>
-      default:
-        return <Badge variant="secondary">Unknown</Badge>
+  const handleDeleteContact = (contactId: string) => {
+    if (confirm('Are you sure you want to remove this contact?')) {
+      deleteContact.mutate({ id: contactId })
     }
   }
 
+  if (isLoading) {
+    return <div className="text-center py-4 text-muted-foreground">Loading contacts...</div>
+  }
+
+  const contacts = company?.contacts || []
+
   return (
-    <div className="space-y-6">
-      {/* Health Score Overview */}
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className={`text-5xl font-bold ${getScoreColor(health.health_score || 0)}`}>
-            {health.health_score || 0}
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Health Score</p>
-            {getRiskBadge(health.churn_risk || 'low')}
-          </div>
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          <span className="font-medium">Contacts ({contacts.length})</span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => recalculate.mutate({ companyId })}
-          disabled={recalculate.isPending}
-        >
-          {recalculate.isPending ? 'Recalculating...' : 'Recalculate'}
+        <Button variant="outline" size="sm" onClick={() => setShowAddContact(!showAddContact)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Add Contact
         </Button>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg border bg-muted/30">
-          <p className="text-sm text-muted-foreground">Total Quotes</p>
-          <p className="text-2xl font-semibold">{health.quote_count || 0}</p>
+      {showAddContact && (
+        <div className="p-4 border rounded-lg bg-background space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">First Name *</Label>
+              <Input
+                placeholder="John"
+                value={newContact.first_name}
+                onChange={(e) => setNewContact({ ...newContact, first_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Last Name *</Label>
+              <Input
+                placeholder="Doe"
+                value={newContact.last_name}
+                onChange={(e) => setNewContact({ ...newContact, last_name: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Email</Label>
+              <Input
+                placeholder="john@company.com"
+                type="email"
+                value={newContact.email}
+                onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Phone</Label>
+              <Input
+                placeholder="(555) 123-4567"
+                value={newContact.phone}
+                onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Position</Label>
+            <Input
+              placeholder="e.g., Sales Manager, Owner, Purchasing"
+              value={newContact.position}
+              onChange={(e) => setNewContact({ ...newContact, position: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowAddContact(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleAddContact} disabled={createContact.isPending}>
+              {createContact.isPending ? 'Adding...' : 'Add Contact'}
+            </Button>
+          </div>
         </div>
-        <div className="p-4 rounded-lg border bg-muted/30">
-          <p className="text-sm text-muted-foreground">Accepted Quotes</p>
-          <p className="text-2xl font-semibold">{health.accepted_quote_count || 0}</p>
-        </div>
-        <div className="p-4 rounded-lg border bg-muted/30">
-          <p className="text-sm text-muted-foreground">Win Rate</p>
-          <p className="text-2xl font-semibold">{(health.win_rate || 0).toFixed(1)}%</p>
-        </div>
-        <div className="p-4 rounded-lg border bg-muted/30">
-          <p className="text-sm text-muted-foreground">Last Activity</p>
-          <p className="text-lg font-semibold">
-            {health.last_activity_at
-              ? new Date(health.last_activity_at).toLocaleDateString()
-              : 'Never'}
-          </p>
-        </div>
-      </div>
+      )}
 
-      {/* Health Factors */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Health Factors</p>
-        <div className="text-sm text-muted-foreground space-y-1">
-          <p>
-            <span className="font-medium">Recency:</span> Score increases with recent activity
-          </p>
-          <p>
-            <span className="font-medium">Win Rate:</span> Higher acceptance rate = higher score
-          </p>
-          <p>
-            <span className="font-medium">Volume:</span> More quotes indicate engagement
-          </p>
+      {contacts.length === 0 ? (
+        <div className="text-center py-4 text-muted-foreground text-sm">
+          No contacts yet. Add a contact to get started.
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          {contacts.map((contact: {
+            id: string
+            first_name: string
+            last_name: string
+            email?: string
+            phone?: string
+            position?: string
+            is_primary?: boolean
+          }) => (
+            <div
+              key={contact.id}
+              className="flex items-center justify-between p-3 rounded-lg border bg-background"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">
+                    {contact.first_name} {contact.last_name}
+                  </span>
+                  {contact.is_primary && (
+                    <Badge variant="secondary" className="text-xs">
+                      <Star className="h-3 w-3 mr-1" />
+                      Primary
+                    </Badge>
+                  )}
+                  {contact.position && (
+                    <span className="text-xs text-muted-foreground">
+                      ({contact.position})
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  {contact.email && (
+                    <span className="flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {contact.email}
+                    </span>
+                  )}
+                  {contact.phone && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-3 w-3" />
+                      {contact.phone}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                {!contact.is_primary && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleSetPrimary(contact.id)}
+                    title="Set as primary contact"
+                  >
+                    <Star className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  onClick={() => handleDeleteContact(contact.id)}
+                  title="Remove contact"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -62,7 +62,7 @@ export default function DashboardPage() {
           <Link href="/quotes/new" className="flex-1 sm:flex-initial">
             <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
-              New Quote
+              New Dismantle Quote
             </Button>
           </Link>
           <Link href="/inland/new" className="flex-1 sm:flex-initial">
@@ -256,7 +256,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Recent Quotes</CardTitle>
+              <CardTitle>Recent Dismantle Quotes</CardTitle>
               <CardDescription>Your most recent dismantling quotes</CardDescription>
             </div>
             <Link href="/quotes/history">

@@ -8,14 +8,11 @@ import {
   Home,
   Settings,
   Truck,
-  Users,
   Wrench,
   Package,
   Building2,
-  Activity,
   Bell,
   BarChart3,
-  LayoutTemplate,
   Upload,
   UsersRound,
   MessageSquare,
@@ -61,6 +58,11 @@ const equipmentItems = [
     url: '/equipment',
     icon: Package,
   },
+  {
+    title: 'Dismantle Settings',
+    url: '/settings/dismantle',
+    icon: Wrench,
+  },
 ]
 
 const inlandItems = [
@@ -73,6 +75,11 @@ const inlandItems = [
     title: 'Inland History',
     url: '/inland/history',
     icon: History,
+  },
+  {
+    title: 'Inland Settings',
+    url: '/settings/inland',
+    icon: Settings,
   },
 ]
 
@@ -88,16 +95,6 @@ const crmItems = [
     icon: Building2,
   },
   {
-    title: 'Contacts',
-    url: '/contacts',
-    icon: Users,
-  },
-  {
-    title: 'Activity Log',
-    url: '/activity',
-    icon: Activity,
-  },
-  {
     title: 'Reminders',
     url: '/reminders',
     icon: Bell,
@@ -109,11 +106,6 @@ const adminItems = [
     title: 'Team',
     url: '/team',
     icon: UsersRound,
-  },
-  {
-    title: 'Templates',
-    url: '/templates',
-    icon: LayoutTemplate,
   },
   {
     title: 'Import Data',
@@ -132,16 +124,6 @@ const settingsItems = [
     title: 'Company Settings',
     url: '/settings',
     icon: Settings,
-  },
-  {
-    title: 'Dismantle Settings',
-    url: '/settings/dismantle',
-    icon: Wrench,
-  },
-  {
-    title: 'Inland Settings',
-    url: '/settings/inland',
-    icon: Truck,
   },
 ]
 

@@ -24,16 +24,20 @@ import {
 import { trpc } from '@/lib/trpc/client'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
 import { Search, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp, Filter, X } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 import { ImageUpload } from '@/components/ui/image-upload'
 
-type FilterType = 'all' | 'has_dimensions' | 'no_dimensions' | 'has_image' | 'no_image'
+interface FilterState {
+  hasDimensions: boolean
+  hasImage: boolean
+}
 
 export default function EquipmentPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [modelSearchQuery, setModelSearchQuery] = useState('')
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [filters, setFilters] = useState<FilterState>({ hasDimensions: false, hasImage: false })
 
   // Fetch makes
   const { data: makes, isLoading: makesLoading } = trpc.equipment.getMakes.useQuery()
@@ -61,11 +65,11 @@ export default function EquipmentPage() {
   }, [models, modelSearchQuery])
 
   const clearFilters = () => {
-    setActiveFilter('all')
+    setFilters({ hasDimensions: false, hasImage: false })
     setModelSearchQuery('')
   }
 
-  const hasActiveFilters = activeFilter !== 'all' || modelSearchQuery.length > 0
+  const hasActiveFilters = filters.hasDimensions || filters.hasImage || modelSearchQuery.length > 0
 
   return (
     <div className="space-y-6">
@@ -157,19 +161,29 @@ export default function EquipmentPage() {
                     />
                   </div>
 
-                  {/* Filter dropdown */}
-                  <Select value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>
-                    <SelectTrigger className="w-[180px] h-8">
-                      <SelectValue placeholder="Filter by..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Models</SelectItem>
-                      <SelectItem value="has_dimensions">Has Dimensions</SelectItem>
-                      <SelectItem value="no_dimensions">No Dimensions</SelectItem>
-                      <SelectItem value="has_image">Has Image</SelectItem>
-                      <SelectItem value="no_image">No Image</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Filter checkboxes */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="filter-dimensions"
+                        checked={filters.hasDimensions}
+                        onCheckedChange={(checked) => setFilters(f => ({ ...f, hasDimensions: checked === true }))}
+                      />
+                      <label htmlFor="filter-dimensions" className="text-sm cursor-pointer">
+                        Has Dimensions
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="filter-image"
+                        checked={filters.hasImage}
+                        onCheckedChange={(checked) => setFilters(f => ({ ...f, hasImage: checked === true }))}
+                      />
+                      <label htmlFor="filter-image" className="text-sm cursor-pointer">
+                        Has Image
+                      </label>
+                    </div>
+                  </div>
 
                   {hasActiveFilters && (
                     <Button
@@ -195,13 +209,18 @@ export default function EquipmentPage() {
                         </button>
                       </Badge>
                     )}
-                    {activeFilter !== 'all' && (
+                    {filters.hasDimensions && (
                       <Badge variant="secondary" className="gap-1">
-                        {activeFilter === 'has_dimensions' && 'Has Dimensions'}
-                        {activeFilter === 'no_dimensions' && 'No Dimensions'}
-                        {activeFilter === 'has_image' && 'Has Image'}
-                        {activeFilter === 'no_image' && 'No Image'}
-                        <button onClick={() => setActiveFilter('all')}>
+                        Has Dimensions
+                        <button onClick={() => setFilters(f => ({ ...f, hasDimensions: false }))}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filters.hasImage && (
+                      <Badge variant="secondary" className="gap-1">
+                        Has Image
+                        <button onClick={() => setFilters(f => ({ ...f, hasImage: false }))}>
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
@@ -238,7 +257,7 @@ export default function EquipmentPage() {
                   </TableHeader>
                   <TableBody>
                     {searchFilteredModels?.map((model) => (
-                      <ModelRow key={model.id} model={model} activeFilter={activeFilter} />
+                      <ModelRow key={model.id} model={model} filters={filters} />
                     ))}
                   </TableBody>
                 </Table>
@@ -251,7 +270,7 @@ export default function EquipmentPage() {
   )
 }
 
-function ModelRow({ model, activeFilter }: { model: { id: string; name: string }; activeFilter: FilterType }) {
+function ModelRow({ model, filters }: { model: { id: string; name: string }; filters: FilterState }) {
   const [expanded, setExpanded] = useState(false)
   const utils = trpc.useUtils()
 
@@ -280,11 +299,9 @@ function ModelRow({ model, activeFilter }: { model: { id: string; name: string }
     dimensions.weight_lbs > 0
   )
 
-  // Apply filter
-  if (activeFilter === 'has_dimensions' && !hasDimensions) return null
-  if (activeFilter === 'no_dimensions' && hasDimensions) return null
-  if (activeFilter === 'has_image' && !hasImages) return null
-  if (activeFilter === 'no_image' && hasImages) return null
+  // Apply filters (AND logic - must match all selected filters)
+  if (filters.hasDimensions && !hasDimensions) return null
+  if (filters.hasImage && !hasImages) return null
 
   const handleFrontImageChange = (url: string | null) => {
     updateImagesMutation.mutate({ modelId: model.id, frontImageUrl: url })

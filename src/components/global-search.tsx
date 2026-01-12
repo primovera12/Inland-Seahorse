@@ -64,7 +64,8 @@ export function GlobalSearch() {
           router.push(`/customers?highlight=${id}`)
           break
         case 'contact':
-          router.push(`/contacts?highlight=${id}`)
+          // Contacts are now managed on the Companies page
+          router.push(`/customers?highlight=${id}`)
           break
       }
     },

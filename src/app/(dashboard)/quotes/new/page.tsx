@@ -13,7 +13,7 @@ import { CostBreakdown } from '@/components/quotes/cost-breakdown'
 import { QuoteSummary } from '@/components/quotes/quote-summary'
 import { EquipmentBlockCard } from '@/components/quotes/equipment-block-card'
 import { MiscFeesList, calculateMiscFeesTotal } from '@/components/quotes/misc-fees-list'
-import { InlandTransportForm, initialInlandTransportData, type InlandTransportData } from '@/components/quotes/inland-transport-form'
+import { InlandTransportForm, initialInlandTransportData, type InlandTransportData, type EquipmentDimensions } from '@/components/quotes/inland-transport-form'
 import { trpc } from '@/lib/trpc/client'
 import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
@@ -61,8 +61,8 @@ function createEmptyEquipmentBlock(): EquipmentBlock {
 }
 
 export default function NewQuotePage() {
-  // Multi-equipment mode
-  const [isMultiEquipment, setIsMultiEquipment] = useState(false)
+  // Multi-equipment mode - always enabled by default
+  const [isMultiEquipment, setIsMultiEquipment] = useState(true)
   const [equipmentBlocks, setEquipmentBlocks] = useState<EquipmentBlock[]>([
     createEmptyEquipmentBlock(),
   ])
@@ -229,7 +229,7 @@ export default function NewQuotePage() {
     if (confirm('Are you sure you want to discard this draft? All changes will be lost.')) {
       // Reset all state to defaults
       setQuoteNumber(generateQuoteNumber())
-      setIsMultiEquipment(false)
+      setIsMultiEquipment(true)
       setEquipmentBlocks([createEmptyEquipmentBlock()])
       setSelectedMakeId('')
       setSelectedModelId('')
@@ -522,16 +522,27 @@ export default function NewQuotePage() {
     })
   }, [buildPdfData])
 
+  // TRPC utils for cache invalidation
+  const utils = trpc.useUtils()
+
   // Save quote mutation
   const createQuote = trpc.quotes.create.useMutation({
     onSuccess: (data) => {
-      toast.success('Quote created successfully')
+      toast.success('Quote created successfully', {
+        description: 'Quote saved to history.',
+        action: {
+          label: 'View History',
+          onClick: () => window.location.href = '/quotes/history',
+        },
+      })
       if (data?.id) {
         setSavedQuoteId(data.id)
       }
       // Clear the draft after successful quote creation
       deleteDraftMutation.mutate()
       setHasDraft(false)
+      // Invalidate the quotes history cache so new quotes appear immediately
+      utils.quotes.getHistory.invalidate()
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
@@ -678,8 +689,8 @@ export default function NewQuotePage() {
 
       {/* PDF Preview Modal */}
       <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
-        <DialogContent className="max-w-4xl h-[90vh]">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
             <DialogTitle className="flex items-center justify-between">
               <span>Quote Preview</span>
               <div className="flex gap-2">
@@ -694,7 +705,7 @@ export default function NewQuotePage() {
             {pdfDataUrl && (
               <iframe
                 src={pdfDataUrl}
-                className="w-full h-full rounded border"
+                className="w-full h-full border-0"
                 title="Quote PDF Preview"
               />
             )}
@@ -708,8 +719,6 @@ export default function NewQuotePage() {
             <TabsList className="w-full flex overflow-x-auto no-scrollbar">
               <TabsTrigger value="customer" className="flex-1 min-w-[80px]">Customer</TabsTrigger>
               <TabsTrigger value="equipment" className="flex-1 min-w-[80px]">Equipment</TabsTrigger>
-              <TabsTrigger value="costs" className="flex-1 min-w-[80px]">Costs</TabsTrigger>
-              <TabsTrigger value="fees" className="flex-1 min-w-[80px]">Fees{miscFees.length > 0 ? ` (${miscFees.length})` : ''}</TabsTrigger>
               <TabsTrigger value="inland" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
                 <Truck className="h-3 w-3 hidden sm:inline" />
                 <span>Inland{inlandTransport.enabled ? ' *' : ''}</span>
@@ -717,128 +726,28 @@ export default function NewQuotePage() {
             </TabsList>
 
             <TabsContent value="equipment" className="mt-4 space-y-4">
-              {/* Multi-Equipment Toggle */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Layers className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <Label htmlFor="multi-equipment" className="text-base font-medium">
-                          Multi-Equipment Mode
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Add multiple equipment items to this quote
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      id="multi-equipment"
-                      checked={isMultiEquipment}
-                      onCheckedChange={setIsMultiEquipment}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {isMultiEquipment ? (
-                /* Multi-Equipment Mode */
-                <div className="space-y-4">
-                  {equipmentBlocks.map((block, index) => (
-                    <EquipmentBlockCard
-                      key={block.id}
-                      block={block}
-                      index={index}
-                      onUpdate={(updatedBlock) => updateEquipmentBlock(block.id, updatedBlock)}
-                      onRemove={() => removeEquipmentBlock(block.id)}
-                      onDuplicate={() => duplicateEquipmentBlock(block.id)}
-                      canRemove={equipmentBlocks.length > 1}
-                    />
-                  ))}
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={addEquipmentBlock}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Equipment
-                  </Button>
-                </div>
-              ) : (
-                /* Single Equipment Mode */
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Equipment Selection</CardTitle>
-                    <CardDescription>
-                      Select the equipment make, model, and location
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EquipmentSelector
-                      selectedMakeId={selectedMakeId}
-                      selectedModelId={selectedModelId}
-                      selectedLocation={selectedLocation}
-                      onMakeChange={(id, name) => {
-                        setSelectedMakeId(id)
-                        setMakeName(name)
-                        setSelectedModelId('')
-                        setModelName('')
-                      }}
-                      onModelChange={(id, name) => {
-                        setSelectedModelId(id)
-                        setModelName(name)
-                      }}
-                      onLocationChange={setSelectedLocation}
-                      dimensions={dimensions}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="costs" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Cost Breakdown</CardTitle>
-                  <CardDescription>
-                    Adjust costs and enable/disable line items
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <CostBreakdown
-                    costs={costs}
-                    enabledCosts={enabledCosts}
-                    costOverrides={costOverrides}
-                    descriptionOverrides={descriptionOverrides}
-                    onToggleCost={(field) =>
-                      setEnabledCosts((prev) => ({
-                        ...prev,
-                        [field]: !prev[field],
-                      }))
-                    }
-                    onOverrideCost={(field, value) =>
-                      setCostOverrides((prev) => ({
-                        ...prev,
-                        [field]: value,
-                      }))
-                    }
-                    onOverrideDescription={(field, value) =>
-                      setDescriptionOverrides((prev) => ({
-                        ...prev,
-                        [field]: value,
-                      }))
-                    }
+              {/* Equipment Blocks - Multi-Equipment Mode is always active */}
+              <div className="space-y-4">
+                {equipmentBlocks.map((block, index) => (
+                  <EquipmentBlockCard
+                    key={block.id}
+                    block={block}
+                    index={index}
+                    onUpdate={(updatedBlock) => updateEquipmentBlock(block.id, updatedBlock)}
+                    onRemove={() => removeEquipmentBlock(block.id)}
+                    onDuplicate={() => duplicateEquipmentBlock(block.id)}
+                    canRemove={equipmentBlocks.length > 1}
                   />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="fees" className="mt-4">
-              <MiscFeesList
-                fees={miscFees}
-                onChange={setMiscFees}
-                subtotal={costsSubtotal}
-              />
+                ))}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={addEquipmentBlock}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Equipment
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="customer" className="mt-4">
@@ -876,12 +785,33 @@ export default function NewQuotePage() {
               <InlandTransportForm
                 data={inlandTransport}
                 onChange={setInlandTransport}
+                equipmentDimensions={
+                  isMultiEquipment
+                    ? equipmentBlocks
+                        .filter(b => b.make_name || b.model_name)
+                        .map(b => ({
+                          length_inches: b.length_inches || 0,
+                          width_inches: b.width_inches || 0,
+                          height_inches: b.height_inches || 0,
+                          weight_lbs: (b.weight_lbs || 0) * (b.quantity || 1),
+                          name: `${b.make_name} ${b.model_name}`.trim(),
+                        }))
+                    : dimensions.length_inches || dimensions.width_inches || dimensions.height_inches || dimensions.weight_lbs
+                      ? [{
+                          length_inches: dimensions.length_inches,
+                          width_inches: dimensions.width_inches,
+                          height_inches: dimensions.height_inches,
+                          weight_lbs: dimensions.weight_lbs,
+                          name: `${makeName} ${modelName}`.trim(),
+                        }]
+                      : undefined
+                }
               />
             </TabsContent>
           </Tabs>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <QuoteSummary
             makeName={isMultiEquipment ? `${equipmentBlocks.length} Equipment Items` : makeName}
             modelName={isMultiEquipment ? '' : modelName}
@@ -897,7 +827,7 @@ export default function NewQuotePage() {
           {/* Live PDF Preview Panel */}
           {showLivePdfPreview && (
             <Card className="overflow-hidden">
-              <CardHeader className="py-3 px-4 border-b">
+              <CardHeader className="py-2 px-3 border-b">
                 <CardTitle className="text-sm font-medium flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <MonitorPlay className="h-4 w-4" />
@@ -911,15 +841,15 @@ export default function NewQuotePage() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <div className="h-[600px] bg-muted/30">
+              <div className="h-[600px]">
                 {livePdfUrl ? (
                   <iframe
                     src={livePdfUrl}
-                    className="w-full h-full"
+                    className="w-full h-full border-0"
                     title="Live Quote PDF Preview"
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <div className="flex items-center justify-center h-full text-muted-foreground bg-muted/30">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
                     Generating preview...
                   </div>

@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { ImageUpload } from '@/components/ui/image-upload'
 import { Building2, Palette, FileText, Bell, Save, ChevronRight, Scale } from 'lucide-react'
+import { AddressAutocomplete, type AddressComponents } from '@/components/ui/address-autocomplete'
 import { toast } from 'sonner'
 import { trpc } from '@/lib/trpc/client'
 import Link from 'next/link'
@@ -101,6 +102,16 @@ export default function SettingsPage() {
     },
   })
 
+  const handleAddressSelect = (components: AddressComponents) => {
+    setSettings({
+      ...settings,
+      company_address: components.address,
+      company_city: components.city || settings.company_city,
+      company_state: components.state || settings.company_state,
+      company_zip: components.zip || settings.company_zip,
+    })
+  }
+
   const handleSave = () => {
     updateMutation.mutate({
       company_name: settings.company_name,
@@ -159,10 +170,11 @@ export default function SettingsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="company_address">Address</Label>
-              <Input
-                id="company_address"
+              <AddressAutocomplete
+                placeholder="Start typing your company address..."
                 value={settings.company_address}
-                onChange={(e) => setSettings({ ...settings, company_address: e.target.value })}
+                onChange={(value) => setSettings({ ...settings, company_address: value })}
+                onSelect={handleAddressSelect}
               />
             </div>
 

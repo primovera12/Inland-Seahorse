@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { trpc } from '@/lib/trpc/client'
 import { AddressAutocomplete, type AddressComponents } from '@/components/ui/address-autocomplete'
 import { Search, Building2, ClipboardPaste, Users } from 'lucide-react'
@@ -216,28 +217,19 @@ export function CustomerForm({
             {/* Company Dropdown */}
             <div className="space-y-2">
               <Label>Select Company</Label>
-              <Select
+              <SearchableSelect
                 value={selectedCompanyId}
-                onValueChange={handleCompanySelect}
+                onChange={handleCompanySelect}
+                options={(companiesData?.companies || []).map((company): SearchableSelectOption => ({
+                  value: company.id,
+                  label: company.name,
+                  description: company.city && company.state ? `${company.city}, ${company.state}` : undefined,
+                }))}
+                placeholder={companiesLoading ? "Loading..." : "Choose a company..."}
+                searchPlaceholder="Search companies..."
                 disabled={companiesLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={companiesLoading ? "Loading..." : "Choose a company..."} />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {companiesData?.companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span>{company.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {companiesData?.companies?.length === 0 && (
-                <p className="text-sm text-muted-foreground">No companies found</p>
-              )}
+                emptyMessage="No companies found"
+              />
             </div>
 
             {/* Contact Dropdown */}
@@ -284,7 +276,7 @@ export function CustomerForm({
           {(selectedCompanyId || selectedContactId) && (
             <Button
               type="button"
-              variant="ghost"
+              variant="destructive"
               size="sm"
               onClick={clearSelection}
               className="mt-2"
