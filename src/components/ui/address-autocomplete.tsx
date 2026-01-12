@@ -88,8 +88,8 @@ export function AddressAutocomplete({
 
     const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       componentRestrictions: { country: 'us' },
-      fields: ['formatted_address', 'address_components', 'geometry', 'place_id'],
-      types: ['address'],
+      fields: ['formatted_address', 'address_components', 'geometry', 'place_id', 'name'],
+      types: ['geocode', 'establishment'],
     })
 
     autocomplete.addListener('place_changed', () => {

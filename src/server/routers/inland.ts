@@ -202,7 +202,7 @@ export const inlandRouter = router({
         offset: z.number().min(0).default(0),
         status: z
           .enum(['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired'])
-          .optional(),
+          .nullish(),
       })
     )
     .query(async ({ ctx, input }) => {

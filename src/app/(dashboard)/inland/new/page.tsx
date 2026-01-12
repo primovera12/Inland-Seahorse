@@ -33,8 +33,9 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, X, MonitorPlay, Loader2, Mail, Save, Trash2 } from 'lucide-react'
+import { Plus, FileDown, Eye, X, MonitorPlay, Loader2, Mail, Save, Trash2, ChevronRight } from 'lucide-react'
 import { CustomerForm } from '@/components/quotes/customer-form'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAutoSave } from '@/hooks/use-auto-save'
 import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 import type { InlandDestinationBlock } from '@/types/inland'
@@ -107,6 +108,9 @@ export default function NewInlandQuotePage() {
   // Draft management
   const [draftRestored, setDraftRestored] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+
+  // Active tab
+  const [activeTab, setActiveTab] = useState('customer')
 
   // Generate quote number on mount
   useEffect(() => {
@@ -631,98 +635,131 @@ export default function NewInlandQuotePage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Content */}
+        {/* Main Content with Tabs */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Customer Info - using same component as Dismantle Quote */}
-          <CustomerForm
-            customerName={customerName}
-            customerEmail={customerEmail}
-            customerPhone={customerPhone}
-            customerCompany={customerCompany}
-            onCustomerNameChange={setCustomerName}
-            onCustomerEmailChange={setCustomerEmail}
-            onCustomerPhoneChange={setCustomerPhone}
-            onCustomerCompanyChange={setCustomerCompany}
-            onCompanySelect={(id, name) => {
-              setSelectedCompanyId(id)
-              setCustomerCompany(name)
-            }}
-            notes={internalNotes}
-            onNotesChange={setInternalNotes}
-          />
-
-          {/* Destinations */}
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg sm:text-xl font-semibold">Destinations</h2>
-              <div className="flex items-center gap-2">
-                {destinationBlocks.length > 1 && (
-                  <span className="text-xs text-muted-foreground hidden sm:inline">
-                    Drag to reorder
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="customer" className="flex items-center gap-2">
+                Customer
+                {customerName && (
+                  <span className="hidden sm:inline text-xs text-muted-foreground truncate max-w-[100px]">
+                    ({customerName})
                   </span>
                 )}
-                <Button onClick={addDestination} disabled={destinationBlocks.length >= 6} className="w-full sm:w-auto">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Destination
+              </TabsTrigger>
+              <TabsTrigger value="details" className="flex items-center gap-2">
+                Quote Details
+                {destinationBlocks.length > 0 && destinationBlocks[0].pickup_address && (
+                  <span className="hidden sm:inline text-xs text-muted-foreground">
+                    ({destinationBlocks.length} dest.)
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Customer Tab */}
+            <TabsContent value="customer" className="mt-6 space-y-6">
+              <CustomerForm
+                customerName={customerName}
+                customerEmail={customerEmail}
+                customerPhone={customerPhone}
+                customerCompany={customerCompany}
+                onCustomerNameChange={setCustomerName}
+                onCustomerEmailChange={setCustomerEmail}
+                onCustomerPhoneChange={setCustomerPhone}
+                onCustomerCompanyChange={setCustomerCompany}
+                onCompanySelect={(id, name) => {
+                  setSelectedCompanyId(id)
+                  setCustomerCompany(name)
+                }}
+                notes={internalNotes}
+                onNotesChange={setInternalNotes}
+              />
+
+              {/* Navigation to next tab */}
+              <div className="flex justify-end">
+                <Button onClick={() => setActiveTab('details')} variant="outline">
+                  Next: Quote Details
+                  <ChevronRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
-            </div>
+            </TabsContent>
 
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={destinationBlocks.map((b) => b.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {destinationBlocks.map((block, index) => (
-                  <SortableDestination key={block.id} id={block.id}>
-                    <DestinationBlock
-                      block={block}
-                      onUpdate={(b) => updateDestination(index, b)}
-                      onRemove={() => removeDestination(index)}
-                      onDuplicate={() => duplicateDestination(index)}
-                      canRemove={destinationBlocks.length > 1}
-                      truckTypes={truckTypes || []}
-                      accessorialTypes={accessorialTypes || []}
+            {/* Quote Details Tab */}
+            <TabsContent value="details" className="mt-6 space-y-6">
+              {/* Destinations */}
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-lg sm:text-xl font-semibold">Destinations</h2>
+                  <div className="flex items-center gap-2">
+                    {destinationBlocks.length > 1 && (
+                      <span className="text-xs text-muted-foreground hidden sm:inline">
+                        Drag to reorder
+                      </span>
+                    )}
+                    <Button onClick={addDestination} disabled={destinationBlocks.length >= 6} className="w-full sm:w-auto">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Destination
+                    </Button>
+                  </div>
+                </div>
+
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={destinationBlocks.map((b) => b.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {destinationBlocks.map((block, index) => (
+                      <SortableDestination key={block.id} id={block.id}>
+                        <DestinationBlock
+                          block={block}
+                          onUpdate={(b) => updateDestination(index, b)}
+                          onRemove={() => removeDestination(index)}
+                          onDuplicate={() => duplicateDestination(index)}
+                          canRemove={destinationBlocks.length > 1}
+                          truckTypes={truckTypes || []}
+                          accessorialTypes={accessorialTypes || []}
+                        />
+                      </SortableDestination>
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              </div>
+
+              {/* Notes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="quoteNotes">Quote Notes (visible to customer)</Label>
+                    <textarea
+                      id="quoteNotes"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Terms, conditions, special instructions..."
+                      value={quoteNotes}
+                      onChange={(e) => setQuoteNotes(e.target.value)}
                     />
-                  </SortableDestination>
-                ))}
-              </SortableContext>
-            </DndContext>
-          </div>
-
-          {/* Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="quoteNotes">Quote Notes (visible to customer)</Label>
-                <textarea
-                  id="quoteNotes"
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  placeholder="Terms, conditions, special instructions..."
-                  value={quoteNotes}
-                  onChange={(e) => setQuoteNotes(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="internalNotes">Internal Notes (not visible to customer)</Label>
-                <textarea
-                  id="internalNotes"
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  placeholder="Internal notes..."
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="internalNotes">Internal Notes (not visible to customer)</Label>
+                    <textarea
+                      id="internalNotes"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Internal notes..."
+                      value={internalNotes}
+                      onChange={(e) => setInternalNotes(e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Summary Sidebar */}

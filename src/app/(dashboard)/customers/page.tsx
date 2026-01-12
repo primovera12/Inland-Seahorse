@@ -665,6 +665,14 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
     phone: '',
     position: '',
   })
+  const [editingContact, setEditingContact] = useState<{
+    id: string
+    first_name: string
+    last_name: string
+    email: string
+    phone: string
+    position: string
+  } | null>(null)
 
   const utils = trpc.useUtils()
   const { data: company, isLoading } = trpc.companies.getById.useQuery({ id: companyId })
@@ -725,6 +733,47 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
     if (confirm('Are you sure you want to remove this contact?')) {
       deleteContact.mutate({ id: contactId })
     }
+  }
+
+  const handleEditContact = (contact: {
+    id: string
+    first_name: string
+    last_name: string
+    email?: string
+    phone?: string
+    position?: string
+  }) => {
+    setEditingContact({
+      id: contact.id,
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+      email: contact.email || '',
+      phone: contact.phone || '',
+      position: contact.position || '',
+    })
+    setShowAddContact(false)
+  }
+
+  const handleSaveEditContact = () => {
+    if (!editingContact) return
+    if (!editingContact.first_name || !editingContact.last_name) {
+      toast.error('First and last name are required')
+      return
+    }
+    updateContact.mutate({
+      id: editingContact.id,
+      data: {
+        first_name: editingContact.first_name,
+        last_name: editingContact.last_name,
+        email: editingContact.email || undefined,
+        phone: editingContact.phone || undefined,
+        position: editingContact.position || undefined,
+      },
+    }, {
+      onSuccess: () => {
+        setEditingContact(null)
+      }
+    })
   }
 
   if (isLoading) {
@@ -804,6 +853,65 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
         </div>
       )}
 
+      {editingContact && (
+        <div className="p-4 border rounded-lg bg-background space-y-3 border-primary">
+          <div className="text-sm font-medium text-primary">Edit Contact</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">First Name *</Label>
+              <Input
+                placeholder="John"
+                value={editingContact.first_name}
+                onChange={(e) => setEditingContact({ ...editingContact, first_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Last Name *</Label>
+              <Input
+                placeholder="Doe"
+                value={editingContact.last_name}
+                onChange={(e) => setEditingContact({ ...editingContact, last_name: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Email</Label>
+              <Input
+                placeholder="john@company.com"
+                type="email"
+                value={editingContact.email}
+                onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Phone</Label>
+              <Input
+                placeholder="(555) 123-4567"
+                value={editingContact.phone}
+                onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Position</Label>
+            <Input
+              placeholder="e.g., Sales Manager, Owner, Purchasing"
+              value={editingContact.position}
+              onChange={(e) => setEditingContact({ ...editingContact, position: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setEditingContact(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSaveEditContact} disabled={updateContact.isPending}>
+              {updateContact.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {contacts.length === 0 ? (
         <div className="text-center py-4 text-muted-foreground text-sm">
           No contacts yet. Add a contact to get started.
@@ -867,6 +975,15 @@ function CompanyContactsSection({ companyId }: { companyId: string }) {
                     <Star className="h-4 w-4" />
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleEditContact(contact)}
+                  title="Edit contact"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"

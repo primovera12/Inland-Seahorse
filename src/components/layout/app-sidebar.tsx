@@ -120,9 +120,6 @@ const adminItems = [
     url: '/settings/tickets',
     icon: MessageSquare,
   },
-]
-
-const settingsItems = [
   {
     title: 'Company Settings',
     url: '/settings',
@@ -149,9 +146,9 @@ export function AppSidebar() {
           <Image
             src={logoSrc}
             alt="Seahorse Express"
-            width={180}
-            height={45}
-            className="h-10 w-auto"
+            width={220}
+            height={55}
+            className="h-14 w-auto"
             priority
           />
         </Link>
@@ -249,28 +246,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
-                    <Link
-                      href={item.url}
-                      className={cn(
-                        pathname.startsWith(item.url) && 'bg-sidebar-accent'
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
         <p className="text-xs text-muted-foreground text-center">

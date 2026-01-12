@@ -37,6 +37,34 @@ const BILLING_UNIT_LABELS: Record<AccessorialBillingUnit, string> = {
   stop: '/stop',
 }
 
+// Predefined service types for inland transportation
+const PREDEFINED_SERVICES = [
+  { value: 'line_haul', label: 'Line Haul' },
+  { value: 'fuel_surcharge', label: 'Fuel Surcharge' },
+  { value: 'driver_assist', label: 'Driver Assist' },
+  { value: 'tarp', label: 'Tarp' },
+  { value: 'oversize_permit', label: 'Oversize Permit' },
+  { value: 'overweight_permit', label: 'Overweight Permit' },
+  { value: 'escort', label: 'Escort Service' },
+  { value: 'detention', label: 'Detention' },
+  { value: 'layover', label: 'Layover' },
+  { value: 'stop_off', label: 'Stop Off' },
+  { value: 'loading', label: 'Loading' },
+  { value: 'unloading', label: 'Unloading' },
+  { value: 'rigging', label: 'Rigging' },
+  { value: 'crane', label: 'Crane Service' },
+  { value: 'forklift', label: 'Forklift Service' },
+  { value: 'storage', label: 'Storage' },
+  { value: 'expedited', label: 'Expedited Service' },
+  { value: 'team_drivers', label: 'Team Drivers' },
+  { value: 'weekend_delivery', label: 'Weekend Delivery' },
+  { value: 'after_hours', label: 'After Hours Delivery' },
+  { value: 'inside_delivery', label: 'Inside Delivery' },
+  { value: 'liftgate', label: 'Liftgate' },
+  { value: 'residential', label: 'Residential Delivery' },
+  { value: 'custom', label: 'Custom Service' },
+]
+
 interface LoadBlockCardProps {
   loadBlock: InlandLoadBlock
   onUpdate: (loadBlock: InlandLoadBlock) => void
@@ -91,7 +119,7 @@ export function LoadBlockCard({
   const addServiceItem = () => {
     const newService: ServiceItem = {
       id: crypto.randomUUID(),
-      name: 'Service',
+      name: 'Line Haul',
       rate: 0,
       quantity: 1,
       total: 0,
@@ -424,18 +452,37 @@ export function LoadBlockCard({
           <div className="space-y-2">
             {loadBlock.service_items.map((service, index) => (
               <div key={service.id} className="flex items-center gap-2">
-                <Input
-                  className="flex-1"
-                  placeholder="Service name"
-                  value={service.name}
-                  onChange={(e) => updateServiceItem(index, 'name', e.target.value)}
+                <SearchableSelect
+                  value={PREDEFINED_SERVICES.find(s => s.label === service.name)?.value || 'custom'}
+                  onChange={(value) => {
+                    const selected = PREDEFINED_SERVICES.find(s => s.value === value)
+                    if (selected) {
+                      updateServiceItem(index, 'name', selected.label)
+                    }
+                  }}
+                  options={PREDEFINED_SERVICES.map((s): SearchableSelectOption => ({
+                    value: s.value,
+                    label: s.label,
+                  }))}
+                  placeholder="Select service"
+                  searchPlaceholder="Search services..."
+                  className="w-[180px]"
                 />
+                {service.name === 'Custom Service' && (
+                  <Input
+                    className="flex-1"
+                    placeholder="Custom service name"
+                    value={service.name === 'Custom Service' ? '' : service.name}
+                    onChange={(e) => updateServiceItem(index, 'name', e.target.value || 'Custom Service')}
+                  />
+                )}
                 <Input
-                  className="w-24"
+                  className="w-20"
                   type="number"
                   min={1}
                   value={service.quantity}
                   onChange={(e) => updateServiceItem(index, 'quantity', e.target.value)}
+                  placeholder="Qty"
                 />
                 <Input
                   className="w-28 text-right font-mono"
