@@ -47,6 +47,8 @@ export interface CargoItem {
   width_inches: number
   height_inches: number
   weight_lbs: number
+  is_oversize: boolean
+  is_overweight: boolean
 }
 
 export interface ServiceItem {
