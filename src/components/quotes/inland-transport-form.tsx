@@ -344,6 +344,8 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
       width_inches: 0,
       height_inches: 0,
       weight_lbs: 0,
+      is_oversize: false,
+      is_overweight: false,
     }
     const block = { ...data.load_blocks[blockIndex] }
     block.cargo_items = [...block.cargo_items, newItem]
