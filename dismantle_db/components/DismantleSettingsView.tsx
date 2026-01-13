@@ -10,6 +10,51 @@ interface DismantleSettingsViewProps {
 
 type SettingsTab = 'branding' | 'templates' | 'costs'
 
+// Custom cost type interface
+interface CustomCostType {
+  id: string
+  key: string
+  label: string
+  isSystem: boolean // true for the default system cost types
+  isActive: boolean
+  sortOrder: number
+}
+
+// Helper to generate unique keys from labels
+function generateKeyFromLabel(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+}
+
+// Get all cost types (system + custom) from localStorage
+function getAllCostTypes(): CustomCostType[] {
+  const systemTypes: CustomCostType[] = ALL_COST_FIELDS.map((field, idx) => ({
+    id: `system-${field.key}`,
+    key: field.key,
+    label: field.label,
+    isSystem: true,
+    isActive: true,
+    sortOrder: idx
+  }))
+
+  try {
+    const stored = localStorage.getItem('customCostTypes')
+    if (stored) {
+      const customTypes: CustomCostType[] = JSON.parse(stored)
+      return [...systemTypes, ...customTypes].sort((a, b) => a.sortOrder - b.sortOrder)
+    }
+  } catch (e) {
+    console.error('Error loading custom cost types:', e)
+  }
+
+  return systemTypes
+}
+
+// Save custom cost types to localStorage
+function saveCustomCostTypes(types: CustomCostType[]): void {
+  const customOnly = types.filter(t => !t.isSystem)
+  localStorage.setItem('customCostTypes', JSON.stringify(customOnly))
+}
+
 export default function DismantleSettingsView({ showToast }: DismantleSettingsViewProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('branding')
   const [settings, setSettings] = useState<CompanySettings | null>(null)
@@ -37,6 +82,17 @@ export default function DismantleSettingsView({ showToast }: DismantleSettingsVi
     miscellaneous_costs: '',
     default_margin_percentage: '0'
   })
+
+  // Cost type management state
+  const [costTypes, setCostTypes] = useState<CustomCostType[]>([])
+  const [showCostTypeModal, setShowCostTypeModal] = useState(false)
+  const [editingCostType, setEditingCostType] = useState<CustomCostType | null>(null)
+  const [costTypeForm, setCostTypeForm] = useState({ label: '' })
+
+  // Load cost types on mount
+  useEffect(() => {
+    setCostTypes(getAllCostTypes())
+  }, [])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -318,6 +374,85 @@ export default function DismantleSettingsView({ showToast }: DismantleSettingsVi
       console.error('Error setting default:', error)
       showToast('Error setting default template', 'error')
     }
+  }
+
+  // Cost Type Management Functions
+  const openNewCostType = () => {
+    setEditingCostType(null)
+    setCostTypeForm({ label: '' })
+    setShowCostTypeModal(true)
+  }
+
+  const openEditCostType = (costType: CustomCostType) => {
+    setEditingCostType(costType)
+    setCostTypeForm({ label: costType.label })
+    setShowCostTypeModal(true)
+  }
+
+  const saveCostType = () => {
+    if (!costTypeForm.label.trim()) {
+      showToast('Please enter a cost type name', 'error')
+      return
+    }
+
+    const label = costTypeForm.label.trim()
+    const key = generateKeyFromLabel(label)
+
+    // Check for duplicate keys
+    const existingKeys = costTypes.map(t => t.key)
+    if (!editingCostType && existingKeys.includes(key)) {
+      showToast('A cost type with this name already exists', 'error')
+      return
+    }
+
+    if (editingCostType) {
+      // Update existing
+      const updatedTypes = costTypes.map(t =>
+        t.id === editingCostType.id ? { ...t, label } : t
+      )
+      setCostTypes(updatedTypes)
+      saveCustomCostTypes(updatedTypes)
+      showToast('Cost type updated', 'success')
+    } else {
+      // Add new
+      const newType: CustomCostType = {
+        id: `custom-${Date.now()}`,
+        key: `custom_${key}`,
+        label,
+        isSystem: false,
+        isActive: true,
+        sortOrder: costTypes.length
+      }
+      const updatedTypes = [...costTypes, newType]
+      setCostTypes(updatedTypes)
+      saveCustomCostTypes(updatedTypes)
+      showToast('Cost type added', 'success')
+    }
+
+    setShowCostTypeModal(false)
+  }
+
+  const deleteCostType = (costType: CustomCostType) => {
+    if (costType.isSystem) {
+      showToast('Cannot delete system cost types', 'error')
+      return
+    }
+
+    if (!confirm(`Delete "${costType.label}"? This cannot be undone.`)) return
+
+    const updatedTypes = costTypes.filter(t => t.id !== costType.id)
+    setCostTypes(updatedTypes)
+    saveCustomCostTypes(updatedTypes)
+    showToast('Cost type deleted', 'success')
+  }
+
+  const toggleCostTypeActive = (costType: CustomCostType) => {
+    const updatedTypes = costTypes.map(t =>
+      t.id === costType.id ? { ...t, isActive: !t.isActive } : t
+    )
+    setCostTypes(updatedTypes)
+    saveCustomCostTypes(updatedTypes)
+    showToast(`${costType.label} ${costType.isActive ? 'disabled' : 'enabled'}`, 'success')
   }
 
   if (loading) {
@@ -723,25 +858,82 @@ export default function DismantleSettingsView({ showToast }: DismantleSettingsVi
           {/* Cost Types Tab */}
           {activeTab === 'costs' && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-600 mb-4">
-                These are the standard cost types used in dismantling quotes. They are configured at the system level.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <p className="text-sm text-gray-600">
+                  Manage cost types for dismantling quotes. System types cannot be deleted but can be disabled.
+                </p>
+                <button
+                  onClick={openNewCostType}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <span>+</span> Add Cost Type
+                </button>
+              </div>
+
               <div className="border rounded-lg divide-y">
-                {ALL_COST_FIELDS.map((field, idx) => (
-                  <div key={field.key} className="p-4 flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium">
+                {costTypes.map((costType, idx) => (
+                  <div
+                    key={costType.id}
+                    className={`p-4 flex items-center gap-3 ${!costType.isActive ? 'bg-gray-50 opacity-60' : ''}`}
+                  >
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      costType.isSystem ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                    }`}>
                       {idx + 1}
                     </span>
-                    <div>
-                      <span className="font-medium text-gray-900">{field.label}</span>
-                      <p className="text-sm text-gray-500">{field.key}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{costType.label}</span>
+                        {costType.isSystem && (
+                          <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">System</span>
+                        )}
+                        {!costType.isActive && (
+                          <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">Disabled</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">{costType.key}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleCostTypeActive(costType)}
+                        className={`px-3 py-1 text-xs rounded ${
+                          costType.isActive
+                            ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                        }`}
+                      >
+                        {costType.isActive ? 'Disable' : 'Enable'}
+                      </button>
+                      {!costType.isSystem && (
+                        <>
+                          <button
+                            onClick={() => openEditCostType(costType)}
+                            className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteCostType(costType)}
+                            className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-400">
-                Cost types are defined in the system configuration. Contact your administrator to add or modify cost types.
-              </p>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-800 mb-2">About Cost Types</h4>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• System cost types are the default costs used in dismantling quotes</li>
+                  <li>• Custom cost types can be added for your specific business needs</li>
+                  <li>• Disabled cost types won't appear when creating new quotes</li>
+                  <li>• Cost values can be set per equipment in the Data Entry page</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
@@ -833,6 +1025,59 @@ export default function DismantleSettingsView({ showToast }: DismantleSettingsVi
                 className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
               >
                 {saving ? 'Saving...' : 'Save Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cost Type Modal */}
+      {showCostTypeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingCostType ? 'Edit Cost Type' : 'Add Cost Type'}
+              </h3>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cost Type Name *</label>
+                <input
+                  type="text"
+                  value={costTypeForm.label}
+                  onChange={(e) => setCostTypeForm({ label: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Storage Fee, Handling Fee..."
+                  autoFocus
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  This will be the display name shown in quotes and the Data Entry page
+                </p>
+              </div>
+
+              {costTypeForm.label && (
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500">
+                    <strong>Key:</strong> custom_{generateKeyFromLabel(costTypeForm.label)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t flex justify-end gap-3">
+              <button
+                onClick={() => setShowCostTypeModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveCostType}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                {editingCostType ? 'Update' : 'Add'} Cost Type
               </button>
             </div>
           </div>

@@ -238,6 +238,7 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
   const [savingLocationCost, setSavingLocationCost] = useState<Record<string, boolean>>({})
   const [savingDimension, setSavingDimension] = useState<Record<string, boolean>>({})
   const [uploadingImage, setUploadingImage] = useState<Record<string, boolean>>({})
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({})
 
   // Add Model modal state
   const [showAddModelModal, setShowAddModelModal] = useState(false)
@@ -922,11 +923,70 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                       {expandedRows[rate.id] && (
                         <tr key={`${rate.id}-expanded`}>
                           <td colSpan={4} className="px-4 py-4 bg-blue-50">
+                            {/* Base Costs Section */}
+                            <div className="ml-6 border rounded-lg overflow-hidden bg-white shadow-sm mb-4">
+                              <div className="bg-purple-100 px-4 py-2 border-b">
+                                <h4 className="font-semibold text-purple-900 text-sm flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Base Costs for {rate.make} {rate.model}
+                                </h4>
+                                <p className="text-xs text-purple-700 mt-1">Default costs that apply to all locations unless overridden</p>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      {ALL_COST_FIELDS.map(field => (
+                                        <th key={field.key} className="px-2 py-2 text-center font-semibold text-gray-700 min-w-[110px] text-xs">
+                                          {field.label}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr className="bg-purple-50">
+                                      {ALL_COST_FIELDS.map(field => {
+                                        const cost = expandedRows[rate.id]?.locationCosts['_default']
+                                        const value = cost ? cost[field.key as keyof LocationCost] as number | null : null
+                                        const isSaving = savingLocationCost[`${rate.id}-_default`]
+
+                                        return (
+                                          <td key={field.key} className="px-2 py-2">
+                                            <div className="relative">
+                                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                                              <input
+                                                type="number"
+                                                step="0.01"
+                                                value={value ?? ''}
+                                                onChange={(e) => updateLocationCost(rate.id, '_default' as Location, field.key, e.target.value)}
+                                                className={`w-full pl-5 pr-2 py-1 border rounded text-right text-xs ${
+                                                  isSaving ? 'bg-yellow-50 border-yellow-300' : 'border-purple-200 bg-white'
+                                                } focus:outline-none focus:ring-1 focus:ring-purple-500`}
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                          </td>
+                                        )
+                                      })}
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* Location-Based Costs Section */}
                             <div className="ml-6 border rounded-lg overflow-hidden bg-white shadow-sm">
                               <div className="bg-blue-100 px-4 py-2 border-b">
-                                <h4 className="font-semibold text-blue-900 text-sm">
-                                  Location-Based Costs for {rate.make} {rate.model}
+                                <h4 className="font-semibold text-blue-900 text-sm flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  Location-Specific Cost Overrides
                                 </h4>
+                                <p className="text-xs text-blue-700 mt-1">Override base costs for specific locations</p>
                               </div>
                               <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
@@ -950,7 +1010,9 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                                         </td>
                                         {ALL_COST_FIELDS.map(field => {
                                           const cost = expandedRows[rate.id]?.locationCosts[location]
+                                          const baseCost = expandedRows[rate.id]?.locationCosts['_default']
                                           const value = cost ? cost[field.key as keyof LocationCost] as number | null : null
+                                          const baseValue = baseCost ? baseCost[field.key as keyof LocationCost] as number | null : null
                                           const isSaving = savingLocationCost[`${rate.id}-${location}`]
 
                                           return (
@@ -965,7 +1027,7 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                                                   className={`w-full pl-5 pr-2 py-1 border rounded text-right text-xs ${
                                                     isSaving ? 'bg-yellow-50 border-yellow-300' : 'border-gray-300 bg-white'
                                                   } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                  placeholder="0.00"
+                                                  placeholder={baseValue ? `(${baseValue})` : '0.00'}
                                                 />
                                               </div>
                                             </td>
@@ -1162,12 +1224,15 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                                     {/* Front View Image */}
                                     <div>
                                       <label className="block text-xs font-medium text-gray-600 mb-1">Front View</label>
-                                      {expandedRows[rate.id]?.dimensions?.front_image_base64 ? (
+                                      {expandedRows[rate.id]?.dimensions?.front_image_base64 && !failedImages[`${rate.id}-front`] ? (
                                         <div className="relative">
                                           <img
                                             src={expandedRows[rate.id]?.dimensions?.front_image_base64 || ''}
                                             alt="Front view"
                                             className="w-full h-32 object-contain bg-gray-50 rounded border"
+                                            onError={() => {
+                                              setFailedImages(prev => ({ ...prev, [`${rate.id}-front`]: true }))
+                                            }}
                                           />
                                           <button
                                             onClick={() => removeImage(rate.id, 'front')}
@@ -1178,6 +1243,29 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                             </svg>
                                           </button>
+                                        </div>
+                                      ) : failedImages[`${rate.id}-front`] ? (
+                                        <div className="relative w-full h-32 bg-red-50 rounded border border-red-200 flex flex-col items-center justify-center">
+                                          <svg className="w-8 h-8 text-red-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                          </svg>
+                                          <p className="text-xs text-red-600 mb-2">Image failed to load</p>
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => {
+                                                setFailedImages(prev => ({ ...prev, [`${rate.id}-front`]: false }))
+                                              }}
+                                              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                                            >
+                                              Retry
+                                            </button>
+                                            <button
+                                              onClick={() => removeImage(rate.id, 'front')}
+                                              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
                                         </div>
                                       ) : (
                                         <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
@@ -1209,12 +1297,15 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                                     {/* Side View Image */}
                                     <div>
                                       <label className="block text-xs font-medium text-gray-600 mb-1">Side View</label>
-                                      {expandedRows[rate.id]?.dimensions?.side_image_base64 ? (
+                                      {expandedRows[rate.id]?.dimensions?.side_image_base64 && !failedImages[`${rate.id}-side`] ? (
                                         <div className="relative">
                                           <img
                                             src={expandedRows[rate.id]?.dimensions?.side_image_base64 || ''}
                                             alt="Side view"
                                             className="w-full h-32 object-contain bg-gray-50 rounded border"
+                                            onError={() => {
+                                              setFailedImages(prev => ({ ...prev, [`${rate.id}-side`]: true }))
+                                            }}
                                           />
                                           <button
                                             onClick={() => removeImage(rate.id, 'side')}
@@ -1225,6 +1316,29 @@ export default function PriceEntryView({ onShowToast }: PriceEntryViewProps) {
                                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                             </svg>
                                           </button>
+                                        </div>
+                                      ) : failedImages[`${rate.id}-side`] ? (
+                                        <div className="relative w-full h-32 bg-red-50 rounded border border-red-200 flex flex-col items-center justify-center">
+                                          <svg className="w-8 h-8 text-red-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                          </svg>
+                                          <p className="text-xs text-red-600 mb-2">Image failed to load</p>
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => {
+                                                setFailedImages(prev => ({ ...prev, [`${rate.id}-side`]: false }))
+                                              }}
+                                              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                                            >
+                                              Retry
+                                            </button>
+                                            <button
+                                              onClick={() => removeImage(rate.id, 'side')}
+                                              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
                                         </div>
                                       ) : (
                                         <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">

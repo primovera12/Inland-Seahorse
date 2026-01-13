@@ -97,7 +97,40 @@ function getImageFormat(imageData: string): 'PNG' | 'JPEG' | 'GIF' | 'WEBP' {
   return 'PNG'
 }
 
-// Prepare image data for PDF - COPIED FROM DISMANTLE QUOTE GENERATOR
+// Convert SVG to PNG using canvas
+async function convertSvgToPng(svgData: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        // Use a reasonable size for the PDF
+        const scale = 2 // Higher quality
+        canvas.width = img.width * scale || 400
+        canvas.height = img.height * scale || 300
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.fillStyle = 'white'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          resolve(canvas.toDataURL('image/png'))
+        } else {
+          resolve(null)
+        }
+      }
+      img.onerror = () => {
+        console.error('Failed to load SVG image')
+        resolve(null)
+      }
+      img.src = svgData
+    } catch (e) {
+      console.error('SVG conversion error:', e)
+      resolve(null)
+    }
+  })
+}
+
+// Prepare image data for PDF - sync version (returns null for SVG)
 function prepareImageForPdf(imageData: string | null | undefined): string | null {
   if (!imageData || typeof imageData !== 'string') {
     return null
@@ -108,7 +141,7 @@ function prepareImageForPdf(imageData: string | null | undefined): string | null
   // If already has data URI prefix
   if (trimmed.startsWith('data:image/')) {
     if (trimmed.includes('data:image/svg+xml')) {
-      return null // SVG not supported
+      return null // SVG needs async conversion
     }
     return trimmed
   }
@@ -134,6 +167,23 @@ function prepareImageForPdf(imageData: string | null | undefined): string | null
   }
 
   return null
+}
+
+// Async version that handles SVG conversion
+async function prepareImageForPdfAsync(imageData: string | null | undefined): Promise<string | null> {
+  if (!imageData || typeof imageData !== 'string') {
+    return null
+  }
+
+  const trimmed = imageData.trim()
+
+  // Check for SVG and convert
+  if (trimmed.includes('data:image/svg+xml') || trimmed.includes('<svg')) {
+    return await convertSvgToPng(trimmed)
+  }
+
+  // Use sync version for other formats
+  return prepareImageForPdf(imageData)
 }
 
 // Draw section header
@@ -224,8 +274,8 @@ export async function generateInlandQuotePdf(data: InlandQuotePdfData): Promise<
 
   let leftY = currentY + 4
 
-  // Logo handling - EXACTLY MATCHING DISMANTLE QUOTE DESIGN
-  const logoData = settings?.logo_base64 ? prepareImageForPdf(settings.logo_base64) : null
+  // Logo handling - EXACTLY MATCHING DISMANTLE QUOTE DESIGN (with SVG support)
+  const logoData = settings?.logo_base64 ? await prepareImageForPdfAsync(settings.logo_base64) : null
 
   if (logoData) {
     try {
