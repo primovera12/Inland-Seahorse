@@ -23,15 +23,35 @@ export async function generatePDFFromElement(
   onProgress?.(10)
 
   try {
+    // Clone the element to avoid modifying the original
+    const clone = element.cloneNode(true) as HTMLElement
+
+    // Create a container for rendering
+    const container = document.createElement('div')
+    container.style.position = 'absolute'
+    container.style.left = '-9999px'
+    container.style.top = '0'
+    container.style.width = '210mm' // A4 width
+    container.style.backgroundColor = '#ffffff'
+    container.appendChild(clone)
+    document.body.appendChild(container)
+
     // Use html2canvas to capture the element
-    const canvas = await html2canvas(element, {
+    const canvas = await html2canvas(clone, {
       scale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
-      logging: false,
+      logging: true, // Enable logging for debugging
       imageTimeout: 15000,
+      foreignObjectRendering: false, // Disable foreign object rendering for better compatibility
+      removeContainer: true,
+      width: clone.scrollWidth,
+      height: clone.scrollHeight,
     })
+
+    // Clean up
+    document.body.removeChild(container)
 
     onProgress?.(60)
 

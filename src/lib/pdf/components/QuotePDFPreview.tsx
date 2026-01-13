@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Download, Printer } from 'lucide-react'
 import { QuotePDFTemplate } from './QuotePDFTemplate'
 import type { UnifiedPDFData } from '../types'
+import { unifiedPDFDataToMultiEquipmentPDF } from '../types'
 import { generatePDFFromElement } from '../unified-pdf-generator'
+import { downloadMultiEquipmentQuotePDFAsync } from '../quote-generator'
 import { cn } from '@/lib/utils'
 
 interface QuotePDFPreviewProps {
@@ -56,13 +58,18 @@ export function QuotePDFPreview({
       pdf.save(`quote-${data.quoteNumber}.pdf`)
       onDownload?.()
     } catch (err) {
-      console.error('PDF generation error:', err)
-      // Fallback to print dialog which preserves styling
-      setError('PDF generation failed. Using print dialog instead...')
-      setTimeout(() => {
-        window.print()
+      console.error('PDF generation error (html2canvas):', err)
+      // Fallback to jsPDF generator which creates a clean PDF
+      setError('Using alternative PDF generator...')
+      try {
+        const pdfData = unifiedPDFDataToMultiEquipmentPDF(data)
+        await downloadMultiEquipmentQuotePDFAsync(pdfData, `quote-${data.quoteNumber}.pdf`)
         setError(null)
-      }, 1000)
+        onDownload?.()
+      } catch (fallbackErr) {
+        console.error('Fallback PDF generation also failed:', fallbackErr)
+        setError('PDF generation failed. Please try again.')
+      }
     } finally {
       setIsGenerating(false)
       setProgress(0)
