@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download, Printer, ExternalLink } from 'lucide-react'
+import { Loader2, Download, Printer } from 'lucide-react'
 import { QuotePDFTemplate } from './QuotePDFTemplate'
-import { useQuotePDF } from '../hooks/useQuotePDF'
 import type { UnifiedPDFData } from '../types'
+import { unifiedPDFDataToMultiEquipmentPDF } from '../types'
+import { downloadMultiEquipmentQuotePDFAsync } from '../quote-generator'
 import { cn } from '@/lib/utils'
 
 interface QuotePDFPreviewProps {
@@ -21,22 +22,29 @@ export function QuotePDFPreview({
   showControls = true,
   onDownload,
 }: QuotePDFPreviewProps) {
-  const { containerRef, isGenerating, progress, error, downloadPDF, previewPDF, print } =
-    useQuotePDF()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  // Use jsPDF generator for reliable downloads (no html2canvas issues)
   const handleDownload = async () => {
-    await downloadPDF(data, {
-      filename: `quote-${data.quoteNumber}.pdf`,
-    })
-    onDownload?.()
+    setIsGenerating(true)
+    setError(null)
+    try {
+      const pdfData = unifiedPDFDataToMultiEquipmentPDF(data)
+      await downloadMultiEquipmentQuotePDFAsync(pdfData, `quote-${data.quoteNumber}.pdf`)
+      onDownload?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate PDF')
+      console.error('PDF generation error:', err)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
-  const handlePreview = async () => {
-    await previewPDF()
-  }
-
+  // Keep browser print for printing (uses CSS @media print)
   const handlePrint = () => {
-    print()
+    window.print()
   }
 
   return (
@@ -47,9 +55,7 @@ export function QuotePDFPreview({
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-900 dark:text-white">Quote Preview</h3>
             {isGenerating && (
-              <span className="text-sm text-slate-500">
-                Generating... {Math.round(progress)}%
-              </span>
+              <span className="text-sm text-slate-500">Generating PDF...</span>
             )}
             {error && <span className="text-sm text-red-500">{error}</span>}
           </div>
@@ -58,11 +64,6 @@ export function QuotePDFPreview({
             <Button variant="outline" size="sm" onClick={handlePrint} disabled={isGenerating}>
               <Printer className="w-4 h-4 mr-2" />
               Print
-            </Button>
-
-            <Button variant="outline" size="sm" onClick={handlePreview} disabled={isGenerating}>
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Preview
             </Button>
 
             <Button size="sm" onClick={handleDownload} disabled={isGenerating}>
@@ -109,37 +110,10 @@ export function QuotePDFDownloadButton({
 
   const handleDownload = async () => {
     setIsGenerating(true)
-
     try {
-      // Create hidden container
-      const container = document.createElement('div')
-      container.style.position = 'absolute'
-      container.style.left = '-9999px'
-      container.style.top = '0'
-      container.style.width = '210mm'
-      container.style.backgroundColor = '#ffffff'
-      document.body.appendChild(container)
-
-      // Import and render
-      const { createRoot } = await import('react-dom/client')
-      const { createElement } = await import('react')
-      const { downloadUnifiedPDF } = await import('../unified-pdf-generator')
-
-      const root = createRoot(container)
-      root.render(createElement(QuotePDFTemplate, { data }))
-
-      // Wait for render
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      const element = container.querySelector('#quote-pdf-content') as HTMLElement
-      if (element) {
-        await downloadUnifiedPDF(element, data, {
-          filename: `quote-${data.quoteNumber}.pdf`,
-        })
-      }
-
-      root.unmount()
-      document.body.removeChild(container)
+      // Use jsPDF generator for reliable downloads
+      const pdfData = unifiedPDFDataToMultiEquipmentPDF(data)
+      await downloadMultiEquipmentQuotePDFAsync(pdfData, `quote-${data.quoteNumber}.pdf`)
     } catch (err) {
       console.error('PDF generation error:', err)
     } finally {

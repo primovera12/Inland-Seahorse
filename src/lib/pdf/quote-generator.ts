@@ -564,3 +564,449 @@ export async function getQuotePDFDataUrlAsync(data: QuotePDFData): Promise<strin
   const doc = await generateQuotePDFAsync(data)
   return doc.output('dataurlstring')
 }
+
+// ============================================
+// Multi-Equipment PDF Support
+// ============================================
+
+export interface EquipmentBlockPDF {
+  id: string
+  makeName: string
+  modelName: string
+  location: string
+  quantity: number
+  dimensions: {
+    length_inches: number
+    width_inches: number
+    height_inches: number
+    weight_lbs: number
+  }
+  frontImageUrl?: string
+  sideImageUrl?: string
+  costs: Record<CostField, number>
+  enabledCosts: Record<CostField, boolean>
+  costOverrides: Record<CostField, number | null>
+  miscFees?: MiscellaneousFee[]
+  subtotal: number
+  miscFeesTotal?: number
+  totalWithQuantity: number
+}
+
+export interface MultiEquipmentPDFData {
+  quoteNumber: string
+  date: string
+  expiresAt?: string
+  customerName: string
+  customerEmail?: string
+  customerPhone?: string
+  customerCompany?: string
+  customerAddress?: string
+  // Multi-equipment array
+  equipment: EquipmentBlockPDF[]
+  // Inland transportation (optional)
+  inlandTransport?: InlandTransportPDFData
+  inlandTransportCost?: number
+  // Totals (in cents)
+  subtotal: number
+  total: number
+  // Notes & settings
+  notes?: string
+  termsAndConditions?: string
+  companyName?: string
+  companyAddress?: string
+  companyPhone?: string
+  companyEmail?: string
+  companyWebsite?: string
+  primaryColor?: string
+  secondaryColor?: string
+  companyLogoUrl?: string
+  logoSizePercentage?: number
+}
+
+interface MultiEquipmentLoadedImages {
+  logo: string | null
+  equipmentImages: Array<{ front: string | null; side: string | null }>
+}
+
+// Helper to check if we need a new page
+function addPageIfNeeded(doc: jsPDF, y: number, neededHeight: number, margin: number): number {
+  const pageHeight = doc.internal.pageSize.getHeight()
+  if (y + neededHeight > pageHeight - margin) {
+    doc.addPage()
+    return margin
+  }
+  return y
+}
+
+export async function generateMultiEquipmentQuotePDFAsync(data: MultiEquipmentPDFData): Promise<jsPDF> {
+  // Load logo image
+  const logoBase64 = data.companyLogoUrl
+    ? await loadImageAsBase64(data.companyLogoUrl)
+    : null
+
+  // Load all equipment images in parallel
+  const equipmentImages = await Promise.all(
+    data.equipment.map(async (eq) => ({
+      front: eq.frontImageUrl ? await loadImageAsBase64(eq.frontImageUrl) : null,
+      side: eq.sideImageUrl ? await loadImageAsBase64(eq.sideImageUrl) : null,
+    }))
+  )
+
+  return generateMultiEquipmentQuotePDFWithImages(data, {
+    logo: logoBase64,
+    equipmentImages,
+  })
+}
+
+function generateMultiEquipmentQuotePDFWithImages(
+  data: MultiEquipmentPDFData,
+  images: MultiEquipmentLoadedImages
+): jsPDF {
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 20
+  let y = 20
+
+  const primaryColor = hexToRgb(data.primaryColor || '#6366F1')
+  const secondaryColor = data.secondaryColor ? hexToRgb(data.secondaryColor) : primaryColor
+
+  // ============ HEADER ============
+  doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
+  doc.rect(0, 0, pageWidth, 40, 'F')
+
+  // Logo or Company name
+  if (images.logo) {
+    const logoSize = ((data.logoSizePercentage || 100) / 100) * 30
+    try {
+      doc.addImage(images.logo, 'PNG', margin, 5, logoSize, logoSize)
+    } catch {
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.text(data.companyName || 'Seahorse Express', margin, 25)
+    }
+  } else {
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text(data.companyName || 'Seahorse Express', margin, 25)
+  }
+
+  // Quote number and date
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Quote #${data.quoteNumber}`, pageWidth - margin, 15, { align: 'right' })
+  doc.text(data.date, pageWidth - margin, 23, { align: 'right' })
+
+  if (data.expiresAt) {
+    doc.setFontSize(10)
+    doc.text(`Valid until: ${data.expiresAt}`, pageWidth - margin, 31, { align: 'right' })
+  }
+
+  y = 55
+
+  // ============ CUSTOMER INFO ============
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Customer Information', margin, y)
+  y += 8
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+
+  const customerInfo = [
+    ['Name:', data.customerName],
+    ['Company:', data.customerCompany || '-'],
+    ['Email:', data.customerEmail || '-'],
+    ['Phone:', data.customerPhone || '-'],
+  ]
+  if (data.customerAddress) {
+    customerInfo.push(['Address:', data.customerAddress])
+  }
+
+  for (const [label, value] of customerInfo) {
+    doc.setTextColor(100, 100, 100)
+    doc.text(label, margin, y)
+    doc.setTextColor(0, 0, 0)
+    doc.text(value, margin + 30, y)
+    y += 6
+  }
+
+  y += 10
+
+  // ============ EQUIPMENT BLOCKS ============
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Equipment Details', margin, y)
+  y += 8
+
+  // Build combined cost table data with equipment grouping
+  const tableData: (string | { content: string; styles?: object })[][] = []
+
+  data.equipment.forEach((eq, eqIndex) => {
+    const eqImages = images.equipmentImages[eqIndex]
+    const hasImages = eqImages?.front || eqImages?.side
+    const quantityLabel = eq.quantity > 1 ? ` (Qty: ${eq.quantity})` : ''
+
+    // Equipment header row
+    tableData.push([
+      {
+        content: `${eq.makeName} ${eq.modelName}${quantityLabel}`,
+        styles: {
+          fontStyle: 'bold',
+          fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b],
+          textColor: [255, 255, 255],
+        },
+      },
+      {
+        content: eq.location,
+        styles: {
+          fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b],
+          textColor: [255, 255, 255],
+          halign: 'right',
+        },
+      },
+    ])
+
+    // Dimensions row
+    const dims = `L: ${formatDimension(eq.dimensions.length_inches)} | W: ${formatDimension(eq.dimensions.width_inches)} | H: ${formatDimension(eq.dimensions.height_inches)} | ${formatWeight(eq.dimensions.weight_lbs)}`
+    tableData.push([
+      { content: dims, styles: { fontStyle: 'italic', textColor: [100, 100, 100], fontSize: 9 } },
+      { content: '', styles: { fontSize: 9 } },
+    ])
+
+    // Cost items for this equipment
+    Object.entries(COST_LABELS).forEach(([field, label]) => {
+      const costField = field as CostField
+      if (eq.enabledCosts[costField]) {
+        const cost = eq.costOverrides[costField] ?? eq.costs[costField]
+        if (cost > 0) {
+          const lineTotal = cost * eq.quantity
+          tableData.push([
+            `  ${label}`,
+            eq.quantity > 1 ? `${formatCurrency(cost)} × ${eq.quantity} = ${formatCurrency(lineTotal)}` : formatCurrency(cost),
+          ])
+        }
+      }
+    })
+
+    // Misc fees for this equipment
+    if (eq.miscFees && eq.miscFees.length > 0) {
+      eq.miscFees.forEach((fee) => {
+        const feeAmount = fee.is_percentage
+          ? Math.round(eq.subtotal * (fee.amount / 10000))
+          : fee.amount
+        if (feeAmount > 0) {
+          const feeLabel = fee.description ? `${fee.title} - ${fee.description}` : fee.title
+          tableData.push([
+            `  ${feeLabel || 'Fee'}`,
+            fee.is_percentage
+              ? `${formatCurrency(feeAmount)} (${(fee.amount / 100).toFixed(1)}%)`
+              : formatCurrency(feeAmount),
+          ])
+        }
+      })
+    }
+
+    // Equipment subtotal
+    tableData.push([
+      { content: `Equipment ${eqIndex + 1} Total`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: formatCurrency(eq.totalWithQuantity), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
+    ])
+
+    // Add spacing between equipment blocks
+    if (eqIndex < data.equipment.length - 1) {
+      tableData.push(['', ''])
+    }
+  })
+
+  // Add inland transport if enabled
+  if (data.inlandTransport && data.inlandTransportCost && data.inlandTransportCost > 0) {
+    const inland = data.inlandTransport
+    tableData.push([
+      {
+        content: 'Inland Transportation',
+        styles: {
+          fontStyle: 'bold',
+          fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b],
+          textColor: [255, 255, 255],
+        },
+      },
+      {
+        content: '',
+        styles: { fillColor: [secondaryColor.r, secondaryColor.g, secondaryColor.b] },
+      },
+    ])
+
+    const pickupParts = [inland.pickup_address, inland.pickup_city, inland.pickup_state, inland.pickup_zip].filter(Boolean)
+    if (pickupParts.length > 0) {
+      tableData.push([`  Pickup: ${pickupParts.join(', ')}`, ''])
+    }
+
+    const dropoffParts = [inland.dropoff_address, inland.dropoff_city, inland.dropoff_state, inland.dropoff_zip].filter(Boolean)
+    if (dropoffParts.length > 0) {
+      tableData.push([`  Dropoff: ${dropoffParts.join(', ')}`, ''])
+    }
+
+    tableData.push([
+      { content: '  Transport Cost', styles: { fontStyle: 'bold' } },
+      { content: formatCurrency(data.inlandTransportCost), styles: { fontStyle: 'bold', halign: 'right' } },
+    ])
+  }
+
+  // Render the table
+  autoTable(doc, {
+    startY: y,
+    head: [['Description', 'Amount']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: {
+      fillColor: [primaryColor.r, primaryColor.g, primaryColor.b],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+    },
+    columnStyles: {
+      0: { cellWidth: 'auto' },
+      1: { cellWidth: 70, halign: 'right' },
+    },
+    margin: { left: margin, right: margin },
+    styles: {
+      fontSize: 10,
+      cellPadding: 4,
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
+    },
+    didDrawPage: () => {
+      // Add footer to each page
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      doc.text(`Quote #${data.quoteNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
+    },
+  })
+
+  // Get final Y position after table
+  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+
+  // ============ TOTALS SECTION ============
+  y = addPageIfNeeded(doc, y, 40, margin)
+
+  const totalsX = pageWidth - margin - 80
+
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Subtotal:', totalsX, y)
+  doc.text(formatCurrency(data.subtotal), pageWidth - margin, y, { align: 'right' })
+  y += 8
+
+  // Total with background
+  doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
+  doc.roundedRect(totalsX - 5, y - 5, pageWidth - margin - totalsX + 10, 12, 2, 2, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Total:', totalsX, y + 3)
+  doc.text(formatCurrency(data.total), pageWidth - margin, y + 3, { align: 'right' })
+
+  y += 20
+
+  // ============ NOTES SECTION ============
+  if (data.notes) {
+    y = addPageIfNeeded(doc, y, 40, margin)
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Notes', margin, y)
+    y += 8
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+
+    const splitNotes = doc.splitTextToSize(data.notes, pageWidth - margin * 2)
+    doc.text(splitNotes, margin, y)
+    y += splitNotes.length * 5 + 10
+  }
+
+  // ============ TERMS & CONDITIONS ============
+  if (data.termsAndConditions) {
+    y = addPageIfNeeded(doc, y, 60, margin)
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Terms & Conditions', margin, y)
+    y += 6
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+
+    const splitTerms = doc.splitTextToSize(data.termsAndConditions, pageWidth - margin * 2)
+    const maxTermsLines = Math.min(splitTerms.length, 20)
+    doc.text(splitTerms.slice(0, maxTermsLines), margin, y)
+    if (splitTerms.length > maxTermsLines) {
+      y += maxTermsLines * 3.5 + 3
+      doc.text('... (see full terms in attached document)', margin, y)
+    }
+  }
+
+  // ============ FOOTER ============
+  const footerY = pageHeight - 20
+  doc.setFontSize(8)
+  doc.setTextColor(150, 150, 150)
+
+  const footerLines: string[] = []
+  if (data.companyName) footerLines.push(data.companyName)
+
+  const contactParts: string[] = []
+  if (data.companyPhone) contactParts.push(data.companyPhone)
+  if (data.companyEmail) contactParts.push(data.companyEmail)
+  if (data.companyWebsite) contactParts.push(data.companyWebsite)
+  if (contactParts.length > 0) footerLines.push(contactParts.join(' | '))
+
+  if (data.companyAddress) footerLines.push(data.companyAddress)
+
+  footerLines.forEach((line, index) => {
+    doc.text(line, pageWidth / 2, footerY + index * 4, { align: 'center' })
+  })
+
+  return doc
+}
+
+// Multi-equipment synchronous version
+export function generateMultiEquipmentQuotePDF(data: MultiEquipmentPDFData): jsPDF {
+  return generateMultiEquipmentQuotePDFWithImages(data, {
+    logo: null,
+    equipmentImages: data.equipment.map(() => ({ front: null, side: null })),
+  })
+}
+
+export async function downloadMultiEquipmentQuotePDFAsync(
+  data: MultiEquipmentPDFData,
+  filename?: string
+): Promise<void> {
+  const doc = await generateMultiEquipmentQuotePDFAsync(data)
+  doc.save(filename || `quote-${data.quoteNumber}.pdf`)
+}
+
+export function downloadMultiEquipmentQuotePDF(data: MultiEquipmentPDFData, filename?: string): void {
+  const doc = generateMultiEquipmentQuotePDF(data)
+  doc.save(filename || `quote-${data.quoteNumber}.pdf`)
+}
+
+export async function getMultiEquipmentQuotePDFBlobAsync(data: MultiEquipmentPDFData): Promise<Blob> {
+  const doc = await generateMultiEquipmentQuotePDFAsync(data)
+  return doc.output('blob')
+}
+
+export async function getMultiEquipmentQuotePDFDataUrlAsync(data: MultiEquipmentPDFData): Promise<string> {
+  const doc = await generateMultiEquipmentQuotePDFAsync(data)
+  return doc.output('dataurlstring')
+}

@@ -597,3 +597,83 @@ export function generateServiceLineItems(
 
   return items
 }
+
+// ============================================
+// Converter: UnifiedPDFData -> MultiEquipmentPDFData
+// ============================================
+
+import type { MultiEquipmentPDFData, EquipmentBlockPDF } from './quote-generator'
+
+export function unifiedPDFDataToMultiEquipmentPDF(data: UnifiedPDFData): MultiEquipmentPDFData {
+  // Build customer address string
+  const customerAddressParts = [
+    data.customer.address,
+    data.customer.city,
+    data.customer.state,
+    data.customer.zip,
+  ].filter(Boolean)
+  const customerAddress = customerAddressParts.length > 0 ? customerAddressParts.join(', ') : undefined
+
+  // Convert equipment to EquipmentBlockPDF format
+  const equipment: EquipmentBlockPDF[] = data.equipment.map((eq) => ({
+    id: eq.id,
+    makeName: eq.makeName,
+    modelName: eq.modelName,
+    location: eq.location,
+    quantity: eq.quantity,
+    dimensions: eq.dimensions,
+    frontImageUrl: eq.frontImageUrl,
+    sideImageUrl: eq.sideImageUrl,
+    costs: eq.costs,
+    enabledCosts: eq.enabledCosts,
+    costOverrides: eq.costOverrides,
+    miscFees: eq.miscFees,
+    subtotal: eq.subtotal,
+    miscFeesTotal: eq.miscFeesTotal,
+    totalWithQuantity: eq.totalWithQuantity,
+  }))
+
+  // Build inland transport data if enabled
+  const inlandTransport = data.inlandTransport?.enabled
+    ? {
+        enabled: true,
+        pickup_address: data.inlandTransport.pickup.address,
+        pickup_city: data.inlandTransport.pickup.city || '',
+        pickup_state: data.inlandTransport.pickup.state || '',
+        pickup_zip: data.inlandTransport.pickup.zip || '',
+        dropoff_address: data.inlandTransport.dropoff.address,
+        dropoff_city: data.inlandTransport.dropoff.city || '',
+        dropoff_state: data.inlandTransport.dropoff.state || '',
+        dropoff_zip: data.inlandTransport.dropoff.zip || '',
+        transport_cost: data.inlandTransport.total,
+        notes: '',
+      }
+    : undefined
+
+  return {
+    quoteNumber: data.quoteNumber,
+    date: data.issueDate,
+    expiresAt: data.validUntil,
+    customerName: data.customer.name,
+    customerEmail: data.customer.email,
+    customerPhone: data.customer.phone,
+    customerCompany: data.customer.company,
+    customerAddress,
+    equipment,
+    inlandTransport,
+    inlandTransportCost: data.inlandTotal,
+    subtotal: data.equipmentSubtotal + data.miscFeesTotal,
+    total: data.grandTotal,
+    notes: data.customerNotes,
+    termsAndConditions: data.termsAndConditions,
+    companyName: data.company.name,
+    companyAddress: data.company.address,
+    companyPhone: data.company.phone,
+    companyEmail: data.company.email,
+    companyWebsite: data.company.website,
+    primaryColor: data.company.primaryColor,
+    secondaryColor: data.company.secondaryColor,
+    companyLogoUrl: data.company.logoUrl,
+    logoSizePercentage: data.company.logoSizePercentage,
+  }
+}

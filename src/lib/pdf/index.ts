@@ -22,6 +22,7 @@ export {
   settingsToCompanyInfo,
   buildUnifiedPDFData,
   generateServiceLineItems,
+  unifiedPDFDataToMultiEquipmentPDF,
 } from './types'
 
 // Utilities
@@ -74,6 +75,15 @@ export {
   getQuotePDFDataUrlAsync,
   type QuotePDFData,
   type InlandTransportPDFData,
+  // Multi-equipment support
+  generateMultiEquipmentQuotePDFAsync,
+  generateMultiEquipmentQuotePDF,
+  downloadMultiEquipmentQuotePDFAsync,
+  downloadMultiEquipmentQuotePDF,
+  getMultiEquipmentQuotePDFBlobAsync,
+  getMultiEquipmentQuotePDFDataUrlAsync,
+  type MultiEquipmentPDFData,
+  type EquipmentBlockPDF,
 } from './quote-generator'
 
 export {

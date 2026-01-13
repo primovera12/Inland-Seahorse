@@ -45,6 +45,7 @@ import {
   type InlandQuotePDFData,
 } from '@/lib/pdf/inland-quote-generator'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
+import { QuotePDFPreview, buildUnifiedPDFData, type UnifiedPDFData } from '@/lib/pdf'
 
 const DESTINATION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -120,6 +121,7 @@ export default function NewInlandQuotePage() {
   // Fetch data
   const { data: truckTypes } = trpc.inland.getEquipmentTypes.useQuery()
   const { data: accessorialTypes } = trpc.inland.getAccessorialTypes.useQuery()
+  const { data: settings } = trpc.settings.get.useQuery()
 
   // Draft queries and mutations
   const { data: existingDraft, isLoading: isDraftLoading } = trpc.inland.getDraft.useQuery(
@@ -138,6 +140,64 @@ export default function NewInlandQuotePage() {
   // Calculate totals
   const subtotal = destinationBlocks.reduce((sum, block) => sum + block.subtotal, 0)
   const total = subtotal
+
+  // Build preview PDF data for the Preview tab
+  const previewPdfData: UnifiedPDFData | null = useMemo(() => {
+    if (!settings) return null
+
+    return {
+      quoteType: 'inland' as const,
+      quoteNumber,
+      issueDate: formatDate(new Date()),
+      validUntil: (() => {
+        const date = new Date()
+        date.setDate(date.getDate() + (settings.quote_validity_days || 30))
+        return formatDate(date)
+      })(),
+      company: {
+        name: settings.company_name,
+        address: [settings.company_address, settings.company_city, settings.company_state, settings.company_zip].filter(Boolean).join(', ') || undefined,
+        phone: settings.company_phone,
+        email: settings.company_email,
+        website: settings.company_website,
+        logoUrl: settings.company_logo_url,
+        logoSizePercentage: settings.logo_size_percentage || 100,
+        primaryColor: settings.primary_color || '#1e3a8a',
+        secondaryColor: settings.secondary_color,
+      },
+      customer: {
+        name: customerName || 'N/A',
+        company: customerCompany || undefined,
+        email: customerEmail || undefined,
+        phone: customerPhone || undefined,
+      },
+      equipment: [], // Inland quotes don't have equipment in the same sense
+      isMultiEquipment: false,
+      inlandTransport: {
+        enabled: true,
+        pickup: {
+          address: destinationBlocks[0]?.pickup_address || '',
+          city: destinationBlocks[0]?.pickup_city,
+          state: destinationBlocks[0]?.pickup_state,
+          zip: destinationBlocks[0]?.pickup_zip,
+        },
+        dropoff: {
+          address: destinationBlocks[destinationBlocks.length - 1]?.dropoff_address || '',
+          city: destinationBlocks[destinationBlocks.length - 1]?.dropoff_city,
+          state: destinationBlocks[destinationBlocks.length - 1]?.dropoff_state,
+          zip: destinationBlocks[destinationBlocks.length - 1]?.dropoff_zip,
+        },
+        destinationBlocks,
+        total: subtotal,
+      },
+      equipmentSubtotal: 0,
+      miscFeesTotal: 0,
+      inlandTotal: subtotal,
+      grandTotal: total,
+      customerNotes: quoteNotes || undefined,
+      termsAndConditions: settings.terms_inland || undefined,
+    }
+  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, destinationBlocks, subtotal, total, quoteNotes])
 
   // Draft data for auto-save
   const draftData = useMemo(
@@ -638,7 +698,7 @@ export default function NewInlandQuotePage() {
         {/* Main Content with Tabs */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="customer" className="flex items-center gap-2">
                 Customer
                 {customerName && (
@@ -654,6 +714,10 @@ export default function NewInlandQuotePage() {
                     ({destinationBlocks.length} dest.)
                   </span>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="preview" className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Preview
               </TabsTrigger>
             </TabsList>
 
@@ -756,6 +820,24 @@ export default function NewInlandQuotePage() {
                       onChange={(e) => setInternalNotes(e.target.value)}
                     />
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Preview Tab */}
+            <TabsContent value="preview" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quote Preview</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {settings && previewPdfData ? (
+                    <QuotePDFPreview data={previewPdfData} showControls />
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground">
+                      Loading preview...
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
