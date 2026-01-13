@@ -42,17 +42,54 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     : { r: 99, g: 102, b: 241 } // Default indigo
 }
 
-// Helper to load image as base64
+// Convert SVG to PNG using canvas (for PDF compatibility)
+async function convertSvgToPng(svgData: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const scale = 2 // Higher quality
+        canvas.width = img.width * scale || 400
+        canvas.height = img.height * scale || 300
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.fillStyle = 'white'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          resolve(canvas.toDataURL('image/png'))
+        } else {
+          resolve(null)
+        }
+      }
+      img.onerror = () => resolve(null)
+      img.src = svgData
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+// Helper to load image as base64 (with SVG conversion support)
 async function loadImageAsBase64(url: string): Promise<string | null> {
   try {
     const response = await fetch(url)
     const blob = await response.blob()
-    return new Promise((resolve) => {
+    const base64 = await new Promise<string | null>((resolve) => {
       const reader = new FileReader()
       reader.onloadend = () => resolve(reader.result as string)
       reader.onerror = () => resolve(null)
       reader.readAsDataURL(blob)
     })
+
+    if (!base64) return null
+
+    // Check if it's an SVG and convert to PNG for PDF compatibility
+    if (base64.includes('data:image/svg+xml') || url.endsWith('.svg')) {
+      return await convertSvgToPng(base64)
+    }
+
+    return base64
   } catch {
     return null
   }

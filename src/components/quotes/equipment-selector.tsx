@@ -19,7 +19,7 @@ import { SelectSeparator, SelectGroup, SelectLabel } from '@/components/ui/selec
 import { formatWeight } from '@/lib/dimensions'
 import { useRecentEquipment } from '@/hooks/use-recent-equipment'
 import { useFavorites } from '@/hooks/use-favorites'
-import { Clock, X, Star, Ruler, DollarSign, Upload } from 'lucide-react'
+import { Clock, X, Star, Ruler, DollarSign, Upload, RefreshCw, Trash2, AlertCircle } from 'lucide-react'
 import { DimensionDisplay } from '@/components/ui/dimension-display'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ImageUpload } from '@/components/ui/image-upload'
@@ -57,6 +57,31 @@ export function EquipmentSelector({
   // Filter state
   const [filterHasDimensions, setFilterHasDimensions] = useState(false)
   const [filterHasRates, setFilterHasRates] = useState(false)
+
+  // Track failed images
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({})
+
+  // Handle image error
+  const handleImageError = (imageType: 'front' | 'side') => {
+    setFailedImages((prev) => ({ ...prev, [imageType]: true }))
+  }
+
+  // Handle image retry
+  const handleImageRetry = (imageType: 'front' | 'side') => {
+    setFailedImages((prev) => ({ ...prev, [imageType]: false }))
+    refetchDimensions()
+  }
+
+  // Handle removing failed image
+  const handleRemoveImage = (imageType: 'front' | 'side') => {
+    if (!selectedModelId) return
+    updateImagesMutation.mutate({
+      modelId: selectedModelId,
+      frontImageUrl: imageType === 'front' ? null : undefined,
+      sideImageUrl: imageType === 'side' ? null : undefined,
+    })
+    setFailedImages((prev) => ({ ...prev, [imageType]: false }))
+  }
 
   // Fetch makes
   const { data: makes, isLoading: makesLoading } = trpc.equipment.getMakes.useQuery()
@@ -361,7 +386,7 @@ export function EquipmentSelector({
             {/* Front Image */}
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Front View</p>
-              {fullDimensions?.front_image_url ? (
+              {fullDimensions?.front_image_url && !failedImages.front ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
                   <Image
                     src={fullDimensions.front_image_url}
@@ -370,7 +395,32 @@ export function EquipmentSelector({
                     className="object-contain"
                     sizes="(max-width: 768px) 100vw, 300px"
                     unoptimized={fullDimensions.front_image_url.endsWith('.svg')}
+                    onError={() => handleImageError('front')}
                   />
+                </div>
+              ) : failedImages.front ? (
+                <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted/50 flex flex-col items-center justify-center gap-3">
+                  <AlertCircle className="h-8 w-8 text-destructive" />
+                  <p className="text-sm text-muted-foreground">Failed to load image</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleImageRetry('front')}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Retry
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveImage('front')}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <ImageUpload
@@ -391,7 +441,7 @@ export function EquipmentSelector({
             {/* Side Image */}
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Side View</p>
-              {fullDimensions?.side_image_url ? (
+              {fullDimensions?.side_image_url && !failedImages.side ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
                   <Image
                     src={fullDimensions.side_image_url}
@@ -400,7 +450,32 @@ export function EquipmentSelector({
                     className="object-contain"
                     sizes="(max-width: 768px) 100vw, 300px"
                     unoptimized={fullDimensions.side_image_url.endsWith('.svg')}
+                    onError={() => handleImageError('side')}
                   />
+                </div>
+              ) : failedImages.side ? (
+                <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted/50 flex flex-col items-center justify-center gap-3">
+                  <AlertCircle className="h-8 w-8 text-destructive" />
+                  <p className="text-sm text-muted-foreground">Failed to load image</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleImageRetry('side')}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Retry
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveImage('side')}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <ImageUpload
