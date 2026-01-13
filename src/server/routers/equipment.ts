@@ -455,12 +455,12 @@ export const equipmentRouter = router({
         }
 
         if (changes.length > 0) {
-          const modelData = dim.models as { name: string; makes: { name: string } }
+          const modelData = dim.models as unknown as { name: string; makes: { name: string } }
           needsConversion.push({
             id: dim.id,
             model_id: dim.model_id,
-            make_name: modelData.makes.name,
-            model_name: modelData.name,
+            make_name: modelData.makes?.name || 'Unknown',
+            model_name: modelData.name || 'Unknown',
             current: {
               length: dim.length_inches,
               width: dim.width_inches,
