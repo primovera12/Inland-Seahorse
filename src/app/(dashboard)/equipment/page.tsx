@@ -90,6 +90,7 @@ export default function EquipmentPage() {
   const [editingMake, setEditingMake] = useState<{ id: string; name: string } | null>(null)
   const [newMakeName, setNewMakeName] = useState('')
   const [newModelName, setNewModelName] = useState('')
+  const [showMigrationTool, setShowMigrationTool] = useState(false)
 
   const utils = trpc.useUtils()
 
@@ -101,6 +102,24 @@ export default function EquipmentPage() {
     { makeId: selectedMakeId! },
     { enabled: !!selectedMakeId }
   )
+
+  // Migration preview query
+  const { data: migrationPreview, isLoading: migrationLoading, refetch: refetchMigration } = trpc.equipment.previewDimensionMigration.useQuery(
+    undefined,
+    { enabled: showMigrationTool }
+  )
+
+  // Migration mutation
+  const applyMigrationMutation = trpc.equipment.applyDimensionMigration.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Migration complete! Updated ${data.updatedCount} records.`)
+      refetchMigration()
+      utils.equipment.getDimensions.invalidate()
+    },
+    onError: (error) => {
+      toast.error('Migration failed: ' + error.message)
+    },
+  })
 
   // Mutations
   const createMakeMutation = trpc.equipment.createMake.useMutation({
@@ -465,6 +484,80 @@ export default function EquipmentPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dimension Migration Tool */}
+      <Card>
+        <CardHeader className="cursor-pointer" onClick={() => setShowMigrationTool(!showMigrationTool)}>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Ruler className="h-5 w-5" />
+                Dimension Migration Tool
+              </CardTitle>
+              <CardDescription>Convert dimensions that may have been entered in ft-in format</CardDescription>
+            </div>
+            {showMigrationTool ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </div>
+        </CardHeader>
+        {showMigrationTool && (
+          <CardContent className="space-y-4">
+            {migrationLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing dimensions...
+              </div>
+            ) : migrationPreview ? (
+              <>
+                <div className="flex items-center gap-4 text-sm">
+                  <span>Total dimensions: <strong>{migrationPreview.totalDimensions}</strong></span>
+                  <span>Needs conversion: <strong>{migrationPreview.needsConversion}</strong></span>
+                </div>
+                {migrationPreview.needsConversion > 0 ? (
+                  <>
+                    <div className="max-h-64 overflow-y-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Make</TableHead>
+                            <TableHead>Model</TableHead>
+                            <TableHead>Changes</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {migrationPreview.items.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium">{item.make_name}</TableCell>
+                              <TableCell>{item.model_name}</TableCell>
+                              <TableCell className="text-xs font-mono">
+                                {item.changes.map((change, i) => (
+                                  <div key={i}>{change}</div>
+                                ))}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => applyMigrationMutation.mutate()}
+                        disabled={applyMigrationMutation.isPending}
+                      >
+                        {applyMigrationMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Apply Migration ({migrationPreview.needsConversion} records)
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    All dimensions look correct. No conversion needed.
+                  </div>
+                )}
+              </>
+            ) : null}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Add Make Dialog */}
       <Dialog open={showAddMakeDialog} onOpenChange={setShowAddMakeDialog}>

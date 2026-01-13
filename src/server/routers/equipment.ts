@@ -387,4 +387,153 @@ export const equipmentRouter = router({
       checkSupabaseError(error, 'Delete rate')
       return { success: true }
     }),
+
+  // ===== DIMENSION MIGRATION =====
+  // Preview dimensions that look like they were entered in ft.in format
+  previewDimensionMigration: protectedProcedure
+    .query(async ({ ctx }) => {
+      // Thresholds - values at or below these are likely ft.in format
+      const THRESHOLDS = {
+        length: 70,  // 70 inches = ~5'10" - equipment is usually longer
+        width: 16,   // 16 inches
+        height: 18,  // 18 inches
+      }
+
+      // Helper to convert ft.in to inches (e.g., 10.6 -> 126 inches)
+      const convertFtInToInches = (value: number): number => {
+        const feet = Math.floor(value)
+        const decimalPart = value - feet
+        const inches = Math.round(decimalPart * 10)
+        return feet * 12 + inches
+      }
+
+      // Fetch all dimensions with model names
+      const { data: dimensions, error } = await ctx.supabase
+        .from('equipment_dimensions')
+        .select(`
+          id,
+          model_id,
+          length_inches,
+          width_inches,
+          height_inches,
+          weight_lbs,
+          models!inner(name, makes!inner(name))
+        `)
+
+      checkSupabaseError(error, 'Fetch dimensions for migration')
+
+      const needsConversion: Array<{
+        id: string
+        model_id: string
+        make_name: string
+        model_name: string
+        current: { length: number; width: number; height: number }
+        converted: { length: number; width: number; height: number }
+        changes: string[]
+      }> = []
+
+      for (const dim of dimensions || []) {
+        const changes: string[] = []
+        const converted = {
+          length: dim.length_inches,
+          width: dim.width_inches,
+          height: dim.height_inches,
+        }
+
+        // Check each dimension
+        if (dim.length_inches > 0 && dim.length_inches <= THRESHOLDS.length) {
+          converted.length = convertFtInToInches(dim.length_inches)
+          changes.push(`length: ${dim.length_inches} -> ${converted.length} (${Math.floor(converted.length/12)}'${converted.length%12}")`)
+        }
+        if (dim.width_inches > 0 && dim.width_inches <= THRESHOLDS.width) {
+          converted.width = convertFtInToInches(dim.width_inches)
+          changes.push(`width: ${dim.width_inches} -> ${converted.width} (${Math.floor(converted.width/12)}'${converted.width%12}")`)
+        }
+        if (dim.height_inches > 0 && dim.height_inches <= THRESHOLDS.height) {
+          converted.height = convertFtInToInches(dim.height_inches)
+          changes.push(`height: ${dim.height_inches} -> ${converted.height} (${Math.floor(converted.height/12)}'${converted.height%12}")`)
+        }
+
+        if (changes.length > 0) {
+          const modelData = dim.models as { name: string; makes: { name: string } }
+          needsConversion.push({
+            id: dim.id,
+            model_id: dim.model_id,
+            make_name: modelData.makes.name,
+            model_name: modelData.name,
+            current: {
+              length: dim.length_inches,
+              width: dim.width_inches,
+              height: dim.height_inches,
+            },
+            converted,
+            changes,
+          })
+        }
+      }
+
+      return {
+        totalDimensions: dimensions?.length || 0,
+        needsConversion: needsConversion.length,
+        items: needsConversion,
+      }
+    }),
+
+  // Apply dimension migration
+  applyDimensionMigration: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const THRESHOLDS = {
+        length: 70,
+        width: 16,
+        height: 18,
+      }
+
+      const convertFtInToInches = (value: number): number => {
+        const feet = Math.floor(value)
+        const decimalPart = value - feet
+        const inches = Math.round(decimalPart * 10)
+        return feet * 12 + inches
+      }
+
+      const { data: dimensions, error: fetchError } = await ctx.supabase
+        .from('equipment_dimensions')
+        .select('id, model_id, length_inches, width_inches, height_inches')
+
+      checkSupabaseError(fetchError, 'Fetch dimensions for migration')
+
+      let updatedCount = 0
+
+      for (const dim of dimensions || []) {
+        let needsUpdate = false
+        const updates: { length_inches?: number; width_inches?: number; height_inches?: number } = {}
+
+        if (dim.length_inches > 0 && dim.length_inches <= THRESHOLDS.length) {
+          updates.length_inches = convertFtInToInches(dim.length_inches)
+          needsUpdate = true
+        }
+        if (dim.width_inches > 0 && dim.width_inches <= THRESHOLDS.width) {
+          updates.width_inches = convertFtInToInches(dim.width_inches)
+          needsUpdate = true
+        }
+        if (dim.height_inches > 0 && dim.height_inches <= THRESHOLDS.height) {
+          updates.height_inches = convertFtInToInches(dim.height_inches)
+          needsUpdate = true
+        }
+
+        if (needsUpdate) {
+          const { error: updateError } = await ctx.supabase
+            .from('equipment_dimensions')
+            .update(updates)
+            .eq('id', dim.id)
+
+          checkSupabaseError(updateError, `Update dimensions for ${dim.model_id}`)
+          updatedCount++
+        }
+      }
+
+      return {
+        success: true,
+        updatedCount,
+      }
+    }),
 })
