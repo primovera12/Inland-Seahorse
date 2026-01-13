@@ -137,6 +137,19 @@ export const companiesRouter = router({
       return data
     }),
 
+  // Delete company (cascades to contacts)
+  delete: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('companies')
+        .delete()
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Company')
+      return { success: true }
+    }),
+
   // Search companies (for autocomplete)
   search: protectedProcedure
     .input(z.object({ query: z.string().min(1) }))

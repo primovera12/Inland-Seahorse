@@ -114,6 +114,22 @@ export default function CompaniesPage() {
     },
   })
 
+  const deleteCompany = trpc.companies.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Company deleted successfully')
+      utils.companies.getAll.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete company: ${error.message}`)
+    },
+  })
+
+  const handleDeleteCompany = (companyId: string, companyName: string) => {
+    if (confirm(`Delete "${companyName}" and all its contacts? This cannot be undone.`)) {
+      deleteCompany.mutate({ id: companyId })
+    }
+  }
+
   const handleCreateCompany = () => {
     if (!newCompany.name) {
       toast.error('Company name is required')
@@ -412,6 +428,15 @@ export default function CompaniesPage() {
                               onClick={() => openEditDialog(company)}
                             >
                               <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Delete company"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteCompany(company.id, company.name)}
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
