@@ -389,22 +389,44 @@ export const equipmentRouter = router({
     }),
 
   // ===== DIMENSION MIGRATION =====
-  // Preview dimensions that look like they were entered in ft.in format
+  // Preview dimensions that look like they were entered as concatenated ft-in (e.g., 364 = 36'4")
   previewDimensionMigration: protectedProcedure
     .query(async ({ ctx }) => {
-      // Thresholds - values at or below these are likely ft.in format
-      const THRESHOLDS = {
-        length: 70,  // 70 inches = ~5'10" - equipment is usually longer
-        width: 16,   // 16 inches
-        height: 18,  // 18 inches
+      // Convert concatenated ft-in to inches (e.g., 364 -> 36'4" -> 436 inches)
+      // The value is interpreted as: all digits except last = feet, last digit = inches
+      const convertConcatenatedFtIn = (value: number): number => {
+        const lastDigit = value % 10  // inches part (0-9)
+        const feet = Math.floor(value / 10)  // feet part
+        return feet * 12 + lastDigit
       }
 
-      // Helper to convert ft.in to inches (e.g., 10.6 -> 126 inches)
-      const convertFtInToInches = (value: number): number => {
-        const feet = Math.floor(value)
-        const decimalPart = value - feet
-        const inches = Math.round(decimalPart * 10)
-        return feet * 12 + inches
+      // Check if a value looks like concatenated ft-in format
+      // Returns true if the value is in a suspicious range for that dimension type
+      const looksLikeConcatenatedFtIn = (value: number, type: 'length' | 'width' | 'height'): boolean => {
+        if (value <= 0) return false
+
+        const lastDigit = value % 10
+        const feet = Math.floor(value / 10)
+
+        // Last digit must be valid inches (0-9) - always true for integers
+        // But we should also check the feet portion makes sense
+
+        switch (type) {
+          case 'length':
+            // Equipment length: typically 10-60 feet
+            // Values 100-609 would represent 10'0" to 60'9"
+            return value >= 100 && value <= 650 && feet >= 10 && feet <= 65
+          case 'width':
+            // Equipment width: typically 7-15 feet
+            // Values 70-159 would represent 7'0" to 15'9"
+            return value >= 70 && value <= 160 && feet >= 7 && feet <= 16
+          case 'height':
+            // Equipment height: typically 8-16 feet
+            // Values 80-169 would represent 8'0" to 16'9"
+            return value >= 80 && value <= 170 && feet >= 8 && feet <= 17
+          default:
+            return false
+        }
       }
 
       // Fetch all dimensions with model names
@@ -440,18 +462,24 @@ export const equipmentRouter = router({
           height: dim.height_inches,
         }
 
-        // Check each dimension
-        if (dim.length_inches > 0 && dim.length_inches <= THRESHOLDS.length) {
-          converted.length = convertFtInToInches(dim.length_inches)
-          changes.push(`length: ${dim.length_inches} -> ${converted.length} (${Math.floor(converted.length/12)}'${converted.length%12}")`)
+        // Check each dimension for concatenated ft-in pattern
+        if (looksLikeConcatenatedFtIn(dim.length_inches, 'length')) {
+          converted.length = convertConcatenatedFtIn(dim.length_inches)
+          const feet = Math.floor(dim.length_inches / 10)
+          const inches = dim.length_inches % 10
+          changes.push(`length: ${dim.length_inches} (${feet}'${inches}") -> ${converted.length}" (${Math.floor(converted.length/12)}'${converted.length%12}")`)
         }
-        if (dim.width_inches > 0 && dim.width_inches <= THRESHOLDS.width) {
-          converted.width = convertFtInToInches(dim.width_inches)
-          changes.push(`width: ${dim.width_inches} -> ${converted.width} (${Math.floor(converted.width/12)}'${converted.width%12}")`)
+        if (looksLikeConcatenatedFtIn(dim.width_inches, 'width')) {
+          converted.width = convertConcatenatedFtIn(dim.width_inches)
+          const feet = Math.floor(dim.width_inches / 10)
+          const inches = dim.width_inches % 10
+          changes.push(`width: ${dim.width_inches} (${feet}'${inches}") -> ${converted.width}" (${Math.floor(converted.width/12)}'${converted.width%12}")`)
         }
-        if (dim.height_inches > 0 && dim.height_inches <= THRESHOLDS.height) {
-          converted.height = convertFtInToInches(dim.height_inches)
-          changes.push(`height: ${dim.height_inches} -> ${converted.height} (${Math.floor(converted.height/12)}'${converted.height%12}")`)
+        if (looksLikeConcatenatedFtIn(dim.height_inches, 'height')) {
+          converted.height = convertConcatenatedFtIn(dim.height_inches)
+          const feet = Math.floor(dim.height_inches / 10)
+          const inches = dim.height_inches % 10
+          changes.push(`height: ${dim.height_inches} (${feet}'${inches}") -> ${converted.height}" (${Math.floor(converted.height/12)}'${converted.height%12}")`)
         }
 
         if (changes.length > 0) {
@@ -482,17 +510,28 @@ export const equipmentRouter = router({
   // Apply dimension migration
   applyDimensionMigration: protectedProcedure
     .mutation(async ({ ctx }) => {
-      const THRESHOLDS = {
-        length: 70,
-        width: 16,
-        height: 18,
+      // Convert concatenated ft-in to inches (e.g., 364 -> 36'4" -> 436 inches)
+      const convertConcatenatedFtIn = (value: number): number => {
+        const lastDigit = value % 10
+        const feet = Math.floor(value / 10)
+        return feet * 12 + lastDigit
       }
 
-      const convertFtInToInches = (value: number): number => {
-        const feet = Math.floor(value)
-        const decimalPart = value - feet
-        const inches = Math.round(decimalPart * 10)
-        return feet * 12 + inches
+      // Check if a value looks like concatenated ft-in format
+      const looksLikeConcatenatedFtIn = (value: number, type: 'length' | 'width' | 'height'): boolean => {
+        if (value <= 0) return false
+        const feet = Math.floor(value / 10)
+
+        switch (type) {
+          case 'length':
+            return value >= 100 && value <= 650 && feet >= 10 && feet <= 65
+          case 'width':
+            return value >= 70 && value <= 160 && feet >= 7 && feet <= 16
+          case 'height':
+            return value >= 80 && value <= 170 && feet >= 8 && feet <= 17
+          default:
+            return false
+        }
       }
 
       const { data: dimensions, error: fetchError } = await ctx.supabase
@@ -507,16 +546,16 @@ export const equipmentRouter = router({
         let needsUpdate = false
         const updates: { length_inches?: number; width_inches?: number; height_inches?: number } = {}
 
-        if (dim.length_inches > 0 && dim.length_inches <= THRESHOLDS.length) {
-          updates.length_inches = convertFtInToInches(dim.length_inches)
+        if (looksLikeConcatenatedFtIn(dim.length_inches, 'length')) {
+          updates.length_inches = convertConcatenatedFtIn(dim.length_inches)
           needsUpdate = true
         }
-        if (dim.width_inches > 0 && dim.width_inches <= THRESHOLDS.width) {
-          updates.width_inches = convertFtInToInches(dim.width_inches)
+        if (looksLikeConcatenatedFtIn(dim.width_inches, 'width')) {
+          updates.width_inches = convertConcatenatedFtIn(dim.width_inches)
           needsUpdate = true
         }
-        if (dim.height_inches > 0 && dim.height_inches <= THRESHOLDS.height) {
-          updates.height_inches = convertFtInToInches(dim.height_inches)
+        if (looksLikeConcatenatedFtIn(dim.height_inches, 'height')) {
+          updates.height_inches = convertConcatenatedFtIn(dim.height_inches)
           needsUpdate = true
         }
 

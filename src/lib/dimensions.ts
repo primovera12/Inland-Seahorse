@@ -1,6 +1,59 @@
 import { DEFAULT_DIMENSION_THRESHOLDS, type DimensionThresholds } from '@/types/settings'
 
 /**
+ * Convert inches to ft-in input format for display
+ * Example: 364 → "30-4" (30 feet 4 inches)
+ * Example: 130 → "10-10" (10 feet 10 inches)
+ */
+export function inchesToFtInInput(inches: number): string {
+  if (!inches || inches <= 0) return ''
+
+  const feet = Math.floor(inches / 12)
+  const remainingInches = Math.round(inches % 12)
+
+  return `${feet}-${remainingInches}`
+}
+
+/**
+ * Parse ft-in input format to inches
+ * Accepts: "30-4", "30.4", "30 4", "30'4", or just "364" (plain inches)
+ * Example: "30-4" → 364 inches
+ */
+export function ftInInputToInches(value: string): number {
+  if (!value || value.trim() === '') return 0
+
+  const trimmed = value.trim()
+
+  // Try to match ft-in patterns: "30-4", "30.4", "30 4", "30'4"
+  const ftInMatch = trimmed.match(/^(\d+)[\-\.\s'"](\d+)$/)
+  if (ftInMatch) {
+    const feet = parseInt(ftInMatch[1]) || 0
+    const inches = parseInt(ftInMatch[2]) || 0
+    return feet * 12 + inches
+  }
+
+  // If just a number, check if it's likely feet or inches
+  const numValue = parseFloat(trimmed)
+  if (isNaN(numValue)) return 0
+
+  // If it has a decimal, treat as feet.inches (e.g., 30.4 = 30'4")
+  if (trimmed.includes('.')) {
+    const feet = Math.floor(numValue)
+    const decimalPart = numValue - feet
+    const inches = Math.round(decimalPart * 10)
+    return feet * 12 + inches
+  }
+
+  // Plain integer - if small enough, treat as feet, otherwise as inches
+  // Equipment typically 8-60 feet, so values under 70 are likely feet
+  if (numValue <= 70) {
+    return Math.round(numValue * 12) // Treat as feet
+  }
+
+  return Math.round(numValue) // Treat as inches
+}
+
+/**
  * Smart dimension parser that handles both feet.inches and plain inches input
  *
  * Examples:

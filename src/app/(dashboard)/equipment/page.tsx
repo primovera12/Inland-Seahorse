@@ -39,7 +39,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { trpc } from '@/lib/trpc/client'
-import { formatDimension, formatWeight } from '@/lib/dimensions'
+import { formatDimension, formatWeight, inchesToFtInInput, ftInInputToInches } from '@/lib/dimensions'
 import { Search, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp, Filter, X, Plus, Pencil, Trash2, DollarSign, Ruler, Save, Loader2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
@@ -984,37 +984,37 @@ function DimensionsEditor({
         <div className="space-y-2">
           <Label>Length (ft-in)</Label>
           <Input
-            type="number"
-            min={0}
-            value={lengthInches}
-            onChange={(e) => updateField('length', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="e.g., 30-4"
+            value={inchesToFtInInput(lengthInches)}
+            onChange={(e) => updateField('length', ftInInputToInches(e.target.value))}
           />
           <p className="text-xs text-muted-foreground">
-            {formatDimension(lengthInches)}
+            {lengthInches > 0 ? `${lengthInches}" total` : ''}
           </p>
         </div>
         <div className="space-y-2">
           <Label>Width (ft-in)</Label>
           <Input
-            type="number"
-            min={0}
-            value={widthInches}
-            onChange={(e) => updateField('width', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="e.g., 10-4"
+            value={inchesToFtInInput(widthInches)}
+            onChange={(e) => updateField('width', ftInInputToInches(e.target.value))}
           />
           <p className="text-xs text-muted-foreground">
-            {formatDimension(widthInches)}
+            {widthInches > 0 ? `${widthInches}" total` : ''}
           </p>
         </div>
         <div className="space-y-2">
           <Label>Height (ft-in)</Label>
           <Input
-            type="number"
-            min={0}
-            value={heightInches}
-            onChange={(e) => updateField('height', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="e.g., 10-10"
+            value={inchesToFtInInput(heightInches)}
+            onChange={(e) => updateField('height', ftInInputToInches(e.target.value))}
           />
           <p className="text-xs text-muted-foreground">
-            {formatDimension(heightInches)}
+            {heightInches > 0 ? `${heightInches}" total` : ''}
           </p>
         </div>
         <div className="space-y-2">

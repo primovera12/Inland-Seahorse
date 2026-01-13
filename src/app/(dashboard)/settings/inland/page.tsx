@@ -23,6 +23,7 @@ import {
   Check,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { inchesToFtInInput, ftInInputToInches, formatDimension } from '@/lib/dimensions'
 
 // Default accessorial types
 const DEFAULT_ACCESSORIALS = [
@@ -298,25 +299,28 @@ export default function InlandSettingsPage() {
                   <div className="space-y-1">
                     <Label className="text-xs">Max Length (ft-in)</Label>
                     <Input
-                      type="number"
-                      value={newEquipment.max_length_inches}
-                      onChange={(e) => setNewEquipment({ ...newEquipment, max_length_inches: Number(e.target.value) })}
+                      type="text"
+                      placeholder="e.g., 53-0"
+                      value={inchesToFtInInput(newEquipment.max_length_inches)}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_length_inches: ftInInputToInches(e.target.value) })}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Max Width (ft-in)</Label>
                     <Input
-                      type="number"
-                      value={newEquipment.max_width_inches}
-                      onChange={(e) => setNewEquipment({ ...newEquipment, max_width_inches: Number(e.target.value) })}
+                      type="text"
+                      placeholder="e.g., 8-6"
+                      value={inchesToFtInInput(newEquipment.max_width_inches)}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_width_inches: ftInInputToInches(e.target.value) })}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Max Height (ft-in)</Label>
                     <Input
-                      type="number"
-                      value={newEquipment.max_height_inches}
-                      onChange={(e) => setNewEquipment({ ...newEquipment, max_height_inches: Number(e.target.value) })}
+                      type="text"
+                      placeholder="e.g., 13-6"
+                      value={inchesToFtInInput(newEquipment.max_height_inches)}
+                      onChange={(e) => setNewEquipment({ ...newEquipment, max_height_inches: ftInInputToInches(e.target.value) })}
                     />
                   </div>
                   <div className="space-y-1">
@@ -363,27 +367,30 @@ export default function InlandSettingsPage() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs">Max Length</Label>
+                            <Label className="text-xs">Max Length (ft-in)</Label>
                             <Input
-                              type="number"
-                              value={editingEquipment.max_length_inches}
-                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_length_inches: Number(e.target.value) })}
+                              type="text"
+                              placeholder="e.g., 53-0"
+                              value={inchesToFtInInput(editingEquipment.max_length_inches)}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_length_inches: ftInInputToInches(e.target.value) })}
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs">Max Width</Label>
+                            <Label className="text-xs">Max Width (ft-in)</Label>
                             <Input
-                              type="number"
-                              value={editingEquipment.max_width_inches}
-                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_width_inches: Number(e.target.value) })}
+                              type="text"
+                              placeholder="e.g., 8-6"
+                              value={inchesToFtInInput(editingEquipment.max_width_inches)}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_width_inches: ftInInputToInches(e.target.value) })}
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs">Max Height</Label>
+                            <Label className="text-xs">Max Height (ft-in)</Label>
                             <Input
-                              type="number"
-                              value={editingEquipment.max_height_inches}
-                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_height_inches: Number(e.target.value) })}
+                              type="text"
+                              placeholder="e.g., 13-6"
+                              value={inchesToFtInInput(editingEquipment.max_height_inches)}
+                              onChange={(e) => setEditingEquipment({ ...editingEquipment, max_height_inches: ftInInputToInches(e.target.value) })}
                             />
                           </div>
                           <div className="space-y-1">
@@ -417,8 +424,8 @@ export default function InlandSettingsPage() {
                         <div>
                           <p className="font-medium">{type.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            Max: {type.max_length_inches}&quot;L x {type.max_width_inches}&quot;W x{' '}
-                            {type.max_height_inches}&quot;H, {type.max_weight_lbs?.toLocaleString()} lbs
+                            Max: {formatDimension(type.max_length_inches)}L x {formatDimension(type.max_width_inches)}W x{' '}
+                            {formatDimension(type.max_height_inches)}H, {type.max_weight_lbs?.toLocaleString()} lbs
                           </p>
                         </div>
                         <div className="flex items-center gap-2">

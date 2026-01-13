@@ -17,6 +17,7 @@ import { Trash2, Package, Ruler, Scale, AlertTriangle, ImageIcon } from 'lucide-
 import Image from 'next/image'
 import type { CargoItem } from '@/types/inland'
 import { trpc } from '@/lib/trpc/client'
+import { inchesToFtInInput, ftInInputToInches } from '@/lib/dimensions'
 
 interface CargoItemCardProps {
   item: CargoItem
@@ -358,10 +359,10 @@ export function CargoItemCard({
             Length (ft-in)
           </Label>
           <Input
-            type="number"
-            min={0}
-            value={item.length_inches || ''}
-            onChange={(e) => updateDimension('length_inches', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="e.g., 30-4"
+            value={inchesToFtInInput(item.length_inches)}
+            onChange={(e) => updateDimension('length_inches', ftInInputToInches(e.target.value))}
             className={item.is_oversize && item.length_inches > LEGAL_LIMITS.length ? 'border-orange-500' : ''}
           />
         </div>
@@ -371,10 +372,10 @@ export function CargoItemCard({
             Width (ft-in)
           </Label>
           <Input
-            type="number"
-            min={0}
-            value={item.width_inches || ''}
-            onChange={(e) => updateDimension('width_inches', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="e.g., 10-4"
+            value={inchesToFtInInput(item.width_inches)}
+            onChange={(e) => updateDimension('width_inches', ftInInputToInches(e.target.value))}
             className={item.is_oversize && item.width_inches > LEGAL_LIMITS.width ? 'border-orange-500' : ''}
           />
         </div>
@@ -384,10 +385,10 @@ export function CargoItemCard({
             Height (ft-in)
           </Label>
           <Input
-            type="number"
-            min={0}
-            value={item.height_inches || ''}
-            onChange={(e) => updateDimension('height_inches', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="e.g., 10-10"
+            value={inchesToFtInInput(item.height_inches)}
+            onChange={(e) => updateDimension('height_inches', ftInInputToInches(e.target.value))}
             className={item.is_oversize && item.height_inches > LEGAL_LIMITS.height ? 'border-orange-500' : ''}
           />
         </div>
