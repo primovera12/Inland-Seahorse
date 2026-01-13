@@ -50,9 +50,9 @@ export function AddressAutocomplete({
 
   // Parse address components from Place result
   const parseAddressComponents = useCallback(
-    (place: google.maps.places.PlaceResult): AddressComponents => {
+    (place: google.maps.places.PlaceResult, currentValue: string): AddressComponents => {
       const result: AddressComponents = {
-        address: place.formatted_address || value,
+        address: place.formatted_address || currentValue,
         placeId: place.place_id,
       }
 
@@ -79,10 +79,21 @@ export function AddressAutocomplete({
 
       return result
     },
-    [value]
+    []
   )
 
-  // Initialize autocomplete
+  // Store callbacks in refs to avoid recreating autocomplete on every render
+  const onChangeRef = useRef(onChange)
+  const onSelectRef = useRef(onSelect)
+  const valueRef = useRef(value)
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+    onSelectRef.current = onSelect
+    valueRef.current = value
+  })
+
+  // Initialize autocomplete - only runs once when API is loaded
   useEffect(() => {
     if (!isLoaded || !inputRef.current || autocompleteRef.current) return
 
@@ -95,10 +106,10 @@ export function AddressAutocomplete({
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace()
       if (place.formatted_address) {
-        onChange(place.formatted_address)
-        if (onSelect) {
-          const components = parseAddressComponents(place)
-          onSelect(components)
+        onChangeRef.current(place.formatted_address)
+        if (onSelectRef.current) {
+          const components = parseAddressComponents(place, valueRef.current)
+          onSelectRef.current(components)
         }
       }
     })
@@ -108,9 +119,10 @@ export function AddressAutocomplete({
     return () => {
       if (autocompleteRef.current) {
         google.maps.event.clearInstanceListeners(autocompleteRef.current)
+        autocompleteRef.current = null
       }
     }
-  }, [isLoaded, onChange, onSelect, parseAddressComponents])
+  }, [isLoaded, parseAddressComponents])
 
   // Handle manual input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
