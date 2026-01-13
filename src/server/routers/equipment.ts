@@ -190,4 +190,201 @@ export const equipmentRouter = router({
       checkSupabaseError(error, 'Equipment images')
       return { success: true }
     }),
+
+  // ===== MAKES CRUD =====
+  createMake: protectedProcedure
+    .input(z.object({ name: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('makes')
+        .insert({ name: input.name })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Create make')
+      return data
+    }),
+
+  updateMake: protectedProcedure
+    .input(z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1),
+      popularity_rank: z.number().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const updates: Record<string, unknown> = { name: input.name }
+      if (input.popularity_rank !== undefined) {
+        updates.popularity_rank = input.popularity_rank
+      }
+
+      const { data, error } = await ctx.supabase
+        .from('makes')
+        .update(updates)
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Update make')
+      return data
+    }),
+
+  deleteMake: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // This will cascade delete models, dimensions, and rates
+      const { error } = await ctx.supabase
+        .from('makes')
+        .delete()
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Delete make')
+      return { success: true }
+    }),
+
+  // ===== MODELS CRUD =====
+  createModel: protectedProcedure
+    .input(z.object({
+      makeId: z.string().uuid(),
+      name: z.string().min(1)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('models')
+        .insert({ make_id: input.makeId, name: input.name })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Create model')
+      return data
+    }),
+
+  updateModel: protectedProcedure
+    .input(z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('models')
+        .update({ name: input.name })
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Update model')
+      return data
+    }),
+
+  deleteModel: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // This will cascade delete dimensions and rates
+      const { error } = await ctx.supabase
+        .from('models')
+        .delete()
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Delete model')
+      return { success: true }
+    }),
+
+  // ===== DIMENSIONS CRUD =====
+  upsertDimensions: protectedProcedure
+    .input(z.object({
+      modelId: z.string().uuid(),
+      length_inches: z.number().int().min(0).default(0),
+      width_inches: z.number().int().min(0).default(0),
+      height_inches: z.number().int().min(0).default(0),
+      weight_lbs: z.number().int().min(0).default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('equipment_dimensions')
+        .upsert({
+          model_id: input.modelId,
+          length_inches: input.length_inches,
+          width_inches: input.width_inches,
+          height_inches: input.height_inches,
+          weight_lbs: input.weight_lbs,
+        }, { onConflict: 'model_id' })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Upsert dimensions')
+      return data
+    }),
+
+  // ===== RATES CRUD =====
+  upsertRate: protectedProcedure
+    .input(z.object({
+      makeId: z.string().uuid(),
+      modelId: z.string().uuid(),
+      location: z.enum([
+        'New Jersey',
+        'Savannah',
+        'Houston',
+        'Chicago',
+        'Oakland',
+        'Long Beach',
+      ]),
+      dismantling_loading_cost: z.number().int().min(0).default(0),
+      loading_cost: z.number().int().min(0).default(0),
+      blocking_bracing_cost: z.number().int().min(0).default(0),
+      rigging_cost: z.number().int().min(0).default(0),
+      storage_cost: z.number().int().min(0).default(0),
+      transport_cost: z.number().int().min(0).default(0),
+      equipment_cost: z.number().int().min(0).default(0),
+      labor_cost: z.number().int().min(0).default(0),
+      permit_cost: z.number().int().min(0).default(0),
+      escort_cost: z.number().int().min(0).default(0),
+      miscellaneous_cost: z.number().int().min(0).default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('rates')
+        .upsert({
+          make_id: input.makeId,
+          model_id: input.modelId,
+          location: input.location,
+          dismantling_loading_cost: input.dismantling_loading_cost,
+          loading_cost: input.loading_cost,
+          blocking_bracing_cost: input.blocking_bracing_cost,
+          rigging_cost: input.rigging_cost,
+          storage_cost: input.storage_cost,
+          transport_cost: input.transport_cost,
+          equipment_cost: input.equipment_cost,
+          labor_cost: input.labor_cost,
+          permit_cost: input.permit_cost,
+          escort_cost: input.escort_cost,
+          miscellaneous_cost: input.miscellaneous_cost,
+        }, { onConflict: 'model_id,location' })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Upsert rate')
+      return data
+    }),
+
+  deleteRate: protectedProcedure
+    .input(z.object({
+      modelId: z.string().uuid(),
+      location: z.enum([
+        'New Jersey',
+        'Savannah',
+        'Houston',
+        'Chicago',
+        'Oakland',
+        'Long Beach',
+      ]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { error } = await ctx.supabase
+        .from('rates')
+        .delete()
+        .eq('model_id', input.modelId)
+        .eq('location', input.location)
+
+      checkSupabaseError(error, 'Delete rate')
+      return { success: true }
+    }),
 })
