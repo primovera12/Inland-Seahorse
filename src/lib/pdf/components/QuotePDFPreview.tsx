@@ -5,9 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Download, Printer } from 'lucide-react'
 import { QuotePDFTemplate } from './QuotePDFTemplate'
 import type { UnifiedPDFData } from '../types'
-import { unifiedPDFDataToMultiEquipmentPDF } from '../types'
-import { generatePDFFromElement } from '../unified-pdf-generator'
-import { downloadMultiEquipmentQuotePDFAsync } from '../quote-generator'
 import { cn } from '@/lib/utils'
 
 interface QuotePDFPreviewProps {
@@ -15,6 +12,24 @@ interface QuotePDFPreviewProps {
   className?: string
   showControls?: boolean
   onDownload?: () => void
+}
+
+// Server-side PDF generation via API
+async function generatePDFServer(data: UnifiedPDFData): Promise<Blob> {
+  const response = await fetch('/api/pdf', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(error.error || 'Failed to generate PDF')
+  }
+
+  return response.blob()
 }
 
 export function QuotePDFPreview({
@@ -26,53 +41,31 @@ export function QuotePDFPreview({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
 
-  // Use html2canvas to capture the visual design exactly
+  // Use server-side Puppeteer for perfect PDF generation
   const handleDownload = async () => {
-    if (!containerRef.current) {
-      setError('PDF container not found')
-      return
-    }
-
-    // Find the rendered PDF content element
-    const element = containerRef.current.querySelector('#quote-pdf-content') as HTMLElement
-    if (!element) {
-      setError('PDF content not found')
-      return
-    }
-
     setIsGenerating(true)
     setError(null)
-    setProgress(0)
 
     try {
-      // Generate PDF from the rendered HTML using html2canvas
-      const pdf = await generatePDFFromElement(element, {
-        scale: 2,
-        quality: 0.95,
-        onProgress: setProgress,
-      })
+      const blob = await generatePDFServer(data)
 
       // Download the PDF
-      pdf.save(`quote-${data.quoteNumber}.pdf`)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `quote-${data.quoteNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
       onDownload?.()
     } catch (err) {
-      console.error('PDF generation error (html2canvas):', err)
-      // Fallback to jsPDF generator which creates a clean PDF
-      setError('Using alternative PDF generator...')
-      try {
-        const pdfData = unifiedPDFDataToMultiEquipmentPDF(data)
-        await downloadMultiEquipmentQuotePDFAsync(pdfData, `quote-${data.quoteNumber}.pdf`)
-        setError(null)
-        onDownload?.()
-      } catch (fallbackErr) {
-        console.error('Fallback PDF generation also failed:', fallbackErr)
-        setError('PDF generation failed. Please try again.')
-      }
+      console.error('PDF generation error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to generate PDF')
     } finally {
       setIsGenerating(false)
-      setProgress(0)
     }
   }
 
@@ -89,9 +82,7 @@ export function QuotePDFPreview({
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-900 dark:text-white">Quote Preview</h3>
             {isGenerating && (
-              <span className="text-sm text-slate-500">
-                Generating PDF... {progress > 0 && `${Math.round(progress)}%`}
-              </span>
+              <span className="text-sm text-slate-500">Generating PDF...</span>
             )}
             {error && <span className="text-sm text-red-500">{error}</span>}
           </div>
@@ -143,21 +134,27 @@ export function QuotePDFDownloadButton({
   children,
 }: QuotePDFDownloadButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDownload = async () => {
     setIsGenerating(true)
+    setError(null)
+
     try {
-      // Use the direct generator which renders the template and captures it
-      const { generateUnifiedPDFDirect } = await import('../unified-pdf-generator')
-      const pdf = await generateUnifiedPDFDirect(data, {
-        scale: 2,
-        quality: 0.95,
-      })
-      pdf.save(`quote-${data.quoteNumber}.pdf`)
+      const blob = await generatePDFServer(data)
+
+      // Download the PDF
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `quote-${data.quoteNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PDF generation error:', err)
-      // Fallback to print dialog
-      window.print()
+      setError(err instanceof Error ? err.message : 'Failed to generate PDF')
     } finally {
       setIsGenerating(false)
     }
@@ -170,6 +167,7 @@ export function QuotePDFDownloadButton({
       className={className}
       onClick={handleDownload}
       disabled={isGenerating}
+      title={error || undefined}
     >
       {isGenerating ? (
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
