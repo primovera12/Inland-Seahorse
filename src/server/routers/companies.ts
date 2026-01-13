@@ -83,6 +83,18 @@ export const companiesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Company')
+
+      // Auto-create placeholder primary contact for the new company
+      if (data) {
+        await ctx.supabase.from('contacts').insert({
+          company_id: data.id,
+          first_name: 'Primary',
+          last_name: 'Contact',
+          role: 'general',
+          is_primary: true,
+        })
+      }
+
       return data
     }),
 
