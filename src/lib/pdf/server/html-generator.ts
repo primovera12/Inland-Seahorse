@@ -166,8 +166,12 @@ function getStyles(primaryColor: string): string {
     /* Client Info */
     .client-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 32px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px 32px;
+    }
+
+    .client-grid .info-block.span-2 {
+      grid-column: span 2;
     }
 
     .info-block .label {
@@ -184,6 +188,7 @@ function getStyles(primaryColor: string): string {
       font-weight: 700;
       color: #0f172a;
       line-height: 1.4;
+      word-break: break-word;
     }
 
     /* Location */
@@ -507,6 +512,7 @@ function renderClientSection(data: UnifiedPDFData, primaryColor: string): string
         Client Information
       </h3>
       <div class="client-grid">
+        <!-- Row 1 -->
         <div class="info-block">
           <p class="label">Company Name</p>
           <p class="value">${data.customer.company || '-'}</p>
@@ -519,13 +525,14 @@ function renderClientSection(data: UnifiedPDFData, primaryColor: string): string
           <p class="label">Phone Number</p>
           <p class="value">${data.customer.phone || '-'}</p>
         </div>
+        <!-- Row 2 -->
         <div class="info-block">
           <p class="label">Email Address</p>
           <p class="value">${data.customer.email || '-'}</p>
         </div>
-        <div class="info-block">
+        <div class="info-block span-2">
           <p class="label">Billing Address</p>
-          <p class="value">${addressLines.join('<br>')}</p>
+          <p class="value">${addressLines.join(', ')}</p>
         </div>
       </div>
     </div>
