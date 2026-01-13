@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import {
   Collapsible,
   CollapsibleContent,
@@ -238,38 +239,33 @@ export function EquipmentBlockCard({
             <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-2">
                 <Label>Make</Label>
-                <Select value={selectedMakeId} onValueChange={handleMakeChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select make" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {makes?.map((make) => (
-                      <SelectItem key={make.id} value={make.id}>
-                        {make.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={selectedMakeId}
+                  onChange={handleMakeChange}
+                  options={makes?.map((make) => ({
+                    value: make.id,
+                    label: make.name,
+                  })) || []}
+                  placeholder="Select make"
+                  searchPlaceholder="Search makes..."
+                  emptyMessage="No makes found"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Model</Label>
-                <Select
+                <SearchableSelect
                   value={selectedModelId}
-                  onValueChange={handleModelChange}
+                  onChange={handleModelChange}
+                  options={models?.map((model) => ({
+                    value: model.id,
+                    label: model.name,
+                  })) || []}
+                  placeholder="Select model"
+                  searchPlaceholder="Search models..."
+                  emptyMessage="No models found"
                   disabled={!selectedMakeId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models?.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
               <div className="space-y-2">

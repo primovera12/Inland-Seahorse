@@ -23,10 +23,7 @@ import {
   MapPin,
   Plus,
   Trash2,
-  Package,
   Receipt,
-  ChevronDown,
-  ChevronUp,
   Lightbulb,
   AlertTriangle,
   Ruler,
@@ -190,12 +187,10 @@ export const initialInlandTransportData: InlandTransportData = {
 }
 
 export function InlandTransportForm({ data, onChange, equipmentDimensions }: InlandTransportFormProps) {
-  const [showAdvanced, setShowAdvanced] = useState(true) // Advanced mode is default
   const [serviceTypes, setServiceTypes] = useState<SearchableSelectOption[]>(DEFAULT_SERVICE_TYPES)
   const [accessorialTypes, setAccessorialTypes] = useState<SearchableSelectOption[]>(DEFAULT_ACCESSORIAL_TYPES)
   const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('feet')
   const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs')
-  const [dismissedRecommendation, setDismissedRecommendation] = useState(false)
 
   // Fetch truck types from API
   const { data: truckTypesData } = trpc.inland.getEquipmentTypes.useQuery(undefined, {
@@ -257,7 +252,6 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
       }
       onChange({ ...data, load_blocks: updatedBlocks })
     }
-    setDismissedRecommendation(true)
   }
 
   // Initialize with default load block if empty
@@ -441,49 +435,6 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
     updateLoadBlock(blockIndex, block)
   }
 
-  // Handle custom service type
-  const handleCustomServiceAdd = (customValue: string, blockIndex: number) => {
-    const newServiceType: SearchableSelectOption = {
-      value: `custom-${crypto.randomUUID()}`,
-      label: customValue,
-      description: 'Custom service',
-    }
-    setServiceTypes((prev) => [...prev, newServiceType])
-    // Add the service item to the block
-    const block = { ...data.load_blocks[blockIndex] }
-    const newItem: ServiceItem = {
-      id: crypto.randomUUID(),
-      name: customValue,
-      rate: 0,
-      quantity: 1,
-      total: 0,
-    }
-    block.service_items = [...block.service_items, newItem]
-    updateLoadBlock(blockIndex, block)
-  }
-
-  // Handle custom accessorial type
-  const handleCustomAccessorialAdd = (customValue: string, blockIndex: number) => {
-    const newAccessorialType: SearchableSelectOption = {
-      value: `custom-${crypto.randomUUID()}`,
-      label: customValue,
-      description: 'Custom fee',
-    }
-    setAccessorialTypes((prev) => [...prev, newAccessorialType])
-    // Add the accessorial charge to the block
-    const block = { ...data.load_blocks[blockIndex] }
-    const newCharge: AccessorialCharge = {
-      id: crypto.randomUUID(),
-      name: customValue,
-      billing_unit: 'flat',
-      rate: 0,
-      quantity: 1,
-      total: 0,
-    }
-    block.accessorial_charges = [...block.accessorial_charges, newCharge]
-    updateLoadBlock(blockIndex, block)
-  }
-
   // Calculate total
   const totalCost = useMemo(() => {
     return data.load_blocks.reduce((sum, block) => sum + block.subtotal, 0)
@@ -626,81 +577,63 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
 
           <Separator />
 
-          {/* Advanced Mode Toggle */}
-          <div className="flex items-center justify-between">
+          {/* Unit Selectors */}
+          <div className="flex items-center justify-end gap-3">
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-              >
-                {showAdvanced ? (
-                  <ChevronUp className="h-4 w-4 mr-2" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 mr-2" />
-                )}
-                {showAdvanced ? 'Simple Mode' : 'Advanced Mode'}
-              </Button>
-              {!showAdvanced && (
-                <span className="text-xs text-muted-foreground">
-                  (Cargo, Services, Accessorial Fees)
-                </span>
-              )}
+              <Ruler className="h-4 w-4 text-muted-foreground" />
+              <Select value={dimensionUnit} onValueChange={(v) => setDimensionUnit(v as DimensionUnit)}>
+                <SelectTrigger className="w-20 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIMENSION_UNITS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {/* Unit Selectors */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Ruler className="h-4 w-4 text-muted-foreground" />
-                <Select value={dimensionUnit} onValueChange={(v) => setDimensionUnit(v as DimensionUnit)}>
-                  <SelectTrigger className="w-20 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DIMENSION_UNITS.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Scale className="h-4 w-4 text-muted-foreground" />
-                <Select value={weightUnit} onValueChange={(v) => setWeightUnit(v as 'lbs' | 'kg')}>
-                  <SelectTrigger className="w-16 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEIGHT_UNITS.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex items-center gap-2">
+              <Scale className="h-4 w-4 text-muted-foreground" />
+              <Select value={weightUnit} onValueChange={(v) => setWeightUnit(v as 'lbs' | 'kg')}>
+                <SelectTrigger className="w-16 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEIGHT_UNITS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Truck Type Recommendation Banner */}
-          {truckRecommendation && !dismissedRecommendation && data.load_blocks.length > 0 &&
-           data.load_blocks[0].truck_type_id !== truckRecommendation.recommendedId && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+          {/* Truck Type Recommendation Banner - Always show when there's equipment dimensions */}
+          {truckRecommendation && data.load_blocks.length > 0 && (
+            <div className={`rounded-lg border p-4 ${
+              data.load_blocks[0].truck_type_id === truckRecommendation.recommendedId
+                ? 'border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-700'
+                : 'border-primary/30 bg-primary/5'
+            }`}>
               <div className="flex items-start gap-3">
-                <Lightbulb className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <Lightbulb className={`h-5 w-5 mt-0.5 shrink-0 ${
+                  data.load_blocks[0].truck_type_id === truckRecommendation.recommendedId
+                    ? 'text-green-600'
+                    : 'text-primary'
+                }`} />
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm">Truck Type Suggestion</h4>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => setDismissedRecommendation(true)}
-                    >
-                      Dismiss
-                    </Button>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      Smart Truck Recommendation
+                      {data.load_blocks[0].truck_type_id === truckRecommendation.recommendedId && (
+                        <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700">
+                          Currently Selected
+                        </Badge>
+                      )}
+                    </h4>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Based on the equipment dimensions, we recommend using a{' '}
@@ -749,23 +682,24 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                       {truckRecommendation.multiTruckSuggestion.reason}
                     </p>
                   )}
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => applyRecommendation(truckRecommendation)}
-                    className="mt-2"
-                  >
-                    <Truck className="h-4 w-4 mr-2" />
-                    Use {truckRecommendation.recommendedName}
-                  </Button>
+                  {data.load_blocks[0].truck_type_id !== truckRecommendation.recommendedId && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => applyRecommendation(truckRecommendation)}
+                      className="mt-2"
+                    >
+                      <Truck className="h-4 w-4 mr-2" />
+                      Use {truckRecommendation.recommendedName}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {showAdvanced ? (
-            /* Advanced Mode - Load Blocks */
-            <div className="space-y-4">
+          {/* Load Blocks */}
+          <div className="space-y-4">
               {data.load_blocks.map((block, blockIndex) => (
                 <Card key={block.id} className="border-l-4 border-l-primary/50">
                   <CardHeader className="pb-3">
@@ -995,106 +929,108 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                           <Receipt className="h-4 w-4" />
                           Services
                         </Label>
-                        <div className="flex items-center gap-2">
-                          <SearchableSelect
-                            options={serviceTypes}
-                            value=""
-                            onChange={(value) => {
-                              const serviceType = serviceTypes.find((s) => s.value === value)
-                              if (serviceType) {
-                                const updatedBlock = { ...block }
-                                updatedBlock.service_items = [
-                                  ...updatedBlock.service_items,
-                                  {
-                                    id: crypto.randomUUID(),
-                                    name: serviceType.label,
-                                    description: serviceType.description,
-                                    rate: 0,
-                                    quantity: 1,
-                                    total: 0,
-                                  },
-                                ]
-                                updateLoadBlock(blockIndex, updatedBlock)
-                              }
-                            }}
-                            placeholder="Add service..."
-                            searchPlaceholder="Search services..."
-                            allowCustom
-                            customPlaceholder="Custom service name"
-                            onCustomAdd={(val) => handleCustomServiceAdd(val, blockIndex)}
-                            className="w-48"
-                          />
-                        </div>
-                      </div>
-                      {block.service_items.map((item, itemIndex) => (
-                        <div
-                          key={item.id}
-                          className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border bg-muted/30"
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addServiceItem(blockIndex)}
                         >
-                          <div className="col-span-12 md:col-span-5">
-                            <Label className="text-xs">Service</Label>
-                            <Input
-                              value={item.name}
-                              onChange={(e) =>
-                                updateServiceItem(blockIndex, itemIndex, 'name', e.target.value)
-                              }
-                              className="h-8"
-                            />
-                          </div>
-                          <div className="col-span-4 md:col-span-3">
-                            <Label className="text-xs">Rate</Label>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                                $
-                              </span>
-                              <Input
-                                type="text"
-                                placeholder="0.00"
-                                value={item.rate ? formatCurrency(item.rate).replace('$', '') : ''}
-                                onChange={(e) => {
-                                  const cents = parseCurrencyToCents(e.target.value)
-                                  updateServiceItem(blockIndex, itemIndex, 'rate', cents)
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Service
+                        </Button>
+                      </div>
+                      {block.service_items.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg border-dashed">
+                          No services added. Click &quot;Add Service&quot; to add one.
+                        </div>
+                      ) : (
+                        block.service_items.map((item, itemIndex) => (
+                          <div
+                            key={item.id}
+                            className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border bg-muted/30"
+                          >
+                            <div className="col-span-12 md:col-span-5">
+                              <Label className="text-xs">Service</Label>
+                              <SearchableSelect
+                                options={serviceTypes}
+                                value={serviceTypes.find((s) => s.label === item.name)?.value || ''}
+                                onChange={(value) => {
+                                  const serviceType = serviceTypes.find((s) => s.value === value)
+                                  if (serviceType) {
+                                    updateServiceItem(blockIndex, itemIndex, 'name', serviceType.label)
+                                  }
                                 }}
-                                className="h-8 pl-5 font-mono"
+                                placeholder="Select service..."
+                                searchPlaceholder="Search services..."
+                                allowCustom
+                                customPlaceholder="Custom service name"
+                                onCustomAdd={(val) => {
+                                  // Add to service types and update this item
+                                  const newServiceType: SearchableSelectOption = {
+                                    value: `custom-${crypto.randomUUID()}`,
+                                    label: val,
+                                    description: 'Custom service',
+                                  }
+                                  setServiceTypes((prev) => [...prev, newServiceType])
+                                  updateServiceItem(blockIndex, itemIndex, 'name', val)
+                                }}
                               />
                             </div>
-                          </div>
-                          <div className="col-span-4 md:col-span-2">
-                            <Label className="text-xs">Qty</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updateServiceItem(
-                                  blockIndex,
-                                  itemIndex,
-                                  'quantity',
-                                  parseInt(e.target.value) || 1
-                                )
-                              }
-                              className="h-8 font-mono"
-                            />
-                          </div>
-                          <div className="col-span-4 md:col-span-2 flex items-end justify-between gap-2">
-                            <div className="flex-1">
-                              <Label className="text-xs">Total</Label>
-                              <div className="h-8 flex items-center font-mono text-sm">
-                                {formatCurrency(item.total)}
+                            <div className="col-span-4 md:col-span-3">
+                              <Label className="text-xs">Rate</Label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                                  $
+                                </span>
+                                <Input
+                                  type="text"
+                                  placeholder="0.00"
+                                  value={item.rate ? formatCurrency(item.rate).replace('$', '') : ''}
+                                  onChange={(e) => {
+                                    const cents = parseCurrencyToCents(e.target.value)
+                                    updateServiceItem(blockIndex, itemIndex, 'rate', cents)
+                                  }}
+                                  className="h-8 pl-5 font-mono"
+                                />
                               </div>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => removeServiceItem(blockIndex, itemIndex)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="col-span-4 md:col-span-2">
+                              <Label className="text-xs">Qty</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateServiceItem(
+                                    blockIndex,
+                                    itemIndex,
+                                    'quantity',
+                                    parseInt(e.target.value) || 1
+                                  )
+                                }
+                                className="h-8 font-mono"
+                              />
+                            </div>
+                            <div className="col-span-4 md:col-span-2 flex items-end justify-between gap-2">
+                              <div className="flex-1">
+                                <Label className="text-xs">Total</Label>
+                                <div className="h-8 flex items-center font-mono text-sm">
+                                  {formatCurrency(item.total)}
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => removeServiceItem(blockIndex, itemIndex)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
 
                     <Separator />
@@ -1106,129 +1042,128 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                           <AlertTriangle className="h-4 w-4" />
                           Accessorial Fees
                         </Label>
-                        <SearchableSelect
-                          options={accessorialTypes}
-                          value=""
-                          onChange={(value) => {
-                            const accessorialType = accessorialTypes.find((a) => a.value === value)
-                            if (accessorialType) {
-                              const updatedBlock = { ...block }
-                              updatedBlock.accessorial_charges = [
-                                ...updatedBlock.accessorial_charges,
-                                {
-                                  id: crypto.randomUUID(),
-                                  name: accessorialType.label,
-                                  billing_unit: 'flat',
-                                  rate: 0,
-                                  quantity: 1,
-                                  total: 0,
-                                },
-                              ]
-                              updateLoadBlock(blockIndex, updatedBlock)
-                            }
-                          }}
-                          placeholder="Add fee..."
-                          searchPlaceholder="Search fees..."
-                          allowCustom
-                          customPlaceholder="Custom fee name"
-                          onCustomAdd={(val) => handleCustomAccessorialAdd(val, blockIndex)}
-                          className="w-48"
-                        />
-                      </div>
-                      {block.accessorial_charges.map((charge, chargeIndex) => (
-                        <div
-                          key={charge.id}
-                          className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border bg-muted/30"
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addAccessorialCharge(blockIndex)}
                         >
-                          <div className="col-span-12 md:col-span-4">
-                            <Label className="text-xs">Fee Name</Label>
-                            <Input
-                              value={charge.name}
-                              onChange={(e) =>
-                                updateAccessorialCharge(
-                                  blockIndex,
-                                  chargeIndex,
-                                  'name',
-                                  e.target.value
-                                )
-                              }
-                              className="h-8"
-                            />
-                          </div>
-                          <div className="col-span-4 md:col-span-2">
-                            <Label className="text-xs">Unit</Label>
-                            <Select
-                              value={charge.billing_unit}
-                              onValueChange={(v) =>
-                                updateAccessorialCharge(blockIndex, chargeIndex, 'billing_unit', v)
-                              }
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {BILLING_UNITS.map((unit) => (
-                                  <SelectItem key={unit.value} value={unit.value}>
-                                    {unit.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="col-span-4 md:col-span-2">
-                            <Label className="text-xs">Rate</Label>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                                $
-                              </span>
-                              <Input
-                                type="text"
-                                placeholder="0.00"
-                                value={charge.rate ? formatCurrency(charge.rate).replace('$', '') : ''}
-                                onChange={(e) => {
-                                  const cents = parseCurrencyToCents(e.target.value)
-                                  updateAccessorialCharge(blockIndex, chargeIndex, 'rate', cents)
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Fee
+                        </Button>
+                      </div>
+                      {block.accessorial_charges.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg border-dashed">
+                          No fees added. Click &quot;Add Fee&quot; to add one.
+                        </div>
+                      ) : (
+                        block.accessorial_charges.map((charge, chargeIndex) => (
+                          <div
+                            key={charge.id}
+                            className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border bg-muted/30"
+                          >
+                            <div className="col-span-12 md:col-span-4">
+                              <Label className="text-xs">Fee Type</Label>
+                              <SearchableSelect
+                                options={accessorialTypes}
+                                value={accessorialTypes.find((a) => a.label === charge.name)?.value || ''}
+                                onChange={(value) => {
+                                  const accessorialType = accessorialTypes.find((a) => a.value === value)
+                                  if (accessorialType) {
+                                    updateAccessorialCharge(blockIndex, chargeIndex, 'name', accessorialType.label)
+                                  }
                                 }}
-                                className="h-8 pl-5 font-mono"
+                                placeholder="Select fee type..."
+                                searchPlaceholder="Search fees..."
+                                allowCustom
+                                customPlaceholder="Custom fee name"
+                                onCustomAdd={(val) => {
+                                  // Add to accessorial types and update this item
+                                  const newAccessorialType: SearchableSelectOption = {
+                                    value: `custom-${crypto.randomUUID()}`,
+                                    label: val,
+                                    description: 'Custom fee',
+                                  }
+                                  setAccessorialTypes((prev) => [...prev, newAccessorialType])
+                                  updateAccessorialCharge(blockIndex, chargeIndex, 'name', val)
+                                }}
                               />
                             </div>
-                          </div>
-                          <div className="col-span-4 md:col-span-2">
-                            <Label className="text-xs">Qty</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={charge.quantity}
-                              onChange={(e) =>
-                                updateAccessorialCharge(
-                                  blockIndex,
-                                  chargeIndex,
-                                  'quantity',
-                                  parseInt(e.target.value) || 1
-                                )
-                              }
-                              className="h-8 font-mono"
-                            />
-                          </div>
-                          <div className="col-span-12 md:col-span-2 flex items-end justify-between gap-2">
-                            <div className="flex-1">
-                              <Label className="text-xs">Total</Label>
-                              <div className="h-8 flex items-center font-mono text-sm">
-                                {formatCurrency(charge.total)}
+                            <div className="col-span-4 md:col-span-2">
+                              <Label className="text-xs">Unit</Label>
+                              <Select
+                                value={charge.billing_unit}
+                                onValueChange={(v) =>
+                                  updateAccessorialCharge(blockIndex, chargeIndex, 'billing_unit', v)
+                                }
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {BILLING_UNITS.map((unit) => (
+                                    <SelectItem key={unit.value} value={unit.value}>
+                                      {unit.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="col-span-4 md:col-span-2">
+                              <Label className="text-xs">Rate</Label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                                  $
+                                </span>
+                                <Input
+                                  type="text"
+                                  placeholder="0.00"
+                                  value={charge.rate ? formatCurrency(charge.rate).replace('$', '') : ''}
+                                  onChange={(e) => {
+                                    const cents = parseCurrencyToCents(e.target.value)
+                                    updateAccessorialCharge(blockIndex, chargeIndex, 'rate', cents)
+                                  }}
+                                  className="h-8 pl-5 font-mono"
+                                />
                               </div>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => removeAccessorialCharge(blockIndex, chargeIndex)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="col-span-4 md:col-span-2">
+                              <Label className="text-xs">Qty</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={charge.quantity}
+                                onChange={(e) =>
+                                  updateAccessorialCharge(
+                                    blockIndex,
+                                    chargeIndex,
+                                    'quantity',
+                                    parseInt(e.target.value) || 1
+                                  )
+                                }
+                                className="h-8 font-mono"
+                              />
+                            </div>
+                            <div className="col-span-12 md:col-span-2 flex items-end justify-between gap-2">
+                              <div className="flex-1">
+                                <Label className="text-xs">Total</Label>
+                                <div className="h-8 flex items-center font-mono text-sm">
+                                  {formatCurrency(charge.total)}
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => removeAccessorialCharge(blockIndex, chargeIndex)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -1244,33 +1179,6 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                 Add Load Block
               </Button>
             </div>
-          ) : (
-            /* Simple Mode - Just Transport Cost */
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="transport_cost">Transport Cost</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      $
-                    </span>
-                    <Input
-                      id="transport_cost"
-                      type="text"
-                      placeholder="0.00"
-                      value={data.transport_cost ? formatCurrency(data.transport_cost).replace('$', '') : ''}
-                      onChange={(e) => {
-                        const cents = parseCurrencyToCents(e.target.value)
-                        updateField('transport_cost', cents)
-                        updateField('total', cents)
-                      }}
-                      className="pl-7 font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Notes */}
           <div className="space-y-2">
@@ -1285,12 +1193,12 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
           </div>
 
           {/* Summary */}
-          {(totalCost > 0 || data.transport_cost > 0) && (
+          {totalCost > 0 && (
             <div className="rounded-lg bg-muted/50 p-4">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Inland Transportation Total</span>
                 <span className="text-lg font-bold font-mono text-primary">
-                  {formatCurrency(showAdvanced ? totalCost : data.transport_cost)}
+                  {formatCurrency(totalCost)}
                 </span>
               </div>
             </div>
