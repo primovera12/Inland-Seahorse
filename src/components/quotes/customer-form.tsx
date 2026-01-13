@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -103,6 +103,25 @@ export function CustomerForm({
     { query: searchQuery },
     { enabled: searchQuery.length >= 2 && selectionMode === 'search' }
   )
+
+  // Auto-select primary contact when contacts load for selected company
+  useEffect(() => {
+    if (contactsData?.contacts && contactsData.contacts.length > 0 && selectedCompanyId && !selectedContactId) {
+      // Find the primary contact (contacts are already sorted with primary first)
+      const primaryContact = contactsData.contacts.find(c => c.is_primary)
+      if (primaryContact) {
+        // Auto-select the primary contact
+        setSelectedContactId(primaryContact.id)
+        const fullName = `${primaryContact.first_name} ${primaryContact.last_name}`.trim()
+        onCustomerNameChange(fullName)
+        if (primaryContact.email) onCustomerEmailChange(primaryContact.email)
+        if (primaryContact.phone) onCustomerPhoneChange(primaryContact.phone)
+        if (onContactSelect) {
+          onContactSelect(primaryContact.id, fullName)
+        }
+      }
+    }
+  }, [contactsData, selectedCompanyId, selectedContactId, onCustomerNameChange, onCustomerEmailChange, onCustomerPhoneChange, onContactSelect])
 
   const handleCompanySelect = (companyId: string) => {
     setSelectedCompanyId(companyId)
