@@ -80,9 +80,25 @@ export default function CompanyManagementView({ onShowToast }: CompanyManagement
   const [newTag, setNewTag] = useState('')
   const [showImport, setShowImport] = useState(false)
 
+  // Unassigned company for orphaned contacts
+  const [unassignedCompanyId, setUnassignedCompanyId] = useState<string | null>(null)
+
   useEffect(() => {
     loadCompanies()
+    loadUnassignedCompanyId()
   }, [])
+
+  // Load "Unassigned" company ID for orphaned contacts fallback
+  const loadUnassignedCompanyId = async () => {
+    const { data } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('name', 'Unassigned')
+      .single()
+    if (data) {
+      setUnassignedCompanyId(data.id)
+    }
+  }
 
   const loadCompanies = async () => {
     setLoading(true)
@@ -225,8 +241,22 @@ export default function CompanyManagementView({ onShowToast }: CompanyManagement
           .single()
 
         if (error) throw error
-        setCompanies(prev => [...prev, { ...data, contact_count: 0 }])
-        setSelectedCompany({ ...data, contacts: [], contact_count: 0 })
+
+        // Auto-create placeholder primary contact for the new company
+        const { data: contactData } = await supabase
+          .from('contacts')
+          .insert({
+            company_id: data.id,
+            first_name: 'Primary Contact',
+            role: 'general',
+            is_primary: true,
+          })
+          .select()
+          .single()
+
+        const placeholderContact = contactData ? [contactData] : []
+        setCompanies(prev => [...prev, { ...data, contact_count: placeholderContact.length }])
+        setSelectedCompany({ ...data, contacts: placeholderContact, contact_count: placeholderContact.length })
         onShowToast?.('Company created successfully', 'success')
       } else if (selectedCompany) {
         const { error } = await supabase
@@ -325,7 +355,7 @@ export default function CompanyManagementView({ onShowToast }: CompanyManagement
         const { data, error } = await supabase
           .from('contacts')
           .insert({
-            company_id: contactForm.company_id,
+            company_id: contactForm.company_id || unassignedCompanyId,
             first_name: contactForm.first_name.trim(),
             last_name: contactForm.last_name?.trim() || null,
             title: contactForm.title?.trim() || null,
