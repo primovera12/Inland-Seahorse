@@ -355,7 +355,7 @@ export function CargoItemCard({
         <div className="space-y-1">
           <Label className="text-xs flex items-center gap-1">
             <Ruler className="h-3 w-3" />
-            Length (in)
+            Length (ft-in)
           </Label>
           <Input
             type="number"
@@ -368,7 +368,7 @@ export function CargoItemCard({
         <div className="space-y-1">
           <Label className="text-xs flex items-center gap-1">
             <Ruler className="h-3 w-3" />
-            Width (in)
+            Width (ft-in)
           </Label>
           <Input
             type="number"
@@ -381,7 +381,7 @@ export function CargoItemCard({
         <div className="space-y-1">
           <Label className="text-xs flex items-center gap-1">
             <Ruler className="h-3 w-3" />
-            Height (in)
+            Height (ft-in)
           </Label>
           <Input
             type="number"

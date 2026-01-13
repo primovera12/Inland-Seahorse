@@ -517,7 +517,7 @@ export default function DismantleSettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="lengthThreshold" className="flex items-center gap-2">
                   <Ruler className="h-4 w-4" />
-                  Max Length (inches)
+                  Max Length (ft-in)
                 </Label>
                 <Input
                   id="lengthThreshold"
@@ -534,7 +534,7 @@ export default function DismantleSettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="widthThreshold" className="flex items-center gap-2">
                   <Ruler className="h-4 w-4" />
-                  Max Width (inches)
+                  Max Width (ft-in)
                 </Label>
                 <Input
                   id="widthThreshold"
@@ -551,7 +551,7 @@ export default function DismantleSettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="heightThreshold" className="flex items-center gap-2">
                   <Ruler className="h-4 w-4" />
-                  Max Height (inches)
+                  Max Height (ft-in)
                 </Label>
                 <Input
                   id="heightThreshold"

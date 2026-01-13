@@ -15,7 +15,6 @@ import {
   Package,
   Building2,
   Bell,
-  BarChart3,
   Upload,
   UsersRound,
   MessageSquare,
@@ -40,11 +39,6 @@ const equipmentItems = [
     title: 'Dashboard',
     url: '/dashboard',
     icon: Home,
-  },
-  {
-    title: 'Reports',
-    url: '/reports',
-    icon: BarChart3,
   },
   {
     title: 'Dismantle Quote',

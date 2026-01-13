@@ -54,9 +54,6 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Welcome to Dismantle Pro. Manage your equipment quotes and transportation.
-          </p>
         </div>
         <div className="flex gap-2">
           <Link href="/quotes/new" className="flex-1 sm:flex-initial">

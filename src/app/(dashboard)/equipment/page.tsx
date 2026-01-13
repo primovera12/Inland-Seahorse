@@ -48,6 +48,7 @@ import { ImageUpload } from '@/components/ui/image-upload'
 interface FilterState {
   hasDimensions: boolean
   hasImage: boolean
+  hasPrice: boolean
 }
 
 const LOCATIONS = [
@@ -79,7 +80,7 @@ export default function EquipmentPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [modelSearchQuery, setModelSearchQuery] = useState('')
-  const [filters, setFilters] = useState<FilterState>({ hasDimensions: false, hasImage: false })
+  const [filters, setFilters] = useState<FilterState>({ hasDimensions: false, hasImage: false, hasPrice: false })
 
   // Dialog states
   const [showAddMakeDialog, setShowAddMakeDialog] = useState(false)
@@ -170,11 +171,11 @@ export default function EquipmentPage() {
   }, [models, modelSearchQuery])
 
   const clearFilters = () => {
-    setFilters({ hasDimensions: false, hasImage: false })
+    setFilters({ hasDimensions: false, hasImage: false, hasPrice: false })
     setModelSearchQuery('')
   }
 
-  const hasActiveFilters = filters.hasDimensions || filters.hasImage || modelSearchQuery.length > 0
+  const hasActiveFilters = filters.hasDimensions || filters.hasImage || filters.hasPrice || modelSearchQuery.length > 0
 
   const handleAddMake = () => {
     if (newMakeName.trim()) {
@@ -356,6 +357,16 @@ export default function EquipmentPage() {
                         Has Image
                       </label>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="filter-price"
+                        checked={filters.hasPrice}
+                        onCheckedChange={(checked) => setFilters(f => ({ ...f, hasPrice: checked === true }))}
+                      />
+                      <label htmlFor="filter-price" className="text-sm cursor-pointer">
+                        Has Price
+                      </label>
+                    </div>
                   </div>
 
                   {hasActiveFilters && (
@@ -394,6 +405,14 @@ export default function EquipmentPage() {
                       <Badge variant="secondary" className="gap-1">
                         Has Image
                         <button onClick={() => setFilters(f => ({ ...f, hasImage: false }))}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filters.hasPrice && (
+                      <Badge variant="secondary" className="gap-1">
+                        Has Price
+                        <button onClick={() => setFilters(f => ({ ...f, hasPrice: false }))}>
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
@@ -630,6 +649,7 @@ function ModelRow({ model, makeId, filters }: { model: { id: string; name: strin
   // Apply filters (AND logic - must match all selected filters)
   if (filters.hasDimensions && !hasDimensions) return null
   if (filters.hasImage && !hasImages) return null
+  if (filters.hasPrice && ratesCount === 0) return null
 
   const handleFrontImageChange = (url: string | null) => {
     updateImagesMutation.mutate({ modelId: model.id, frontImageUrl: url })
@@ -869,7 +889,7 @@ function DimensionsEditor({
       {/* Dimensions Form */}
       <div className="grid gap-4 md:grid-cols-4">
         <div className="space-y-2">
-          <Label>Length (inches)</Label>
+          <Label>Length (ft-in)</Label>
           <Input
             type="number"
             min={0}
@@ -881,7 +901,7 @@ function DimensionsEditor({
           </p>
         </div>
         <div className="space-y-2">
-          <Label>Width (inches)</Label>
+          <Label>Width (ft-in)</Label>
           <Input
             type="number"
             min={0}
@@ -893,7 +913,7 @@ function DimensionsEditor({
           </p>
         </div>
         <div className="space-y-2">
-          <Label>Height (inches)</Label>
+          <Label>Height (ft-in)</Label>
           <Input
             type="number"
             min={0}

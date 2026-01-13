@@ -7,7 +7,6 @@ import { inlandRouter } from './inland'
 import { dashboardRouter } from './dashboard'
 import { activityRouter } from './activity'
 import { remindersRouter } from './reminders'
-import { reportsRouter } from './reports'
 import { searchRouter } from './search'
 import { emailRouter } from './email'
 import { templatesRouter } from './templates'
@@ -31,7 +30,6 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   activity: activityRouter,
   reminders: remindersRouter,
-  reports: reportsRouter,
   search: searchRouter,
   email: emailRouter,
   templates: templatesRouter,

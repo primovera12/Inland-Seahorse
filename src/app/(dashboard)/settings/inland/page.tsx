@@ -296,7 +296,7 @@ export default function InlandSettingsPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Length (in)</Label>
+                    <Label className="text-xs">Max Length (ft-in)</Label>
                     <Input
                       type="number"
                       value={newEquipment.max_length_inches}
@@ -304,7 +304,7 @@ export default function InlandSettingsPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Width (in)</Label>
+                    <Label className="text-xs">Max Width (ft-in)</Label>
                     <Input
                       type="number"
                       value={newEquipment.max_width_inches}
@@ -312,7 +312,7 @@ export default function InlandSettingsPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Height (in)</Label>
+                    <Label className="text-xs">Max Height (ft-in)</Label>
                     <Input
                       type="number"
                       value={newEquipment.max_height_inches}
