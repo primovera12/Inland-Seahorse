@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  // Configure for Puppeteer/Chromium serverless
+  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium-min'],
 };
 
 export default nextConfig;
