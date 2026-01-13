@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Download, Printer } from 'lucide-react'
 import { QuotePDFTemplate } from './QuotePDFTemplate'
 import type { UnifiedPDFData } from '../types'
-import { unifiedPDFDataToMultiEquipmentPDF } from '../types'
-import { downloadMultiEquipmentQuotePDFAsync } from '../quote-generator'
+import { generatePDFFromElement } from '../unified-pdf-generator'
 import { cn } from '@/lib/utils'
 
 interface QuotePDFPreviewProps {
@@ -25,20 +24,48 @@ export function QuotePDFPreview({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
 
-  // Use jsPDF generator for reliable downloads (no html2canvas issues)
+  // Use html2canvas to capture the visual design exactly
   const handleDownload = async () => {
+    if (!containerRef.current) {
+      setError('PDF container not found')
+      return
+    }
+
+    // Find the rendered PDF content element
+    const element = containerRef.current.querySelector('#quote-pdf-content') as HTMLElement
+    if (!element) {
+      setError('PDF content not found')
+      return
+    }
+
     setIsGenerating(true)
     setError(null)
+    setProgress(0)
+
     try {
-      const pdfData = unifiedPDFDataToMultiEquipmentPDF(data)
-      await downloadMultiEquipmentQuotePDFAsync(pdfData, `quote-${data.quoteNumber}.pdf`)
+      // Generate PDF from the rendered HTML using html2canvas
+      const pdf = await generatePDFFromElement(element, {
+        scale: 2,
+        quality: 0.95,
+        onProgress: setProgress,
+      })
+
+      // Download the PDF
+      pdf.save(`quote-${data.quoteNumber}.pdf`)
       onDownload?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate PDF')
       console.error('PDF generation error:', err)
+      // Fallback to print dialog which preserves styling
+      setError('PDF generation failed. Using print dialog instead...')
+      setTimeout(() => {
+        window.print()
+        setError(null)
+      }, 1000)
     } finally {
       setIsGenerating(false)
+      setProgress(0)
     }
   }
 
@@ -55,7 +82,9 @@ export function QuotePDFPreview({
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-900 dark:text-white">Quote Preview</h3>
             {isGenerating && (
-              <span className="text-sm text-slate-500">Generating PDF...</span>
+              <span className="text-sm text-slate-500">
+                Generating PDF... {progress > 0 && `${Math.round(progress)}%`}
+              </span>
             )}
             {error && <span className="text-sm text-red-500">{error}</span>}
           </div>
@@ -111,11 +140,17 @@ export function QuotePDFDownloadButton({
   const handleDownload = async () => {
     setIsGenerating(true)
     try {
-      // Use jsPDF generator for reliable downloads
-      const pdfData = unifiedPDFDataToMultiEquipmentPDF(data)
-      await downloadMultiEquipmentQuotePDFAsync(pdfData, `quote-${data.quoteNumber}.pdf`)
+      // Use the direct generator which renders the template and captures it
+      const { generateUnifiedPDFDirect } = await import('../unified-pdf-generator')
+      const pdf = await generateUnifiedPDFDirect(data, {
+        scale: 2,
+        quality: 0.95,
+      })
+      pdf.save(`quote-${data.quoteNumber}.pdf`)
     } catch (err) {
       console.error('PDF generation error:', err)
+      // Fallback to print dialog
+      window.print()
     } finally {
       setIsGenerating(false)
     }
