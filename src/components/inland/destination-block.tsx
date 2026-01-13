@@ -238,7 +238,7 @@ export function DestinationBlock({
               onChange={(value) => updateField('pickup_address', value)}
               onSelect={handlePickupSelect}
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Input
                 placeholder="City"
                 value={block.pickup_city || ''}
@@ -327,7 +327,7 @@ export function DestinationBlock({
                     }
                     onSelect={(components) => handleWaypointSelect(index, components)}
                   />
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <Input
                       placeholder="City"
                       value={waypoint.city || ''}
@@ -389,7 +389,7 @@ export function DestinationBlock({
               onChange={(value) => updateField('dropoff_address', value)}
               onSelect={handleDropoffSelect}
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Input
                 placeholder="City"
                 value={block.dropoff_city || ''}

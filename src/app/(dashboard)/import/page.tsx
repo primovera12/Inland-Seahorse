@@ -412,7 +412,7 @@ export default function ImportPage() {
             ) : (
               <div className="space-y-4">
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="rounded-lg border p-4 text-center">
                     <CheckCircle2 className="h-6 w-6 mx-auto mb-2 text-green-600" />
                     <p className="text-2xl font-bold">{result.imported}</p>

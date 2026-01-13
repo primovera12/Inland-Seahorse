@@ -226,7 +226,7 @@ export default function CompaniesPage() {
                   onSelect={handleAddressSelect}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input
@@ -478,7 +478,7 @@ export default function CompaniesPage() {
                   onSelect={handleEditAddressSelect}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="space-y-2">
                   <Label htmlFor="edit-city">City</Label>
                   <Input

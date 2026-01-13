@@ -874,7 +874,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                                   updateLoadBlock(blockIndex, updatedBlock)
                                 }}
                               />
-                              <div className="grid grid-cols-3 gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <Input
                                   placeholder="City"
                                   value={block.pickup?.city || ''}
@@ -944,7 +944,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                                   updateLoadBlock(blockIndex, updatedBlock)
                                 }}
                               />
-                              <div className="grid grid-cols-3 gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <Input
                                   placeholder="City"
                                   value={block.dropoff?.city || ''}

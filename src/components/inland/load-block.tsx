@@ -407,7 +407,7 @@ export function LoadBlockCard({
               )}
 
               {/* Requirements summary */}
-              <div className="grid grid-cols-4 gap-2 mt-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs">
                 <div>
                   <p className="text-muted-foreground">Max Length</p>
                   <p className="font-mono">{Math.round(recommendation.requirements.lengthRequired / 12)}&apos; {recommendation.requirements.lengthRequired % 12}&quot;</p>
@@ -451,7 +451,7 @@ export function LoadBlockCard({
 
           <div className="space-y-2">
             {loadBlock.service_items.map((service, index) => (
-              <div key={service.id} className="flex items-center gap-2">
+              <div key={service.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30 sm:bg-transparent sm:p-0">
                 <SearchableSelect
                   value={PREDEFINED_SERVICES.find(s => s.label === service.name)?.value || 'custom'}
                   onChange={(value) => {
@@ -466,18 +466,18 @@ export function LoadBlockCard({
                   }))}
                   placeholder="Select service"
                   searchPlaceholder="Search services..."
-                  className="w-[180px]"
+                  className="w-full sm:w-[180px]"
                 />
                 {service.name === 'Custom Service' && (
                   <Input
-                    className="flex-1"
+                    className="flex-1 min-w-[120px]"
                     placeholder="Custom service name"
                     value={service.name === 'Custom Service' ? '' : service.name}
                     onChange={(e) => updateServiceItem(index, 'name', e.target.value || 'Custom Service')}
                   />
                 )}
                 <Input
-                  className="w-20"
+                  className="w-16 sm:w-20"
                   type="number"
                   min={1}
                   value={service.quantity}
@@ -485,12 +485,12 @@ export function LoadBlockCard({
                   placeholder="Qty"
                 />
                 <Input
-                  className="w-28 text-right font-mono"
+                  className="w-24 sm:w-28 text-right font-mono"
                   placeholder="$0.00"
                   value={formatCurrency(service.rate).replace('$', '')}
                   onChange={(e) => updateServiceItem(index, 'rate', e.target.value)}
                 />
-                <span className="w-24 text-right font-mono text-sm">
+                <span className="w-20 sm:w-24 text-right font-mono text-sm">
                   {formatCurrency(service.total)}
                 </span>
                 <Button
@@ -521,7 +521,7 @@ export function LoadBlockCard({
               {loadBlock.accessorial_charges.map((charge, index) => (
                 <div
                   key={charge.id}
-                  className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                  className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/50"
                 >
                   <SearchableSelect
                     value={charge.accessorial_type_id}
@@ -532,10 +532,10 @@ export function LoadBlockCard({
                     }))}
                     placeholder="Select type"
                     searchPlaceholder="Search accessorials..."
-                    className="w-[160px]"
+                    className="w-full sm:w-[160px]"
                   />
                   <Input
-                    className="w-16"
+                    className="w-14 sm:w-16"
                     type="number"
                     min={1}
                     value={charge.quantity}
@@ -545,7 +545,7 @@ export function LoadBlockCard({
                     value={charge.billing_unit}
                     onValueChange={(value) => updateAccessorialBillingUnit(index, value as AccessorialBillingUnit)}
                   >
-                    <SelectTrigger className="w-[80px]">
+                    <SelectTrigger className="w-[70px] sm:w-[80px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -559,11 +559,11 @@ export function LoadBlockCard({
                     </SelectContent>
                   </Select>
                   <Input
-                    className="w-24 text-right font-mono"
+                    className="w-20 sm:w-24 text-right font-mono"
                     value={formatCurrency(charge.rate).replace('$', '')}
                     onChange={(e) => updateAccessorial(index, 'rate', e.target.value)}
                   />
-                  <span className="w-20 text-right font-mono text-sm">
+                  <span className="w-16 sm:w-20 text-right font-mono text-sm">
                     {formatCurrency(charge.total)}
                   </span>
                   <Button
