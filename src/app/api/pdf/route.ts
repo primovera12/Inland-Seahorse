@@ -5,8 +5,8 @@ import { generateQuotePDFHtml } from '@/lib/pdf/server/html-generator'
 export const runtime = 'nodejs'
 export const maxDuration = 60 // 60 seconds timeout for PDF generation
 
-// Remote Chromium URL for serverless environments
-const CHROMIUM_REMOTE_URL = 'https://github.com/nicholasgcoles/chromium/releases/download/v130.0.0/chromium-v130.0.0-pack.tar'
+// Remote Chromium URL for serverless environments (official Sparticuz releases)
+const CHROMIUM_REMOTE_URL = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
 
 export async function POST(request: NextRequest) {
   try {
