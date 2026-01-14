@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -66,8 +66,9 @@ export function EquipmentBlockCard({
   const blockRef = useRef(block)
   const onUpdateRef = useRef(onUpdate)
 
-  // Keep refs in sync with latest props
-  useEffect(() => {
+  // Keep refs in sync with latest props - useLayoutEffect ensures this runs
+  // synchronously before useEffect callbacks, preventing stale data issues
+  useLayoutEffect(() => {
     blockRef.current = block
     onUpdateRef.current = onUpdate
   })
@@ -94,19 +95,20 @@ export function EquipmentBlockCard({
   )
 
   // Update costs when rates change - uses refs to avoid stale closure
+  // Also depends on selectedModelId and location to handle cached data scenarios
   useEffect(() => {
-    if (rates) {
+    if (rates && selectedModelId) {
       const newCosts: Record<CostField, number> = {} as Record<CostField, number>
       COST_FIELDS.forEach((field) => {
         newCosts[field] = rates[field] || 0
       })
       onUpdateRef.current({ ...blockRef.current, costs: newCosts })
     }
-  }, [rates])
+  }, [rates, selectedModelId, block.location])
 
   // Update dimensions when model changes - uses refs to avoid stale closure
   useEffect(() => {
-    if (dimensions) {
+    if (dimensions && selectedModelId) {
       onUpdateRef.current({
         ...blockRef.current,
         length_inches: dimensions.length_inches,
@@ -115,7 +117,7 @@ export function EquipmentBlockCard({
         weight_lbs: dimensions.weight_lbs,
       })
     }
-  }, [dimensions])
+  }, [dimensions, selectedModelId])
 
   // Calculate costs subtotal (without fees)
   const calculateCostsSubtotal = () => {
