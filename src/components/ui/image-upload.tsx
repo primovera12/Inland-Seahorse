@@ -156,9 +156,26 @@ export function ImageUpload({
         <div className="relative group">
           <div className="relative aspect-video w-full rounded-lg overflow-hidden border bg-muted">
             {imageError ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
-                <AlertCircle className="h-8 w-8 mb-2" />
-                <span className="text-xs">Failed to load image</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <AlertCircle className="h-6 w-6" />
+                <span className="text-xs">Image not found</span>
+                {!disabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemove}
+                    disabled={uploading}
+                    className="mt-1"
+                  >
+                    {uploading ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <X className="h-3 w-3 mr-1" />
+                    )}
+                    Remove & Re-upload
+                  </Button>
+                )}
               </div>
             ) : (
               <img
@@ -170,7 +187,7 @@ export function ImageUpload({
               />
             )}
           </div>
-          {!disabled && (
+          {!disabled && !imageError && (
             <Button
               type="button"
               variant="destructive"
