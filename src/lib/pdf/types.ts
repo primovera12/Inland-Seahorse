@@ -134,6 +134,10 @@ export interface InlandTransportInfo {
   dropoff: AddressInfo
   destinationBlocks?: InlandDestinationBlock[]
   total: number
+  // Route info
+  distance_miles?: number
+  duration_minutes?: number
+  static_map_url?: string
 }
 
 // Service line item for the table
@@ -394,6 +398,10 @@ export function buildUnifiedPDFData(params: {
     dropoff_state?: string
     dropoff_zip?: string
     transport_cost?: number
+    // Route info
+    distance_miles?: number
+    duration_minutes?: number
+    static_map_url?: string
   }
   // Totals
   subtotal: number
@@ -524,6 +532,9 @@ export function buildUnifiedPDFData(params: {
             zip: params.inlandTransport.dropoff_zip,
           },
           total: params.inlandTransport.transport_cost || 0,
+          distance_miles: params.inlandTransport.distance_miles,
+          duration_minutes: params.inlandTransport.duration_minutes,
+          static_map_url: params.inlandTransport.static_map_url,
         }
       : undefined,
     equipmentSubtotal: params.subtotal - (params.inlandTransportCost || 0),

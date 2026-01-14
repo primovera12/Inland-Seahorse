@@ -217,6 +217,7 @@ function openPrintWindow(element: HTMLElement, quoteNumber: string): void {
         .grid { display: grid; }
         .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
         .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
         .grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
         .col-span-4 { grid-column: span 4 / span 4; }

@@ -93,15 +93,23 @@ export interface InlandTransportData {
   pickup_city: string
   pickup_state: string
   pickup_zip: string
+  pickup_lat?: number
+  pickup_lng?: number
   dropoff_address: string
   dropoff_city: string
   dropoff_state: string
   dropoff_zip: string
+  dropoff_lat?: number
+  dropoff_lng?: number
   transport_cost: number // cents - kept for backwards compatibility
   notes: string
   // New enhanced fields
   load_blocks: LoadBlock[]
   total: number // cents
+  // Route info
+  distance_miles?: number
+  duration_minutes?: number
+  static_map_url?: string
 }
 
 export interface EquipmentDimensions {
@@ -440,6 +448,77 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
     return data.load_blocks.reduce((sum, block) => sum + block.subtotal, 0)
   }, [data.load_blocks])
 
+  // Generate static map URL for route preview
+  const generateStaticMapUrl = (
+    pickupLat: number,
+    pickupLng: number,
+    dropoffLat: number,
+    dropoffLng: number
+  ): string => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+    const size = '800x300'
+    const mapType = 'roadmap'
+    const pickupMarker = `markers=color:green%7Clabel:A%7C${pickupLat},${pickupLng}`
+    const dropoffMarker = `markers=color:red%7Clabel:B%7C${dropoffLat},${dropoffLng}`
+    const path = `path=color:0x1e3a8a%7Cweight:4%7C${pickupLat},${pickupLng}%7C${dropoffLat},${dropoffLng}`
+
+    return `https://maps.googleapis.com/maps/api/staticmap?size=${size}&maptype=${mapType}&${pickupMarker}&${dropoffMarker}&${path}&key=${apiKey}`
+  }
+
+  // Calculate route info using Google Distance Matrix API
+  const calculateRouteInfo = async (newData: InlandTransportData) => {
+    if (!newData.pickup_lat || !newData.pickup_lng || !newData.dropoff_lat || !newData.dropoff_lng) {
+      onChange(newData)
+      return
+    }
+
+    try {
+      // Generate static map URL
+      const staticMapUrl = generateStaticMapUrl(
+        newData.pickup_lat,
+        newData.pickup_lng,
+        newData.dropoff_lat,
+        newData.dropoff_lng
+      )
+
+      // Calculate distance using Google Distance Matrix API
+      const service = new google.maps.DistanceMatrixService()
+      const response = await service.getDistanceMatrix({
+        origins: [{ lat: newData.pickup_lat, lng: newData.pickup_lng }],
+        destinations: [{ lat: newData.dropoff_lat, lng: newData.dropoff_lng }],
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.IMPERIAL,
+      })
+
+      if (response.rows[0]?.elements[0]?.status === 'OK') {
+        const element = response.rows[0].elements[0]
+        const distanceMeters = element.distance?.value || 0
+        const durationSeconds = element.duration?.value || 0
+
+        // Convert to miles and minutes
+        const distanceMiles = distanceMeters / 1609.34
+        const durationMinutes = Math.round(durationSeconds / 60)
+
+        onChange({
+          ...newData,
+          distance_miles: Math.round(distanceMiles * 10) / 10, // Round to 1 decimal
+          duration_minutes: durationMinutes,
+          static_map_url: staticMapUrl,
+        })
+      } else {
+        // If distance calculation fails, still set the static map
+        onChange({
+          ...newData,
+          static_map_url: staticMapUrl,
+        })
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error)
+      // Still update with the basic data
+      onChange(newData)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -476,13 +555,21 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                   value={data.pickup_address}
                   onChange={(value) => updateField('pickup_address', value)}
                   onSelect={(components) => {
-                    onChange({
+                    const newData = {
                       ...data,
                       pickup_address: components.address,
                       pickup_city: components.city || data.pickup_city,
                       pickup_state: components.state || data.pickup_state,
                       pickup_zip: components.zip || data.pickup_zip,
-                    })
+                      pickup_lat: components.lat,
+                      pickup_lng: components.lng,
+                    }
+                    // Calculate route if both addresses have coordinates
+                    if (newData.pickup_lat && newData.pickup_lng && newData.dropoff_lat && newData.dropoff_lng) {
+                      calculateRouteInfo(newData)
+                    } else {
+                      onChange(newData)
+                    }
                   }}
                 />
               </div>
@@ -533,13 +620,21 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                   value={data.dropoff_address}
                   onChange={(value) => updateField('dropoff_address', value)}
                   onSelect={(components) => {
-                    onChange({
+                    const newData = {
                       ...data,
                       dropoff_address: components.address,
                       dropoff_city: components.city || data.dropoff_city,
                       dropoff_state: components.state || data.dropoff_state,
                       dropoff_zip: components.zip || data.dropoff_zip,
-                    })
+                      dropoff_lat: components.lat,
+                      dropoff_lng: components.lng,
+                    }
+                    // Calculate route if both addresses have coordinates
+                    if (newData.pickup_lat && newData.pickup_lng && newData.dropoff_lat && newData.dropoff_lng) {
+                      calculateRouteInfo(newData)
+                    } else {
+                      onChange(newData)
+                    }
                   }}
                 />
               </div>

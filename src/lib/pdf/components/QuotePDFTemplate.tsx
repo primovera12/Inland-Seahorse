@@ -56,9 +56,6 @@ function HeaderSection({ data }: { data: UnifiedPDFData }) {
           )}
         </div>
         <div className="text-sm space-y-1 text-slate-500">
-          {data.company.name && (
-            <p className="font-bold text-slate-800">{data.company.name}</p>
-          )}
           {data.company.address && <p>{data.company.address}</p>}
           {data.company.email && <p>{data.company.email}</p>}
           {data.company.phone && <p>{data.company.phone}</p>}
@@ -170,56 +167,107 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
   const hasInlandTransport = data.inlandTransport?.enabled && data.inlandTransport.pickup && data.inlandTransport.dropoff
   const isInlandOnlyQuote = data.quoteType === 'inland'
 
-  // For inland-only quotes, just show pickup/dropoff
+  // For inland-only quotes, just show pickup/dropoff/distance
   if (isInlandOnlyQuote && hasInlandTransport) {
     const pickup = data.inlandTransport!.pickup
     const dropoff = data.inlandTransport!.dropoff
+    const distanceMiles = data.inlandTransport!.distance_miles
+    const durationMinutes = data.inlandTransport!.duration_minutes
+    const staticMapUrl = data.inlandTransport!.static_map_url
 
     return (
-      <div className="grid grid-cols-2 gap-0 border-b border-slate-100">
-        {/* Pickup */}
-        <div className="p-8 border-r border-slate-100">
-          <h3
-            className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-            style={{ color: primaryColor }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Pick-up Location
-          </h3>
-          <div className="space-y-1">
-            <p className="text-base font-bold text-slate-900">{pickup.address || '-'}</p>
-            {(pickup.city || pickup.state || pickup.zip) && (
-              <p className="text-sm text-slate-500">
-                {[pickup.city, pickup.state, pickup.zip].filter(Boolean).join(', ')}
+      <>
+        <div className="grid grid-cols-3 gap-0 border-b border-slate-100">
+          {/* Pickup */}
+          <div className="p-8 border-r border-slate-100">
+            <h3
+              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: primaryColor }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Pick-up Location
+            </h3>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-slate-900">{pickup.address || '-'}</p>
+              {(pickup.city || pickup.state || pickup.zip) && (
+                <p className="text-sm text-slate-500">
+                  {[pickup.city, pickup.state, pickup.zip].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Dropoff */}
+          <div className="p-8 border-r border-slate-100">
+            <h3
+              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: primaryColor }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Delivery Location
+            </h3>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-slate-900">{dropoff.address || '-'}</p>
+              {(dropoff.city || dropoff.state || dropoff.zip) && (
+                <p className="text-sm text-slate-500">
+                  {[dropoff.city, dropoff.state, dropoff.zip].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Transport Distance */}
+          <div className="p-8">
+            <h3
+              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: primaryColor }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              Transport Distance
+            </h3>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-slate-900">
+                {distanceMiles ? `${Math.round(distanceMiles).toLocaleString()} miles` : '-'}
               </p>
-            )}
+              {durationMinutes && (
+                <p className="text-sm text-slate-500">
+                  Est. {Math.floor(durationMinutes / 60)}h {durationMinutes % 60}m drive time
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Dropoff */}
-        <div className="p-8">
-          <h3
-            className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-            style={{ color: primaryColor }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-            Delivery Location
-          </h3>
-          <div className="space-y-1">
-            <p className="text-base font-bold text-slate-900">{dropoff.address || '-'}</p>
-            {(dropoff.city || dropoff.state || dropoff.zip) && (
-              <p className="text-sm text-slate-500">
-                {[dropoff.city, dropoff.state, dropoff.zip].filter(Boolean).join(', ')}
-              </p>
-            )}
+        {/* Route Map Preview */}
+        {staticMapUrl && (
+          <div className="p-8 border-b border-slate-100">
+            <h3
+              className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
+              style={{ color: primaryColor }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              Route Preview
+            </h3>
+            <div className="rounded-lg overflow-hidden border border-slate-200">
+              <img
+                src={staticMapUrl}
+                alt="Route map"
+                className="w-full h-auto"
+                style={{ maxHeight: '250px', objectFit: 'cover' }}
+              />
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </>
     )
   }
 
@@ -252,50 +300,98 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
 
       {/* Inland Transport (if enabled for dismantle quote) */}
       {hasInlandTransport && !isInlandOnlyQuote && (
-        <div className="grid grid-cols-2 gap-0 border-b border-slate-100">
-          {/* Pickup */}
-          <div className="p-8 border-r border-slate-100">
-            <h3
-              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-              style={{ color: primaryColor }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Transport Pick-up
-            </h3>
-            <div className="space-y-1">
-              <p className="text-base font-bold text-slate-900">{data.inlandTransport!.pickup.address || '-'}</p>
-              {(data.inlandTransport!.pickup.city || data.inlandTransport!.pickup.state || data.inlandTransport!.pickup.zip) && (
-                <p className="text-sm text-slate-500">
-                  {[data.inlandTransport!.pickup.city, data.inlandTransport!.pickup.state, data.inlandTransport!.pickup.zip].filter(Boolean).join(', ')}
+        <>
+          <div className="grid grid-cols-3 gap-0 border-b border-slate-100">
+            {/* Pickup */}
+            <div className="p-8 border-r border-slate-100">
+              <h3
+                className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+                style={{ color: primaryColor }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Transport Pick-up
+              </h3>
+              <div className="space-y-1">
+                <p className="text-base font-bold text-slate-900">{data.inlandTransport!.pickup.address || '-'}</p>
+                {(data.inlandTransport!.pickup.city || data.inlandTransport!.pickup.state || data.inlandTransport!.pickup.zip) && (
+                  <p className="text-sm text-slate-500">
+                    {[data.inlandTransport!.pickup.city, data.inlandTransport!.pickup.state, data.inlandTransport!.pickup.zip].filter(Boolean).join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Dropoff */}
+            <div className="p-8 border-r border-slate-100">
+              <h3
+                className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+                style={{ color: primaryColor }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Transport Delivery
+              </h3>
+              <div className="space-y-1">
+                <p className="text-base font-bold text-slate-900">{data.inlandTransport!.dropoff.address || '-'}</p>
+                {(data.inlandTransport!.dropoff.city || data.inlandTransport!.dropoff.state || data.inlandTransport!.dropoff.zip) && (
+                  <p className="text-sm text-slate-500">
+                    {[data.inlandTransport!.dropoff.city, data.inlandTransport!.dropoff.state, data.inlandTransport!.dropoff.zip].filter(Boolean).join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Transport Distance */}
+            <div className="p-8">
+              <h3
+                className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+                style={{ color: primaryColor }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                Transport Distance
+              </h3>
+              <div className="space-y-1">
+                <p className="text-base font-bold text-slate-900">
+                  {data.inlandTransport!.distance_miles ? `${Math.round(data.inlandTransport!.distance_miles).toLocaleString()} miles` : '-'}
                 </p>
-              )}
+                {data.inlandTransport!.duration_minutes && (
+                  <p className="text-sm text-slate-500">
+                    Est. {Math.floor(data.inlandTransport!.duration_minutes / 60)}h {data.inlandTransport!.duration_minutes % 60}m drive time
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Dropoff */}
-          <div className="p-8">
-            <h3
-              className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-              style={{ color: primaryColor }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              Transport Delivery
-            </h3>
-            <div className="space-y-1">
-              <p className="text-base font-bold text-slate-900">{data.inlandTransport!.dropoff.address || '-'}</p>
-              {(data.inlandTransport!.dropoff.city || data.inlandTransport!.dropoff.state || data.inlandTransport!.dropoff.zip) && (
-                <p className="text-sm text-slate-500">
-                  {[data.inlandTransport!.dropoff.city, data.inlandTransport!.dropoff.state, data.inlandTransport!.dropoff.zip].filter(Boolean).join(', ')}
-                </p>
-              )}
+          {/* Route Map Preview */}
+          {data.inlandTransport!.static_map_url && (
+            <div className="p-8 border-b border-slate-100">
+              <h3
+                className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
+                style={{ color: primaryColor }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                Route Preview
+              </h3>
+              <div className="rounded-lg overflow-hidden border border-slate-200">
+                <img
+                  src={data.inlandTransport!.static_map_url}
+                  alt="Route map"
+                  className="w-full h-auto"
+                  style={{ maxHeight: '250px', objectFit: 'cover' }}
+                />
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </>
   )
