@@ -132,10 +132,11 @@ export function EquipmentBlockCard({
   const subtotal = costsSubtotal + miscFeesTotal
   const totalWithQuantity = subtotal * block.quantity
 
-  // Update parent when subtotal changes
+  // Update parent when subtotal changes - uses refs to avoid stale closure
   useEffect(() => {
-    if (block.subtotal !== subtotal || block.total_with_quantity !== totalWithQuantity || block.misc_fees_total !== miscFeesTotal) {
-      onUpdate({ ...block, subtotal, misc_fees_total: miscFeesTotal, total_with_quantity: totalWithQuantity })
+    const currentBlock = blockRef.current
+    if (currentBlock.subtotal !== subtotal || currentBlock.total_with_quantity !== totalWithQuantity || currentBlock.misc_fees_total !== miscFeesTotal) {
+      onUpdateRef.current({ ...currentBlock, subtotal, misc_fees_total: miscFeesTotal, total_with_quantity: totalWithQuantity })
     }
   }, [subtotal, totalWithQuantity, miscFeesTotal])
 
