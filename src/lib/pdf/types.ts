@@ -239,7 +239,7 @@ export function transformQuoteDataToPDF(
         id: block.id,
         makeName: block.make_name,
         modelName: block.model_name,
-        location: block.location,
+        location: block.location || '',
         quantity: block.quantity,
         dimensions: {
           length_inches: block.length_inches || 0,
@@ -445,7 +445,7 @@ export function buildUnifiedPDFData(params: {
         id: block.id,
         makeName: block.make_name,
         modelName: block.model_name,
-        location: block.location,
+        location: block.location || '',
         quantity: block.quantity,
         dimensions: {
           length_inches: block.length_inches || 0,

@@ -139,7 +139,7 @@ export interface EquipmentBlock {
   model_id?: string
   make_name: string
   model_name: string
-  location: LocationName
+  location?: LocationName
   quantity: number
 
   // Dimensions

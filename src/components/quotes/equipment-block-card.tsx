@@ -82,10 +82,10 @@ export function EquipmentBlockCard({
     { enabled: !!selectedMakeId }
   )
 
-  // Fetch rates when model and location change
+  // Fetch rates when model and location are both selected
   const { data: rates } = trpc.equipment.getRates.useQuery(
-    { modelId: selectedModelId, location: block.location },
-    { enabled: !!selectedModelId }
+    { modelId: selectedModelId, location: block.location! },
+    { enabled: !!selectedModelId && !!block.location }
   )
 
   // Fetch dimensions when model changes
@@ -283,9 +283,9 @@ export function EquipmentBlockCard({
 
               <div className="space-y-2">
                 <Label>Location</Label>
-                <Select value={block.location} onValueChange={handleLocationChange}>
+                <Select value={block.location || ''} onValueChange={handleLocationChange}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
                     {LOCATIONS.map((location) => (

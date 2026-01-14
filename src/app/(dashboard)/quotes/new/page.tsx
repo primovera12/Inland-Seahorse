@@ -48,7 +48,7 @@ function createEmptyEquipmentBlock(): EquipmentBlock {
     id: crypto.randomUUID(),
     make_name: '',
     model_name: '',
-    location: 'New Jersey',
+    // No default location - user must select one to load rates
     quantity: 1,
     costs: initialCosts,
     enabled_costs: initialEnabled,
