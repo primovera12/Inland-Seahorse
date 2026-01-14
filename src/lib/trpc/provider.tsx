@@ -30,6 +30,9 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
           transformer: superjson,
+          // Limit URL length to prevent 414 errors when batching many queries
+          // This will automatically split large batches into multiple requests
+          maxURLLength: 2000,
         }),
       ],
     })
