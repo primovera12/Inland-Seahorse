@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +62,16 @@ export function EquipmentBlockCard({
   const [selectedMakeId, setSelectedMakeId] = useState(block.make_id || '')
   const [selectedModelId, setSelectedModelId] = useState(block.model_id || '')
 
+  // Use refs to avoid stale closure issues when rates/dimensions return from cache
+  const blockRef = useRef(block)
+  const onUpdateRef = useRef(onUpdate)
+
+  // Keep refs in sync with latest props
+  useEffect(() => {
+    blockRef.current = block
+    onUpdateRef.current = onUpdate
+  })
+
   // Fetch makes
   const { data: makes } = trpc.equipment.getMakes.useQuery()
 
@@ -83,22 +93,22 @@ export function EquipmentBlockCard({
     { enabled: !!selectedModelId }
   )
 
-  // Update costs when rates change
+  // Update costs when rates change - uses refs to avoid stale closure
   useEffect(() => {
     if (rates) {
       const newCosts: Record<CostField, number> = {} as Record<CostField, number>
       COST_FIELDS.forEach((field) => {
         newCosts[field] = rates[field] || 0
       })
-      onUpdate({ ...block, costs: newCosts })
+      onUpdateRef.current({ ...blockRef.current, costs: newCosts })
     }
   }, [rates])
 
-  // Update dimensions when model changes
+  // Update dimensions when model changes - uses refs to avoid stale closure
   useEffect(() => {
     if (dimensions) {
-      onUpdate({
-        ...block,
+      onUpdateRef.current({
+        ...blockRef.current,
         length_inches: dimensions.length_inches,
         width_inches: dimensions.width_inches,
         height_inches: dimensions.height_inches,
