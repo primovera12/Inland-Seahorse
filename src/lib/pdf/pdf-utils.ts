@@ -134,6 +134,11 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
 export async function loadImageAsBase64(url: string): Promise<string | null> {
   if (!url) return null
 
+  // If it's already a data URL, return it as-is
+  if (url.startsWith('data:')) {
+    return url
+  }
+
   try {
     const response = await fetch(url)
     if (!response.ok) return null

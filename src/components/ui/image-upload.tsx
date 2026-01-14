@@ -98,6 +98,12 @@ export function ImageUpload({
   const handleRemove = useCallback(async () => {
     if (!value) return
 
+    // Check if it's a data URL (base64 image) - just remove without storage deletion
+    if (value.startsWith('data:')) {
+      onChange(null)
+      return
+    }
+
     setUploading(true)
     setError(null)
 

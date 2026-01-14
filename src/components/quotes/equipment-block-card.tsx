@@ -25,6 +25,7 @@ import { formatDimension, formatWeight } from '@/lib/dimensions'
 import { LOCATIONS, COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { MiscFeesList, calculateMiscFeesTotal } from './misc-fees-list'
+import { ImageUpload } from '@/components/ui/image-upload'
 import { ChevronDown, ChevronUp, Trash2, Copy } from 'lucide-react'
 
 const COST_LABELS: Record<CostField, string> = {
@@ -94,6 +95,17 @@ export function EquipmentBlockCard({
     { enabled: !!selectedModelId }
   )
 
+  // State for equipment images (local state for optimistic UI)
+  const [frontImageUrl, setFrontImageUrl] = useState<string | null>(
+    block.front_image_url || null
+  )
+  const [sideImageUrl, setSideImageUrl] = useState<string | null>(
+    block.side_image_url || null
+  )
+
+  // Mutation to update equipment images in database
+  const updateImagesMutation = trpc.equipment.updateImages.useMutation()
+
   // Update costs when rates change - uses refs to avoid stale closure
   // Also depends on selectedModelId and location to handle cached data scenarios
   useEffect(() => {
@@ -118,6 +130,56 @@ export function EquipmentBlockCard({
       })
     }
   }, [dimensions, selectedModelId])
+
+  // Sync images from dimensions when model changes
+  useEffect(() => {
+    if (dimensions && selectedModelId) {
+      setFrontImageUrl(dimensions.front_image_url || null)
+      setSideImageUrl(dimensions.side_image_url || null)
+      // Also update block with image URLs
+      onUpdateRef.current({
+        ...blockRef.current,
+        front_image_url: dimensions.front_image_url || undefined,
+        side_image_url: dimensions.side_image_url || undefined,
+      })
+    }
+  }, [dimensions, selectedModelId])
+
+  // Handle front image change
+  const handleFrontImageChange = async (url: string | null) => {
+    setFrontImageUrl(url)
+    onUpdate({ ...block, front_image_url: url || undefined })
+
+    // Save to database
+    if (selectedModelId) {
+      try {
+        await updateImagesMutation.mutateAsync({
+          modelId: selectedModelId,
+          frontImageUrl: url,
+        })
+      } catch (error) {
+        console.error('Failed to update front image:', error)
+      }
+    }
+  }
+
+  // Handle side image change
+  const handleSideImageChange = async (url: string | null) => {
+    setSideImageUrl(url)
+    onUpdate({ ...block, side_image_url: url || undefined })
+
+    // Save to database
+    if (selectedModelId) {
+      try {
+        await updateImagesMutation.mutateAsync({
+          modelId: selectedModelId,
+          sideImageUrl: url,
+        })
+      } catch (error) {
+        console.error('Failed to update side image:', error)
+      }
+    }
+  }
 
   // Calculate costs subtotal (without fees)
   const calculateCostsSubtotal = () => {
@@ -329,6 +391,33 @@ export function EquipmentBlockCard({
                   <div>
                     <p className="text-sm text-muted-foreground">Weight</p>
                     <p className="font-mono">{formatWeight(block.weight_lbs || 0)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Equipment Images */}
+            {selectedModelId && (
+              <div className="rounded-lg border p-4 bg-muted/30">
+                <h4 className="font-medium mb-3">Equipment Images</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">Front View</Label>
+                    <ImageUpload
+                      value={frontImageUrl}
+                      onChange={handleFrontImageChange}
+                      folder={`equipment/${selectedModelId}`}
+                      label="Upload Front Image"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">Side View</Label>
+                    <ImageUpload
+                      value={sideImageUrl}
+                      onChange={handleSideImageChange}
+                      folder={`equipment/${selectedModelId}`}
+                      label="Upload Side Image"
+                    />
                   </div>
                 </div>
               </div>

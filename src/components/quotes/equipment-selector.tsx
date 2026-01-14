@@ -388,15 +388,24 @@ export function EquipmentSelector({
               <p className="text-sm text-muted-foreground">Front View</p>
               {fullDimensions?.front_image_url && !failedImages.front ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
-                  <Image
-                    src={fullDimensions.front_image_url}
-                    alt="Front view"
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 100vw, 300px"
-                    unoptimized={fullDimensions.front_image_url.endsWith('.svg')}
-                    onError={() => handleImageError('front')}
-                  />
+                  {fullDimensions.front_image_url.startsWith('data:') ? (
+                    <img
+                      src={fullDimensions.front_image_url}
+                      alt="Front view"
+                      className="absolute inset-0 w-full h-full object-contain"
+                      onError={() => handleImageError('front')}
+                    />
+                  ) : (
+                    <Image
+                      src={fullDimensions.front_image_url}
+                      alt="Front view"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 300px"
+                      unoptimized={fullDimensions.front_image_url.endsWith('.svg')}
+                      onError={() => handleImageError('front')}
+                    />
+                  )}
                 </div>
               ) : failedImages.front ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted/50 flex flex-col items-center justify-center gap-3">
@@ -443,15 +452,24 @@ export function EquipmentSelector({
               <p className="text-sm text-muted-foreground">Side View</p>
               {fullDimensions?.side_image_url && !failedImages.side ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-background">
-                  <Image
-                    src={fullDimensions.side_image_url}
-                    alt="Side view"
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 100vw, 300px"
-                    unoptimized={fullDimensions.side_image_url.endsWith('.svg')}
-                    onError={() => handleImageError('side')}
-                  />
+                  {fullDimensions.side_image_url.startsWith('data:') ? (
+                    <img
+                      src={fullDimensions.side_image_url}
+                      alt="Side view"
+                      className="absolute inset-0 w-full h-full object-contain"
+                      onError={() => handleImageError('side')}
+                    />
+                  ) : (
+                    <Image
+                      src={fullDimensions.side_image_url}
+                      alt="Side view"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 300px"
+                      unoptimized={fullDimensions.side_image_url.endsWith('.svg')}
+                      onError={() => handleImageError('side')}
+                    />
+                  )}
                 </div>
               ) : failedImages.side ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted/50 flex flex-col items-center justify-center gap-3">
