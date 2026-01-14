@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { Upload, X, Loader2, ImageIcon, AlertCircle } from 'lucide-react'
@@ -32,6 +32,11 @@ export function ImageUpload({
   const [error, setError] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Reset imageError when value changes
+  useEffect(() => {
+    setImageError(false)
+  }, [value])
 
   const handleUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
