@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
 import type { UnifiedPDFData, ServiceLineItem, CostCategory } from '../types'
-import { generateServiceLineItems, CATEGORY_STYLES } from '../types'
+import { generateServiceLineItems, CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES } from '../types'
 
 interface QuotePDFTemplateProps {
   data: UnifiedPDFData
@@ -387,6 +387,25 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
   )
 }
 
+// Helper to format billing unit for display
+function formatBillingUnit(unit: string): string {
+  switch (unit) {
+    case 'hour': return '/hour'
+    case 'day': return '/day'
+    case 'week': return '/week'
+    case 'month': return '/month'
+    case 'way': return '/way'
+    case 'stop': return '/stop'
+    case 'flat': return ''
+    default: return ''
+  }
+}
+
+// Helper to check if billing unit is variable (time-based)
+function isVariableBillingUnit(unit: string): boolean {
+  return ['hour', 'day', 'week', 'month'].includes(unit)
+}
+
 // Inland transport services and accessorials section
 function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
@@ -491,15 +510,27 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-amber-200">
-                  {block.accessorial_charges.map((charge) => (
-                    <tr key={charge.id}>
-                      <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
-                      <td className="px-3 py-2 text-xs text-amber-700">{charge.billing_unit}</td>
-                      <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
-                      <td className="px-3 py-2 text-xs text-right text-amber-700">{formatCurrency(charge.rate)}</td>
-                      <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">{formatCurrency(charge.total)}</td>
-                    </tr>
-                  ))}
+                  {block.accessorial_charges.map((charge) => {
+                    const isVariable = isVariableBillingUnit(charge.billing_unit)
+                    const rateDisplay = isVariable
+                      ? `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
+                      : formatCurrency(charge.rate)
+                    return (
+                      <tr key={charge.id}>
+                        <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
+                        <td className="px-3 py-2 text-xs text-amber-700">{charge.billing_unit}</td>
+                        <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
+                        <td className="px-3 py-2 text-xs text-right text-amber-700">{rateDisplay}</td>
+                        <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">
+                          {isVariable ? (
+                            <span className="italic">As incurred</span>
+                          ) : (
+                            formatCurrency(charge.total)
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-amber-300">
@@ -641,9 +672,12 @@ function EquipmentSection({ equipment, primaryColor, showQuantity = false }: {
 }
 
 // Services table
-function ServicesTable({ lineItems, primaryColor }: {
+function ServicesTable({ lineItems, primaryColor, showSubtotal, subtotalLabel, subtotalAmount }: {
   lineItems: ServiceLineItem[]
   primaryColor: string
+  showSubtotal?: boolean
+  subtotalLabel?: string
+  subtotalAmount?: number
 }) {
   return (
     <div className="flex-grow">
@@ -672,9 +706,6 @@ function ServicesTable({ lineItems, primaryColor }: {
             <tr key={item.id} className={index % 2 === 1 ? 'bg-slate-50/50' : ''}>
               <td className="px-8 py-5">
                 <p className="font-bold text-slate-900">{item.description}</p>
-                {item.subDescription && (
-                  <p className="text-xs text-slate-500">{item.subDescription}</p>
-                )}
               </td>
               <td className="px-6 py-5">
                 <CategoryBadge category={item.category} />
@@ -689,7 +720,186 @@ function ServicesTable({ lineItems, primaryColor }: {
             </tr>
           ))}
         </tbody>
+        {showSubtotal && subtotalAmount !== undefined && (
+          <tfoot>
+            <tr style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+              <td colSpan={4} className="px-8 py-4 text-sm font-bold text-slate-700">
+                {subtotalLabel || 'Subtotal'}
+              </td>
+              <td className="px-8 py-4 text-right text-base font-bold" style={{ color: primaryColor }}>
+                {formatCurrency(subtotalAmount)}
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
+    </div>
+  )
+}
+
+// Generate line items for a specific equipment
+function getEquipmentLineItems(equipment: UnifiedPDFData['equipment'][0]): ServiceLineItem[] {
+  const items: ServiceLineItem[] = []
+
+  // Add enabled cost items
+  Object.entries(equipment.enabledCosts).forEach(([field, enabled]) => {
+    if (!enabled) return
+
+    const costField = field as keyof typeof equipment.costs
+    const cost = equipment.costOverrides[costField] ?? equipment.costs[costField]
+
+    // Skip $0 costs
+    if (cost <= 0) return
+
+    const customDescription = equipment.costDescriptions?.[costField]
+
+    items.push({
+      id: `${equipment.id}-${costField}`,
+      description: customDescription || COST_LABELS[costField as keyof typeof COST_LABELS] || costField,
+      category: COST_FIELD_CATEGORIES[costField as keyof typeof COST_FIELD_CATEGORIES] || 'logistics',
+      quantity: equipment.quantity,
+      unitRate: cost,
+      lineTotal: cost * equipment.quantity,
+      equipmentId: equipment.id,
+    })
+  })
+
+  // Add misc fees
+  equipment.miscFees.forEach((fee) => {
+    const feeAmount = fee.is_percentage
+      ? Math.round(equipment.subtotal * (fee.amount / 10000))
+      : fee.amount
+
+    // Skip $0 fees
+    if (feeAmount <= 0) return
+
+    items.push({
+      id: `${equipment.id}-misc-${fee.id}`,
+      description: fee.title,
+      subDescription: fee.description || undefined,
+      category: 'logistics',
+      quantity: 1,
+      unitRate: feeAmount,
+      lineTotal: feeAmount,
+      equipmentId: equipment.id,
+    })
+  })
+
+  return items
+}
+
+// Combined equipment section with services and subtotal (for multi-equipment)
+function EquipmentWithServicesSection({
+  equipment,
+  primaryColor,
+  equipmentNumber
+}: {
+  equipment: UnifiedPDFData['equipment'][0]
+  primaryColor: string
+  equipmentNumber: number
+}) {
+  const lineItems = getEquipmentLineItems(equipment)
+  const hasImages = equipment.frontImageUrl || equipment.sideImageUrl
+  const equipmentTotal = equipment.totalWithQuantity
+
+  return (
+    <div className="border-b border-slate-100">
+      {/* Equipment Header */}
+      <div className="px-8 pt-6 pb-4">
+        <div
+          className="flex items-center justify-between px-4 py-3 rounded-lg"
+          style={{ backgroundColor: primaryColor }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-white font-bold text-lg">
+              Equipment {equipmentNumber}: {equipment.makeName} {equipment.modelName}
+            </span>
+            {equipment.quantity > 1 && (
+              <span className="text-white/80 text-sm">(Qty: {equipment.quantity})</span>
+            )}
+          </div>
+          <span className="text-white/80 text-sm">
+            Location: {equipment.location}
+          </span>
+        </div>
+      </div>
+
+      {/* Equipment Images and Specs - Compact View */}
+      <div className="grid grid-cols-12 gap-0 mx-8 mb-4 rounded-lg overflow-hidden border border-slate-200">
+        {/* Equipment Images */}
+        <div className="col-span-8 p-4 border-r border-slate-200">
+          {hasImages ? (
+            <div className="grid grid-cols-2 gap-4">
+              {equipment.frontImageUrl && (
+                <div className="space-y-1">
+                  <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                    <img
+                      src={equipment.frontImageUrl}
+                      alt="Front View"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <p className="text-[9px] uppercase font-bold text-slate-400 text-center tracking-widest">
+                    Front
+                  </p>
+                </div>
+              )}
+              {equipment.sideImageUrl && (
+                <div className="space-y-1">
+                  <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                    <img
+                      src={equipment.sideImageUrl}
+                      alt="Side View"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <p className="text-[9px] uppercase font-bold text-slate-400 text-center tracking-widest">
+                    Side
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="aspect-video bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-center">
+              <p className="text-slate-400 text-sm">No images available</p>
+            </div>
+          )}
+        </div>
+
+        {/* Technical Specifications - Compact */}
+        <div className="col-span-4 p-4" style={{ backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
+            Specifications
+          </h4>
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Length</span>
+              <span className="font-bold text-slate-900">{formatDimension(equipment.dimensions.length_inches)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Width</span>
+              <span className="font-bold text-slate-900">{formatDimension(equipment.dimensions.width_inches)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Height</span>
+              <span className="font-bold text-slate-900">{formatDimension(equipment.dimensions.height_inches)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Weight</span>
+              <span className="font-bold text-slate-900">{formatWeight(equipment.dimensions.weight_lbs)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Equipment Services Table */}
+      <ServicesTable
+        lineItems={lineItems}
+        primaryColor={primaryColor}
+        showSubtotal={true}
+        subtotalLabel={`${equipment.makeName} ${equipment.modelName} Total`}
+        subtotalAmount={equipmentTotal}
+      />
     </div>
   )
 }
@@ -797,8 +1007,11 @@ function FooterSection({ data }: { data: UnifiedPDFData }) {
 export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
 
-  // Generate service line items
+  // Generate service line items (for single equipment or combined view)
   const lineItems = generateServiceLineItems(data.equipment, data.isMultiEquipment)
+
+  // Determine if this is a multi-equipment quote (2+ equipment)
+  const isMultiEquipmentQuote = data.isMultiEquipment && data.equipment.length > 1
 
   return (
     <div
@@ -821,23 +1034,38 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
           {/* Location(s) */}
           <LocationSection data={data} />
 
-          {/* Equipment Section(s) */}
-          {data.equipment.map((eq, index) => (
-            <EquipmentSection
-              key={eq.id}
-              equipment={eq}
-              primaryColor={primaryColor}
-              showQuantity={data.isMultiEquipment}
-            />
-          ))}
-
-          {/* Services Table */}
-          <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />
+          {isMultiEquipmentQuote ? (
+            /* Multi-Equipment Layout: Each equipment has its own section with services and subtotal */
+            <>
+              {data.equipment.map((eq, index) => (
+                <EquipmentWithServicesSection
+                  key={eq.id}
+                  equipment={eq}
+                  primaryColor={primaryColor}
+                  equipmentNumber={index + 1}
+                />
+              ))}
+            </>
+          ) : (
+            /* Single Equipment Layout: Traditional equipment showcase + combined services table */
+            <>
+              {data.equipment.map((eq) => (
+                <EquipmentSection
+                  key={eq.id}
+                  equipment={eq}
+                  primaryColor={primaryColor}
+                  showQuantity={false}
+                />
+              ))}
+              {/* Services Table */}
+              <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />
+            </>
+          )}
 
           {/* Inland Transport Services (if enabled) */}
           <InlandTransportServicesSection data={data} />
 
-          {/* Pricing Summary */}
+          {/* Pricing Summary / Grand Total */}
           <PricingSummarySection data={data} lineItems={lineItems} />
         </div>
 

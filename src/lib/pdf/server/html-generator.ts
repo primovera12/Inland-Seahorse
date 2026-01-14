@@ -1,5 +1,5 @@
-import type { UnifiedPDFData, CostCategory } from '../types'
-import { CATEGORY_STYLES, generateServiceLineItems } from '../types'
+import type { UnifiedPDFData, CostCategory, ServiceLineItem } from '../types'
+import { CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES, generateServiceLineItems } from '../types'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
 
@@ -7,6 +7,17 @@ import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo,
 export function generateQuotePDFHtml(data: UnifiedPDFData): string {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
   const lineItems = generateServiceLineItems(data.equipment, data.isMultiEquipment)
+
+  // Determine if this is a multi-equipment quote (2+ equipment)
+  const isMultiEquipmentQuote = data.isMultiEquipment && data.equipment.length > 1
+
+  // Generate equipment content based on single vs multi-equipment
+  const equipmentContent = isMultiEquipmentQuote
+    ? data.equipment.map((eq, index) => renderEquipmentWithServices(eq, primaryColor, index + 1)).join('')
+    : `
+      ${data.equipment.map((eq) => renderEquipmentSection(eq, primaryColor, false)).join('')}
+      ${renderServicesTable(lineItems, primaryColor)}
+    `
 
   return `
 <!DOCTYPE html>
@@ -26,8 +37,8 @@ export function generateQuotePDFHtml(data: UnifiedPDFData): string {
       ${renderHeader(data, primaryColor)}
       ${renderClientSection(data, primaryColor)}
       ${renderLocationSection(data, primaryColor)}
-      ${data.equipment.map((eq, i) => renderEquipmentSection(eq, primaryColor, data.isMultiEquipment)).join('')}
-      ${renderServicesTable(lineItems, primaryColor)}
+      ${equipmentContent}
+      ${renderInlandTransportServices(data, primaryColor)}
       ${renderPricingSummary(data, lineItems, primaryColor)}
     </div>
     ${renderFooter(data)}
@@ -708,14 +719,16 @@ function getCategoryBadgeClass(category: CostCategory): string {
 }
 
 function renderServicesTable(
-  lineItems: ReturnType<typeof generateServiceLineItems>,
-  primaryColor: string
+  lineItems: ServiceLineItem[],
+  primaryColor: string,
+  showSubtotal?: boolean,
+  subtotalLabel?: string,
+  subtotalAmount?: number
 ): string {
-  const rows = lineItems.map((item, index) => `
+  const rows = lineItems.map((item) => `
     <tr>
       <td>
         <p class="service-name">${item.description}</p>
-        ${item.subDescription ? `<p class="service-sub">${item.subDescription}</p>` : ''}
       </td>
       <td>
         <span class="category-badge ${getCategoryBadgeClass(item.category)}">
@@ -727,6 +740,19 @@ function renderServicesTable(
       <td class="text-right font-bold">${formatCurrency(item.lineTotal)}</td>
     </tr>
   `).join('')
+
+  const subtotalRow = showSubtotal && subtotalAmount !== undefined ? `
+    <tfoot>
+      <tr style="background: #f1f5f9;">
+        <td colspan="4" style="padding: 16px 32px; font-size: 14px; font-weight: 700; color: #334155;">
+          ${subtotalLabel || 'Subtotal'}
+        </td>
+        <td style="padding: 16px 32px; text-align: right; font-size: 16px; font-weight: 700; color: ${primaryColor};">
+          ${formatCurrency(subtotalAmount)}
+        </td>
+      </tr>
+    </tfoot>
+  ` : ''
 
   return `
     <table class="services-table">
@@ -742,7 +768,315 @@ function renderServicesTable(
       <tbody>
         ${rows}
       </tbody>
+      ${subtotalRow}
     </table>
+  `
+}
+
+// Generate line items for a specific equipment
+function getEquipmentLineItems(equipment: UnifiedPDFData['equipment'][0]): ServiceLineItem[] {
+  const items: ServiceLineItem[] = []
+
+  // Add enabled cost items
+  Object.entries(equipment.enabledCosts).forEach(([field, enabled]) => {
+    if (!enabled) return
+
+    const costField = field as keyof typeof equipment.costs
+    const cost = equipment.costOverrides[costField] ?? equipment.costs[costField]
+
+    // Skip $0 costs
+    if (cost <= 0) return
+
+    const customDescription = equipment.costDescriptions?.[costField]
+
+    items.push({
+      id: `${equipment.id}-${costField}`,
+      description: customDescription || COST_LABELS[costField as keyof typeof COST_LABELS] || field,
+      category: COST_FIELD_CATEGORIES[costField as keyof typeof COST_FIELD_CATEGORIES] || 'logistics',
+      quantity: equipment.quantity,
+      unitRate: cost,
+      lineTotal: cost * equipment.quantity,
+      equipmentId: equipment.id,
+    })
+  })
+
+  // Add misc fees
+  equipment.miscFees.forEach((fee) => {
+    const feeAmount = fee.is_percentage
+      ? Math.round(equipment.subtotal * (fee.amount / 10000))
+      : fee.amount
+
+    // Skip $0 fees
+    if (feeAmount <= 0) return
+
+    items.push({
+      id: `${equipment.id}-misc-${fee.id}`,
+      description: fee.title,
+      subDescription: fee.description || undefined,
+      category: 'logistics',
+      quantity: 1,
+      unitRate: feeAmount,
+      lineTotal: feeAmount,
+      equipmentId: equipment.id,
+    })
+  })
+
+  return items
+}
+
+// Render equipment with its services and subtotal (for multi-equipment)
+function renderEquipmentWithServices(
+  equipment: UnifiedPDFData['equipment'][0],
+  primaryColor: string,
+  equipmentNumber: number
+): string {
+  const lineItems = getEquipmentLineItems(equipment)
+  const hasImages = equipment.frontImageUrl || equipment.sideImageUrl
+  const equipmentTotal = equipment.totalWithQuantity
+
+  return `
+    <div style="border-bottom: 1px solid #f1f5f9;">
+      <!-- Equipment Header -->
+      <div style="padding: 24px 32px 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 8px; background: ${primaryColor};">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: white; font-weight: 700; font-size: 18px;">
+              Equipment ${equipmentNumber}: ${equipment.makeName} ${equipment.modelName}
+            </span>
+            ${equipment.quantity > 1 ? `<span style="color: rgba(255,255,255,0.8); font-size: 14px;">(Qty: ${equipment.quantity})</span>` : ''}
+          </div>
+          <span style="color: rgba(255,255,255,0.8); font-size: 14px;">
+            Location: ${equipment.location}
+          </span>
+        </div>
+      </div>
+
+      <!-- Equipment Images and Specs - Compact View -->
+      <div style="display: grid; grid-template-columns: 2fr 1fr; margin: 0 32px 16px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+        <!-- Equipment Images -->
+        <div style="padding: 16px; border-right: 1px solid #e2e8f0;">
+          ${hasImages ? `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              ${equipment.frontImageUrl ? `
+                <div>
+                  <div style="aspect-ratio: 16/9; background: #f8fafc; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+                    <img src="${equipment.frontImageUrl}" alt="Front View" style="width: 100%; height: 100%; object-fit: contain;">
+                  </div>
+                  <p style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; text-align: center; margin-top: 4px;">Front</p>
+                </div>
+              ` : ''}
+              ${equipment.sideImageUrl ? `
+                <div>
+                  <div style="aspect-ratio: 16/9; background: #f8fafc; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+                    <img src="${equipment.sideImageUrl}" alt="Side View" style="width: 100%; height: 100%; object-fit: contain;">
+                  </div>
+                  <p style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; text-align: center; margin-top: 4px;">Side</p>
+                </div>
+              ` : ''}
+            </div>
+          ` : `
+            <div style="aspect-ratio: 16/9; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
+              <p style="color: #94a3b8; font-size: 14px;">No images available</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Technical Specifications - Compact -->
+        <div style="padding: 16px; background: rgba(248, 250, 252, 0.5);">
+          <h4 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 12px;">
+            Specifications
+          </h4>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span style="color: #64748b;">Length</span>
+              <span style="font-weight: 700; color: #0f172a;">${formatDimension(equipment.dimensions.length_inches)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span style="color: #64748b;">Width</span>
+              <span style="font-weight: 700; color: #0f172a;">${formatDimension(equipment.dimensions.width_inches)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span style="color: #64748b;">Height</span>
+              <span style="font-weight: 700; color: #0f172a;">${formatDimension(equipment.dimensions.height_inches)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span style="color: #64748b;">Weight</span>
+              <span style="font-weight: 700; color: #0f172a;">${formatWeight(equipment.dimensions.weight_lbs)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Equipment Services Table -->
+      ${renderServicesTable(
+        lineItems,
+        primaryColor,
+        true,
+        `${equipment.makeName} ${equipment.modelName} Total`,
+        equipmentTotal
+      )}
+    </div>
+  `
+}
+
+// Helper to format billing unit for display
+function formatBillingUnit(unit: string): string {
+  switch (unit) {
+    case 'hour': return '/hour'
+    case 'day': return '/day'
+    case 'week': return '/week'
+    case 'month': return '/month'
+    case 'way': return '/way'
+    case 'stop': return '/stop'
+    case 'flat': return 'flat'
+    default: return ''
+  }
+}
+
+// Helper to check if billing unit is variable (time-based)
+function isVariableBillingUnit(unit: string): boolean {
+  return ['hour', 'day', 'week', 'month'].includes(unit)
+}
+
+function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: string): string {
+  const inlandTransport = data.inlandTransport
+
+  if (!inlandTransport?.enabled || !inlandTransport.load_blocks || inlandTransport.load_blocks.length === 0) {
+    return ''
+  }
+
+  let loadBlocksHtml = ''
+  inlandTransport.load_blocks.forEach((block, blockIndex) => {
+    // Service items table
+    let serviceItemsHtml = ''
+    if (block.service_items.length > 0) {
+      const serviceRows = block.service_items.map(item => `
+        <tr>
+          <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #0f172a;">${item.name}</td>
+          <td style="padding: 12px 16px; font-size: 14px; text-align: center;">${item.quantity}</td>
+          <td style="padding: 12px 16px; font-size: 14px; text-align: right;">${formatCurrency(item.rate)}</td>
+          <td style="padding: 12px 16px; font-size: 14px; font-weight: 700; text-align: right;">${formatCurrency(item.total)}</td>
+        </tr>
+      `).join('')
+
+      serviceItemsHtml = `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+          <thead>
+            <tr style="background: #f8fafc;">
+              <th style="padding: 8px 16px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; text-align: left;">Service</th>
+              <th style="padding: 8px 16px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; text-align: center;">Qty</th>
+              <th style="padding: 8px 16px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; text-align: right;">Rate</th>
+              <th style="padding: 8px 16px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody style="border-top: 1px solid #f1f5f9;">
+            ${serviceRows}
+          </tbody>
+        </table>
+      `
+    }
+
+    // Accessorial charges section
+    let accessorialsHtml = ''
+    if (block.accessorial_charges.length > 0) {
+      const accessorialRows = block.accessorial_charges.map(charge => {
+        const isVariable = isVariableBillingUnit(charge.billing_unit)
+        const rateDisplay = isVariable
+          ? `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
+          : formatCurrency(charge.rate)
+        // For variable rates, show "As incurred" instead of a misleading total
+        const totalDisplay = isVariable
+          ? `<span style="font-style: italic; color: #92400e;">As incurred</span>`
+          : formatCurrency(charge.total)
+
+        return `
+          <tr>
+            <td style="padding: 8px 12px; font-size: 12px; font-weight: 500; color: #92400e;">${charge.name}</td>
+            <td style="padding: 8px 12px; font-size: 12px; color: #b45309;">${charge.billing_unit}</td>
+            <td style="padding: 8px 12px; font-size: 12px; text-align: right; color: #b45309;">${rateDisplay}</td>
+            <td style="padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: right; color: #92400e;">${totalDisplay}</td>
+          </tr>
+        `
+      }).join('')
+
+      accessorialsHtml = `
+        <div style="margin-top: 16px; padding: 16px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a;">
+          <h4 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b45309; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <svg style="width: 12px; height: 12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Accessorial Fees (If Applicable)
+          </h4>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="padding: 8px 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b45309; text-align: left;">Fee Type</th>
+                <th style="padding: 8px 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b45309; text-align: left;">Unit</th>
+                <th style="padding: 8px 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b45309; text-align: right;">Rate</th>
+                <th style="padding: 8px 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b45309; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody style="border-top: 1px solid #fde68a;">
+              ${accessorialRows}
+            </tbody>
+          </table>
+          <p style="font-size: 10px; color: #92400e; margin-top: 12px; font-style: italic;">
+            * Time-based accessorial fees (per hour, day, etc.) are charged based on actual usage and may vary.
+          </p>
+        </div>
+      `
+    }
+
+    loadBlocksHtml += `
+      <div style="padding: 0 32px 24px;">
+        <!-- Load Block Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 14px; font-weight: 700; color: #334155;">Load ${blockIndex + 1}</span>
+            <span style="font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-weight: 500;">${block.truck_type_name}</span>
+          </div>
+          <span style="font-size: 14px; font-weight: 700; color: ${primaryColor};">${formatCurrency(block.subtotal)}</span>
+        </div>
+        ${serviceItemsHtml}
+        ${accessorialsHtml}
+      </div>
+    `
+  })
+
+  // Inland transport total summary
+  const totalSummaryHtml = `
+    <div style="padding: 0 32px 24px;">
+      <div style="display: flex; justify-content: flex-end;">
+        <div style="width: 256px;">
+          <div style="display: flex; justify-content: space-between; font-size: 14px; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+            <span style="font-weight: 500; color: #334155;">Inland Transport Total</span>
+            <span style="font-weight: 700; color: ${primaryColor};">${formatCurrency(inlandTransport.total)}</span>
+          </div>
+          ${(inlandTransport.accessorials_total ?? 0) > 0 ? `
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #b45309; margin-top: 8px;">
+              <span>+ Accessorials (if applicable)</span>
+              <span style="font-weight: 500;">${formatCurrency(inlandTransport.accessorials_total || 0)}</span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `
+
+  return `
+    <div style="border-bottom: 1px solid #f1f5f9;">
+      <!-- Inland Transport Header -->
+      <div style="padding: 32px 32px 16px;">
+        <h3 class="section-title" style="color: ${primaryColor};">
+          <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          Inland Transportation Services
+        </h3>
+      </div>
+      ${loadBlocksHtml}
+      ${totalSummaryHtml}
+    </div>
   `
 }
 
@@ -752,6 +1086,11 @@ function renderPricingSummary(
   primaryColor: string
 ): string {
   const servicesSubtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0)
+
+  // Check if there are any variable accessorials
+  const hasVariableAccessorials = data.inlandTransport?.load_blocks?.some(block =>
+    block.accessorial_charges.some(charge => isVariableBillingUnit(charge.billing_unit))
+  )
 
   return `
     <div class="pricing-section">
@@ -788,6 +1127,15 @@ function renderPricingSummary(
           <span class="label">Grand Total (USD)</span>
           <span class="value">${formatCurrency(data.grandTotal)}</span>
         </div>
+        ${hasVariableAccessorials ? `
+          <div style="margin-top: 12px; padding: 12px; border-radius: 6px; background: #fffbeb; border: 1px solid #fde68a;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+              <span style="color: #b45309; font-weight: 500;">* Accessorial fees (if applicable)</span>
+              <span style="color: #92400e; font-weight: 700;">${formatCurrency(data.inlandTransport?.accessorials_total || 0)}</span>
+            </div>
+            <p style="font-size: 10px; color: #92400e; margin-top: 4px;">These fees are charged only when the listed services are required.</p>
+          </div>
+        ` : ''}
       </div>
     </div>
   `
