@@ -197,9 +197,12 @@ export const settingsRouter = router({
     const { data, error } = await ctx.supabase
       .from('company_settings')
       .select('popular_makes')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
-    checkSupabaseError(error, 'Settings', true)
+    if (error && error.code !== 'PGRST116') {
+      checkSupabaseError(error, 'Settings')
+    }
 
     // Return stored list or default
     const defaultMakes = [
