@@ -23,6 +23,19 @@ export function parseCurrencyToCents(value: string): number {
   return Math.round(dollars * 100)
 }
 
+// Parse whole dollars input to cents (no decimals)
+// Use this for inputs where user types whole numbers only
+export function parseWholeDollarsToCents(value: string): number {
+  const cleaned = value.replace(/[^0-9]/g, '')
+  const dollars = parseInt(cleaned, 10) || 0
+  return dollars * 100
+}
+
+// Format cents as whole dollars (no decimal places)
+export function formatWholeDollars(cents: number): string {
+  return Math.round(cents / 100).toString()
+}
+
 // Format date for display
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-US', {

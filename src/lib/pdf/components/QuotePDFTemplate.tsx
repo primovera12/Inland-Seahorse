@@ -387,6 +387,161 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
   )
 }
 
+// Inland transport services and accessorials section
+function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
+  const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const inlandTransport = data.inlandTransport
+
+  if (!inlandTransport?.enabled || !inlandTransport.load_blocks || inlandTransport.load_blocks.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="border-b border-slate-100">
+      {/* Inland Transport Header */}
+      <div className="p-8 pb-4">
+        <h3
+          className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
+          style={{ color: primaryColor }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          Inland Transportation Services
+        </h3>
+      </div>
+
+      {/* Load Blocks */}
+      {inlandTransport.load_blocks.map((block, blockIndex) => (
+        <div key={block.id} className="px-8 pb-6">
+          {/* Load Block Header with Truck Type */}
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold text-slate-700">
+                Load {blockIndex + 1}
+              </span>
+              <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">
+                {block.truck_type_name}
+              </span>
+            </div>
+            <span className="text-sm font-bold" style={{ color: primaryColor }}>
+              {formatCurrency(block.subtotal)}
+            </span>
+          </div>
+
+          {/* Service Items Table */}
+          {block.service_items.length > 0 && (
+            <table className="w-full text-left border-collapse mb-4">
+              <thead>
+                <tr style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
+                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                    Service
+                  </th>
+                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
+                    Qty
+                  </th>
+                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                    Rate
+                  </th>
+                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {block.service_items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{item.name}</td>
+                    <td className="px-4 py-3 text-sm text-center">{item.quantity}</td>
+                    <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.rate)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-right">{formatCurrency(item.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Accessorial Charges (if applicable) */}
+          {block.accessorial_charges.length > 0 && (
+            <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-3 flex items-center gap-2">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Accessorial Fees (If Applicable)
+              </h4>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
+                      Fee Type
+                    </th>
+                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
+                      Unit
+                    </th>
+                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-center">
+                      Qty
+                    </th>
+                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
+                      Rate
+                    </th>
+                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-200">
+                  {block.accessorial_charges.map((charge) => (
+                    <tr key={charge.id}>
+                      <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
+                      <td className="px-3 py-2 text-xs text-amber-700">{charge.billing_unit}</td>
+                      <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
+                      <td className="px-3 py-2 text-xs text-right text-amber-700">{formatCurrency(charge.rate)}</td>
+                      <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">{formatCurrency(charge.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-amber-300">
+                    <td colSpan={4} className="px-3 py-2 text-xs font-bold text-amber-800">
+                      Total Accessorial Fees (If Applicable)
+                    </td>
+                    <td className="px-3 py-2 text-sm font-bold text-right text-amber-900">
+                      {formatCurrency(block.accessorials_total || 0)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Inland Transport Summary */}
+      <div className="px-8 pb-6">
+        <div className="flex justify-end">
+          <div className="w-64 space-y-2">
+            <div className="flex justify-between text-sm border-t border-slate-200 pt-2">
+              <span className="font-medium text-slate-700">Inland Transport Total</span>
+              <span className="font-bold" style={{ color: primaryColor }}>
+                {formatCurrency(inlandTransport.total)}
+              </span>
+            </div>
+            {(inlandTransport.accessorials_total ?? 0) > 0 && (
+              <div className="flex justify-between text-xs text-amber-700">
+                <span>+ Accessorials (if applicable)</span>
+                <span className="font-medium">
+                  {formatCurrency(inlandTransport.accessorials_total || 0)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Equipment showcase section
 function EquipmentSection({ equipment, primaryColor, showQuantity = false }: {
   equipment: UnifiedPDFData['equipment'][0]
@@ -603,6 +758,23 @@ function PricingSummarySection({ data, lineItems }: {
               {formatCurrency(data.grandTotal)}
             </span>
           </div>
+
+          {/* Accessorial Fees Note */}
+          {(data.inlandTransport?.accessorials_total ?? 0) > 0 && (
+            <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-200">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-amber-700 font-medium">
+                  * Accessorial fees (if applicable)
+                </span>
+                <span className="text-amber-900 font-bold">
+                  {formatCurrency(data.inlandTransport?.accessorials_total || 0)}
+                </span>
+              </div>
+              <p className="text-[10px] text-amber-600 mt-1">
+                These fees are charged only when the listed services are required.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -661,6 +833,9 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
 
           {/* Services Table */}
           <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />
+
+          {/* Inland Transport Services (if enabled) */}
+          <InlandTransportServicesSection data={data} />
 
           {/* Pricing Summary */}
           <PricingSummarySection data={data} lineItems={lineItems} />

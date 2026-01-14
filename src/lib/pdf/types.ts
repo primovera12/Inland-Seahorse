@@ -127,13 +127,48 @@ export interface AddressInfo {
   zip?: string
 }
 
+// Service item for inland transport
+export interface InlandServiceItem {
+  id: string
+  name: string
+  rate: number // cents
+  quantity: number
+  total: number // cents
+}
+
+// Accessorial charge for inland transport
+export interface InlandAccessorialCharge {
+  id: string
+  name: string
+  billing_unit: string
+  rate: number // cents
+  quantity: number
+  total: number // cents
+}
+
+// Load block for inland transport
+export interface InlandLoadBlock {
+  id: string
+  truck_type_id: string
+  truck_type_name: string
+  pickup?: AddressInfo
+  dropoff?: AddressInfo
+  use_custom_locations?: boolean
+  service_items: InlandServiceItem[]
+  accessorial_charges: InlandAccessorialCharge[]
+  subtotal: number // cents - services only
+  accessorials_total: number // cents - accessorials (if applicable)
+}
+
 // Inland transport info for PDF
 export interface InlandTransportInfo {
   enabled: boolean
   pickup: AddressInfo
   dropoff: AddressInfo
   destinationBlocks?: InlandDestinationBlock[]
+  load_blocks?: InlandLoadBlock[] // Detailed load blocks with services and accessorials
   total: number
+  accessorials_total?: number // Total accessorial fees (if applicable)
   // Route info
   distance_miles?: number
   duration_minutes?: number
@@ -398,6 +433,32 @@ export function buildUnifiedPDFData(params: {
     dropoff_state?: string
     dropoff_zip?: string
     transport_cost?: number
+    accessorials_total?: number // Total accessorial fees (if applicable)
+    load_blocks?: Array<{
+      id: string
+      truck_type_id: string
+      truck_type_name: string
+      pickup?: { address: string; city: string; state: string; zip: string }
+      dropoff?: { address: string; city: string; state: string; zip: string }
+      use_custom_locations?: boolean
+      service_items: Array<{
+        id: string
+        name: string
+        rate: number
+        quantity: number
+        total: number
+      }>
+      accessorial_charges: Array<{
+        id: string
+        name: string
+        billing_unit: string
+        rate: number
+        quantity: number
+        total: number
+      }>
+      subtotal: number
+      accessorials_total: number
+    }>
     // Route info
     distance_miles?: number
     duration_minutes?: number
@@ -532,6 +593,19 @@ export function buildUnifiedPDFData(params: {
             zip: params.inlandTransport.dropoff_zip,
           },
           total: params.inlandTransport.transport_cost || 0,
+          accessorials_total: params.inlandTransport.accessorials_total || 0,
+          load_blocks: params.inlandTransport.load_blocks?.map((block) => ({
+            id: block.id,
+            truck_type_id: block.truck_type_id,
+            truck_type_name: block.truck_type_name,
+            pickup: block.pickup,
+            dropoff: block.dropoff,
+            use_custom_locations: block.use_custom_locations,
+            service_items: block.service_items,
+            accessorial_charges: block.accessorial_charges,
+            subtotal: block.subtotal,
+            accessorials_total: block.accessorials_total || 0,
+          })),
           distance_miles: params.inlandTransport.distance_miles,
           duration_minutes: params.inlandTransport.duration_minutes,
           static_map_url: params.inlandTransport.static_map_url,

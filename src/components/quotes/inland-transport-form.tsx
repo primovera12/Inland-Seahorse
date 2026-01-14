@@ -29,7 +29,7 @@ import {
   Ruler,
   Scale,
 } from 'lucide-react'
-import { formatCurrency, parseCurrencyToCents } from '@/lib/utils'
+import { formatCurrency, parseWholeDollarsToCents, formatWholeDollars } from '@/lib/utils'
 import { formatDimension, formatWeight, parseDimensionFromUnit, type DimensionUnit } from '@/lib/dimensions'
 import { trpc } from '@/lib/trpc/client'
 import { recommendTruckType, type TruckRecommendation } from '@/lib/truck-recommendation'
@@ -84,7 +84,8 @@ export interface LoadBlock {
   cargo_items: CargoItem[]
   service_items: ServiceItem[]
   accessorial_charges: AccessorialCharge[]
-  subtotal: number
+  subtotal: number // Only includes service items (what will be billed)
+  accessorials_total: number // Separate tracking for "if applicable" fees
 }
 
 export interface InlandTransportData {
@@ -281,6 +282,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
         ],
         accessorial_charges: [],
         subtotal: 0,
+        accessorials_total: 0,
       }
       onChange({ ...data, load_blocks: [defaultLoadBlock] })
     }
@@ -311,6 +313,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
       ],
       accessorial_charges: [],
       subtotal: 0,
+      accessorials_total: 0,
     }
     const newBlocks = [...data.load_blocks, newBlock]
     recalculateTotal(newBlocks)
@@ -318,10 +321,11 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
 
   const updateLoadBlock = (index: number, block: LoadBlock) => {
     const newBlocks = [...data.load_blocks]
-    // Recalculate block subtotal
+    // Recalculate block subtotal (only services - accessorials are "if applicable")
     const servicesTotal = block.service_items.reduce((sum, s) => sum + s.total, 0)
     const accessorialsTotal = block.accessorial_charges.reduce((sum, a) => sum + a.total, 0)
-    block.subtotal = servicesTotal + accessorialsTotal
+    block.subtotal = servicesTotal // Only services count toward total
+    block.accessorials_total = accessorialsTotal // Track separately for display
     newBlocks[index] = block
     recalculateTotal(newBlocks)
   }
@@ -443,9 +447,14 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
     updateLoadBlock(blockIndex, block)
   }
 
-  // Calculate total
+  // Calculate totals (services only - accessorials are tracked separately)
   const totalCost = useMemo(() => {
     return data.load_blocks.reduce((sum, block) => sum + block.subtotal, 0)
+  }, [data.load_blocks])
+
+  // Calculate total accessorial fees (if applicable)
+  const totalAccessorials = useMemo(() => {
+    return data.load_blocks.reduce((sum, block) => sum + (block.accessorials_total || 0), 0)
   }, [data.load_blocks])
 
   // Generate static map URL for route preview with encoded polyline
@@ -1105,10 +1114,11 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                                 </span>
                                 <Input
                                   type="text"
-                                  placeholder="0.00"
-                                  value={item.rate ? formatCurrency(item.rate).replace('$', '') : ''}
+                                  inputMode="numeric"
+                                  placeholder="0"
+                                  value={item.rate ? formatWholeDollars(item.rate) : ''}
                                   onChange={(e) => {
-                                    const cents = parseCurrencyToCents(e.target.value)
+                                    const cents = parseWholeDollarsToCents(e.target.value)
                                     updateServiceItem(blockIndex, itemIndex, 'rate', cents)
                                   }}
                                   className="h-8 pl-5 font-mono"
@@ -1238,10 +1248,11 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                                 </span>
                                 <Input
                                   type="text"
-                                  placeholder="0.00"
-                                  value={charge.rate ? formatCurrency(charge.rate).replace('$', '') : ''}
+                                  inputMode="numeric"
+                                  placeholder="0"
+                                  value={charge.rate ? formatWholeDollars(charge.rate) : ''}
                                   onChange={(e) => {
-                                    const cents = parseCurrencyToCents(e.target.value)
+                                    const cents = parseWholeDollarsToCents(e.target.value)
                                     updateAccessorialCharge(blockIndex, chargeIndex, 'rate', cents)
                                   }}
                                   className="h-8 pl-5 font-mono"
@@ -1314,14 +1325,22 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
           </div>
 
           {/* Summary */}
-          {totalCost > 0 && (
-            <div className="rounded-lg bg-muted/50 p-4">
+          {(totalCost > 0 || totalAccessorials > 0) && (
+            <div className="rounded-lg bg-muted/50 p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Inland Transportation Total</span>
                 <span className="text-lg font-bold font-mono text-primary">
                   {formatCurrency(totalCost)}
                 </span>
               </div>
+              {totalAccessorials > 0 && (
+                <div className="flex items-center justify-between text-sm border-t pt-2 mt-2">
+                  <span className="text-muted-foreground">Accessorial Fees (if applicable)</span>
+                  <span className="font-mono text-muted-foreground">
+                    {formatCurrency(totalAccessorials)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
