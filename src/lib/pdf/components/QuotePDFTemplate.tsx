@@ -419,7 +419,7 @@ function EquipmentSection({ equipment, primaryColor, showQuantity = false }: {
                   <img
                     src={equipment.frontImageUrl}
                     alt="Front View"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </div>
                 <p className="text-[10px] uppercase font-bold text-slate-400 text-center tracking-widest">
@@ -433,7 +433,7 @@ function EquipmentSection({ equipment, primaryColor, showQuantity = false }: {
                   <img
                     src={equipment.sideImageUrl}
                     alt="Side View"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </div>
                 <p className="text-[10px] uppercase font-bold text-slate-400 text-center tracking-widest">
