@@ -448,24 +448,29 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
     return data.load_blocks.reduce((sum, block) => sum + block.subtotal, 0)
   }, [data.load_blocks])
 
-  // Generate static map URL for route preview
+  // Generate static map URL for route preview with encoded polyline
   const generateStaticMapUrl = (
     pickupLat: number,
     pickupLng: number,
     dropoffLat: number,
-    dropoffLng: number
+    dropoffLng: number,
+    encodedPolyline?: string
   ): string => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
     const size = '800x300'
     const mapType = 'roadmap'
     const pickupMarker = `markers=color:green%7Clabel:A%7C${pickupLat},${pickupLng}`
     const dropoffMarker = `markers=color:red%7Clabel:B%7C${dropoffLat},${dropoffLng}`
-    const path = `path=color:0x1e3a8a%7Cweight:4%7C${pickupLat},${pickupLng}%7C${dropoffLat},${dropoffLng}`
+
+    // Use encoded polyline for actual route, or fallback to straight line
+    const path = encodedPolyline
+      ? `path=color:0x1e3a8a%7Cweight:4%7Cenc:${encodeURIComponent(encodedPolyline)}`
+      : `path=color:0x1e3a8a%7Cweight:4%7C${pickupLat},${pickupLng}%7C${dropoffLat},${dropoffLng}`
 
     return `https://maps.googleapis.com/maps/api/staticmap?size=${size}&maptype=${mapType}&${pickupMarker}&${dropoffMarker}&${path}&key=${apiKey}`
   }
 
-  // Calculate route info using Google Distance Matrix API
+  // Calculate route info using Google Directions API
   const calculateRouteInfo = async (newData: InlandTransportData) => {
     if (!newData.pickup_lat || !newData.pickup_lng || !newData.dropoff_lat || !newData.dropoff_lng) {
       onChange(newData)
@@ -473,31 +478,37 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
     }
 
     try {
-      // Generate static map URL
-      const staticMapUrl = generateStaticMapUrl(
-        newData.pickup_lat,
-        newData.pickup_lng,
-        newData.dropoff_lat,
-        newData.dropoff_lng
-      )
-
-      // Calculate distance using Google Distance Matrix API
-      const service = new google.maps.DistanceMatrixService()
-      const response = await service.getDistanceMatrix({
-        origins: [{ lat: newData.pickup_lat, lng: newData.pickup_lng }],
-        destinations: [{ lat: newData.dropoff_lat, lng: newData.dropoff_lng }],
+      // Use Google Directions Service to get actual route
+      const directionsService = new google.maps.DirectionsService()
+      const directionsResult = await directionsService.route({
+        origin: { lat: newData.pickup_lat, lng: newData.pickup_lng },
+        destination: { lat: newData.dropoff_lat, lng: newData.dropoff_lng },
         travelMode: google.maps.TravelMode.DRIVING,
-        unitSystem: google.maps.UnitSystem.IMPERIAL,
       })
 
-      if (response.rows[0]?.elements[0]?.status === 'OK') {
-        const element = response.rows[0].elements[0]
-        const distanceMeters = element.distance?.value || 0
-        const durationSeconds = element.duration?.value || 0
+      if (directionsResult.routes[0]) {
+        const route = directionsResult.routes[0]
+        const leg = route.legs[0]
+
+        // Get distance and duration from directions response
+        const distanceMeters = leg?.distance?.value || 0
+        const durationSeconds = leg?.duration?.value || 0
 
         // Convert to miles and minutes
         const distanceMiles = distanceMeters / 1609.34
         const durationMinutes = Math.round(durationSeconds / 60)
+
+        // Get the encoded polyline for the route
+        const encodedPolyline = route.overview_polyline
+
+        // Generate static map URL with actual route
+        const staticMapUrl = generateStaticMapUrl(
+          newData.pickup_lat,
+          newData.pickup_lng,
+          newData.dropoff_lat,
+          newData.dropoff_lng,
+          encodedPolyline
+        )
 
         onChange({
           ...newData,
@@ -506,7 +517,13 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
           static_map_url: staticMapUrl,
         })
       } else {
-        // If distance calculation fails, still set the static map
+        // Fallback: generate map with straight line if directions fail
+        const staticMapUrl = generateStaticMapUrl(
+          newData.pickup_lat,
+          newData.pickup_lng,
+          newData.dropoff_lat,
+          newData.dropoff_lng
+        )
         onChange({
           ...newData,
           static_map_url: staticMapUrl,
@@ -514,8 +531,17 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
       }
     } catch (error) {
       console.error('Error calculating route:', error)
-      // Still update with the basic data
-      onChange(newData)
+      // Fallback: generate map with straight line on error
+      const staticMapUrl = generateStaticMapUrl(
+        newData.pickup_lat,
+        newData.pickup_lng,
+        newData.dropoff_lat,
+        newData.dropoff_lng
+      )
+      onChange({
+        ...newData,
+        static_map_url: staticMapUrl,
+      })
     }
   }
 

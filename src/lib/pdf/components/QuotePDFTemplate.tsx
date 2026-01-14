@@ -236,11 +236,6 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
               <p className="text-base font-bold text-slate-900">
                 {distanceMiles ? `${Math.round(distanceMiles).toLocaleString()} miles` : '-'}
               </p>
-              {durationMinutes && (
-                <p className="text-sm text-slate-500">
-                  Est. {Math.floor(durationMinutes / 60)}h {durationMinutes % 60}m drive time
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -360,11 +355,6 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
                 <p className="text-base font-bold text-slate-900">
                   {data.inlandTransport!.distance_miles ? `${Math.round(data.inlandTransport!.distance_miles).toLocaleString()} miles` : '-'}
                 </p>
-                {data.inlandTransport!.duration_minutes && (
-                  <p className="text-sm text-slate-500">
-                    Est. {Math.floor(data.inlandTransport!.duration_minutes / 60)}h {data.inlandTransport!.duration_minutes % 60}m drive time
-                  </p>
-                )}
               </div>
             </div>
           </div>
