@@ -6,21 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
-import { EquipmentSelector } from '@/components/quotes/equipment-selector'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
-import { CostBreakdown } from '@/components/quotes/cost-breakdown'
 import { QuoteSummary } from '@/components/quotes/quote-summary'
 import { EquipmentBlockCard } from '@/components/quotes/equipment-block-card'
-import { MiscFeesList, calculateMiscFeesTotal } from '@/components/quotes/misc-fees-list'
+import { calculateMiscFeesTotal } from '@/components/quotes/misc-fees-list'
 import { InlandTransportForm, initialInlandTransportData, type InlandTransportData } from '@/components/quotes/inland-transport-form'
 import { trpc } from '@/lib/trpc/client'
 import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Eye, Plus, Layers, Loader2, Mail, ArrowLeft, Truck } from 'lucide-react'
+import { Eye, Plus, Loader2, Mail, ArrowLeft, Truck } from 'lucide-react'
 import { QuotePDFPreview, buildUnifiedPDFData, type UnifiedPDFData } from '@/lib/pdf'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 
@@ -68,8 +64,7 @@ export default function EditQuotePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [dataLoaded, setDataLoaded] = useState(false)
 
-  // Multi-equipment mode
-  const [isMultiEquipment, setIsMultiEquipment] = useState(false)
+  // Multi-equipment mode - always enabled for consistency with new quote page
   const [equipmentBlocks, setEquipmentBlocks] = useState<EquipmentBlock[]>([
     createEmptyEquipmentBlock(),
   ])
@@ -200,9 +195,31 @@ export default function EditQuotePage() {
         if (quoteData.miscFees) setMiscFees(quoteData.miscFees)
         if (quoteData.notes) setNotes(quoteData.notes)
         if (quoteData.dimensions) setDimensions(quoteData.dimensions)
-        if (quoteData.isMultiEquipment !== undefined) setIsMultiEquipment(quoteData.isMultiEquipment)
-        if (quoteData.equipmentBlocks) setEquipmentBlocks(quoteData.equipmentBlocks)
         if (quoteData.inlandTransport) setInlandTransport(quoteData.inlandTransport)
+
+        // Load equipment blocks - convert legacy single-equipment quotes to multi-equipment format
+        if (quoteData.equipmentBlocks && quoteData.equipmentBlocks.length > 0) {
+          setEquipmentBlocks(quoteData.equipmentBlocks)
+        } else if (quote.make_name || quote.model_name) {
+          // Convert legacy single-equipment data to equipment block format
+          const legacyBlock: EquipmentBlock = {
+            id: crypto.randomUUID(),
+            make_id: quote.make_id || undefined,
+            model_id: quote.model_id || undefined,
+            make_name: quote.make_name || '',
+            model_name: quote.model_name || '',
+            location: quote.location as LocationName,
+            quantity: 1,
+            costs: quoteData.costs || initialCosts,
+            enabled_costs: quoteData.enabledCosts || initialEnabled,
+            cost_overrides: quoteData.costOverrides || initialOverrides,
+            misc_fees: quoteData.miscFees || [],
+            subtotal: quote.subtotal || 0,
+            misc_fees_total: 0,
+            total_with_quantity: quote.total || 0,
+          }
+          setEquipmentBlocks([legacyBlock])
+        }
       }
 
       setDataLoaded(true)
@@ -344,8 +361,8 @@ export default function EditQuotePage() {
       enabledCosts,
       costOverrides,
       miscFees,
-      isMultiEquipment,
-      equipmentBlocks: isMultiEquipment ? equipmentBlocks : undefined,
+      isMultiEquipment: true,
+      equipmentBlocks,
       inlandTransport: inlandTransport.enabled ? {
         enabled: true,
         pickup_address: inlandTransport.pickup_address,
@@ -361,8 +378,8 @@ export default function EditQuotePage() {
         duration_minutes: inlandTransport.duration_minutes,
         static_map_url: inlandTransport.static_map_url,
       } : undefined,
-      subtotal: isMultiEquipment ? multiEquipmentSubtotal + inlandTransportCost : subtotal,
-      total: isMultiEquipment ? multiEquipmentTotal + inlandTransportCost : total,
+      subtotal: multiEquipmentSubtotal + inlandTransportCost,
+      total: multiEquipmentTotal + inlandTransportCost,
       inlandTransportCost,
       miscFeesTotal,
       notes: notes || undefined,
@@ -387,8 +404,8 @@ export default function EditQuotePage() {
   }, [
     settings, quoteNumber, customerName, customerEmail, customerPhone, customerCompany, customerAddress,
     makeName, modelName, selectedLocation, dimensions, equipmentImages, costs, enabledCosts,
-    costOverrides, miscFees, isMultiEquipment, equipmentBlocks, inlandTransport, inlandTransportCost,
-    subtotal, total, multiEquipmentSubtotal, multiEquipmentTotal, miscFeesTotal, notes
+    costOverrides, miscFees, equipmentBlocks, inlandTransport, inlandTransportCost,
+    multiEquipmentSubtotal, multiEquipmentTotal, miscFeesTotal, notes
   ])
 
   // Generate PDF preview
@@ -448,8 +465,8 @@ export default function EditQuotePage() {
           miscFees,
           dimensions,
           notes,
-          isMultiEquipment,
-          equipmentBlocks: isMultiEquipment ? equipmentBlocks : undefined,
+          isMultiEquipment: true,
+          equipmentBlocks,
           inlandTransport: inlandTransport.enabled ? inlandTransport : undefined,
         },
       },
@@ -525,144 +542,42 @@ export default function EditQuotePage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="customer" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6">
-              <TabsTrigger value="customer">Customer</TabsTrigger>
-              <TabsTrigger value="equipment">Equipment</TabsTrigger>
-              <TabsTrigger value="costs">Costs</TabsTrigger>
-              <TabsTrigger value="fees">Fees{miscFees.length > 0 ? ` (${miscFees.length})` : ''}</TabsTrigger>
-              <TabsTrigger value="inland" className="flex items-center gap-1">
-                <Truck className="h-3 w-3" />
-                Inland{inlandTransport.enabled ? ' *' : ''}
+            <TabsList className="w-full flex overflow-x-auto no-scrollbar">
+              <TabsTrigger value="customer" className="flex-1 min-w-[80px]">Customer</TabsTrigger>
+              <TabsTrigger value="equipment" className="flex-1 min-w-[80px]">Equipment</TabsTrigger>
+              <TabsTrigger value="inland" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
+                <Truck className="h-3 w-3 hidden sm:inline" />
+                <span>Inland{inlandTransport.enabled ? ' *' : ''}</span>
               </TabsTrigger>
-              <TabsTrigger value="preview" className="flex items-center gap-1">
-                <Eye className="h-3 w-3" />
-                Preview
+              <TabsTrigger value="preview" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
+                <Eye className="h-3 w-3 hidden sm:inline" />
+                <span>Preview</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="equipment" className="mt-4 space-y-4">
-              {/* Multi-Equipment Toggle */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Layers className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <Label htmlFor="multi-equipment" className="text-base font-medium">
-                          Multi-Equipment Mode
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Add multiple equipment items to this quote
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      id="multi-equipment"
-                      checked={isMultiEquipment}
-                      onCheckedChange={setIsMultiEquipment}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {isMultiEquipment ? (
-                /* Multi-Equipment Mode */
-                <div className="space-y-4">
-                  {equipmentBlocks.map((block, index) => (
-                    <EquipmentBlockCard
-                      key={block.id}
-                      block={block}
-                      index={index}
-                      onUpdate={(updatedBlock) => updateEquipmentBlock(block.id, updatedBlock)}
-                      onRemove={() => removeEquipmentBlock(block.id)}
-                      onDuplicate={() => duplicateEquipmentBlock(block.id)}
-                      canRemove={equipmentBlocks.length > 1}
-                    />
-                  ))}
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={addEquipmentBlock}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Equipment
-                  </Button>
-                </div>
-              ) : (
-                /* Single Equipment Mode */
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Equipment Selection</CardTitle>
-                    <CardDescription>
-                      Select the equipment make, model, and location
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EquipmentSelector
-                      selectedMakeId={selectedMakeId}
-                      selectedModelId={selectedModelId}
-                      selectedLocation={selectedLocation}
-                      onMakeChange={(id, name) => {
-                        setSelectedMakeId(id)
-                        setMakeName(name)
-                        setSelectedModelId('')
-                        setModelName('')
-                      }}
-                      onModelChange={(id, name) => {
-                        setSelectedModelId(id)
-                        setModelName(name)
-                      }}
-                      onLocationChange={setSelectedLocation}
-                      dimensions={dimensions}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="costs" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Cost Breakdown</CardTitle>
-                  <CardDescription>
-                    Adjust costs and enable/disable line items
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <CostBreakdown
-                    costs={costs}
-                    enabledCosts={enabledCosts}
-                    costOverrides={costOverrides}
-                    descriptionOverrides={descriptionOverrides}
-                    onToggleCost={(field) =>
-                      setEnabledCosts((prev) => ({
-                        ...prev,
-                        [field]: !prev[field],
-                      }))
-                    }
-                    onOverrideCost={(field, value) =>
-                      setCostOverrides((prev) => ({
-                        ...prev,
-                        [field]: value,
-                      }))
-                    }
-                    onOverrideDescription={(field, value) =>
-                      setDescriptionOverrides((prev) => ({
-                        ...prev,
-                        [field]: value,
-                      }))
-                    }
+              {/* Equipment Blocks - Multi-Equipment Mode is always active */}
+              <div className="space-y-4">
+                {equipmentBlocks.map((block, index) => (
+                  <EquipmentBlockCard
+                    key={block.id}
+                    block={block}
+                    index={index}
+                    onUpdate={(updatedBlock) => updateEquipmentBlock(block.id, updatedBlock)}
+                    onRemove={() => removeEquipmentBlock(block.id)}
+                    onDuplicate={() => duplicateEquipmentBlock(block.id)}
+                    canRemove={equipmentBlocks.length > 1}
                   />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="fees" className="mt-4">
-              <MiscFeesList
-                fees={miscFees}
-                onChange={setMiscFees}
-                subtotal={costsSubtotal}
-              />
+                ))}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={addEquipmentBlock}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Equipment
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="customer" className="mt-4">
@@ -732,8 +647,8 @@ export default function EditQuotePage() {
                         enabledCosts,
                         costOverrides,
                         miscFees,
-                        isMultiEquipment,
-                        equipmentBlocks: isMultiEquipment ? equipmentBlocks : undefined,
+                        isMultiEquipment: true,
+                        equipmentBlocks,
                         inlandTransport: inlandTransport.enabled ? {
                           enabled: true,
                           pickup_address: inlandTransport.pickup_address,
@@ -749,8 +664,8 @@ export default function EditQuotePage() {
                           duration_minutes: inlandTransport.duration_minutes,
                           static_map_url: inlandTransport.static_map_url,
                         } : undefined,
-                        subtotal: isMultiEquipment ? multiEquipmentSubtotal + inlandTransportCost : subtotal,
-                        total: isMultiEquipment ? multiEquipmentTotal + inlandTransportCost : total,
+                        subtotal: multiEquipmentSubtotal + inlandTransportCost,
+                        total: multiEquipmentTotal + inlandTransportCost,
                         inlandTransportCost,
                         miscFeesTotal,
                         notes: notes || undefined,
@@ -785,16 +700,16 @@ export default function EditQuotePage() {
           </Tabs>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <QuoteSummary
-            makeName={isMultiEquipment ? `${equipmentBlocks.length} Equipment Items` : makeName}
-            modelName={isMultiEquipment ? '' : modelName}
-            location={isMultiEquipment ? 'Multiple' : selectedLocation}
-            subtotal={isMultiEquipment ? multiEquipmentSubtotal + inlandTransportCost : subtotal}
-            total={isMultiEquipment ? multiEquipmentTotal + inlandTransportCost : total}
-            equipmentBlocks={isMultiEquipment ? equipmentBlocks : undefined}
-            costsSubtotal={isMultiEquipment ? multiEquipmentSubtotal : costsSubtotal}
-            miscFeesTotal={isMultiEquipment ? 0 : miscFeesTotal}
+            makeName={`${equipmentBlocks.length} Equipment Items`}
+            modelName=""
+            location="Multiple"
+            subtotal={multiEquipmentSubtotal + inlandTransportCost}
+            total={multiEquipmentTotal + inlandTransportCost}
+            equipmentBlocks={equipmentBlocks}
+            costsSubtotal={multiEquipmentSubtotal}
+            miscFeesTotal={0}
             inlandTransportCost={inlandTransportCost}
           />
 

@@ -366,7 +366,7 @@ export default function QuoteHistoryPage() {
             </Select>
           </div>
 
-          {/* Table */}
+          {/* Table/Cards */}
           {isLoading ? (
             <div className="text-center py-10 text-muted-foreground">
               Loading quotes...
@@ -384,8 +384,152 @@ export default function QuoteHistoryPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-md border overflow-x-auto">
-                <Table className="min-w-[800px]">
+              {/* Mobile/Tablet Card View */}
+              <div className="lg:hidden space-y-3">
+                {filteredQuotes.map((quote) => (
+                  <div
+                    key={quote.id}
+                    className={`rounded-lg border p-4 ${selectedIds.has(quote.id) ? 'bg-primary/5 border-primary' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <Checkbox
+                          checked={selectedIds.has(quote.id)}
+                          onCheckedChange={() => toggleSelect(quote.id)}
+                          aria-label={`Select ${quote.quote_number}`}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{quote.quote_number}</span>
+                            <Badge className={STATUS_COLORS[quote.status as QuoteStatus]}>
+                              {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
+                            </Badge>
+                          </div>
+                          <p className="font-medium mt-1">{quote.customer_name}</p>
+                          {quote.customer_company && (
+                            <p className="text-sm text-muted-foreground">{quote.customer_company}</p>
+                          )}
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <ViewQuoteMenuItem quoteId={quote.id} />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/quotes/${quote.id}/edit`}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit Quote
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => cloneQuote.mutate({ id: quote.id })}
+                            disabled={cloneQuote.isPending}
+                          >
+                            <Copy className="h-4 w-4 mr-2" />
+                            {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
+                          </DropdownMenuItem>
+                          <ShareLinkMenuItem quoteId={quote.id} />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/quotes/${quote.id}/compare`}>
+                              <GitCompare className="h-4 w-4 mr-2" />
+                              Compare Versions
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                          {quote.status === 'draft' && (
+                            <DropdownMenuItem
+                              onClick={() => markAsSent.mutate({ id: quote.id })}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Mark as Sent
+                            </DropdownMenuItem>
+                          )}
+                          {(quote.status === 'draft' || quote.status === 'sent') && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => markAsAccepted.mutate({ id: quote.id })}
+                                className="text-green-600"
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Mark as Accepted
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => markAsRejected.mutate({ id: quote.id })}
+                                className="text-red-600"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Mark as Rejected
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this quote?')) {
+                                deleteQuote.mutate({ id: quote.id })
+                              }
+                            }}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Quote
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="mt-3 ml-8 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Equipment:</span>
+                        <p className="font-medium truncate">{quote.make_name} {quote.model_name}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Location:</span>
+                        <p className="font-medium">{quote.location}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Total:</span>
+                        <p className="font-mono font-medium">{formatCurrency(quote.total)}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Created:</span>
+                        <p className="font-medium">{formatDate(quote.created_at)}</p>
+                      </div>
+                      {quote.expires_at && (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Expires:</span>
+                          <p className={`font-medium flex items-center gap-1 ${
+                            getExpirationStatus(quote.expires_at) === 'expired'
+                              ? 'text-red-500'
+                              : getExpirationStatus(quote.expires_at) === 'expiring-soon'
+                              ? 'text-yellow-600'
+                              : ''
+                          }`}>
+                            {getExpirationStatus(quote.expires_at) === 'expired' && (
+                              <AlertTriangle className="h-3 w-3" />
+                            )}
+                            {getExpirationStatus(quote.expires_at) === 'expiring-soon' && (
+                              <Clock className="h-3 w-3" />
+                            )}
+                            {formatDate(quote.expires_at)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden lg:block rounded-md border overflow-x-auto">
+                <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">
@@ -480,10 +624,7 @@ export default function QuoteHistoryPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Quote
-                              </DropdownMenuItem>
+                              <ViewQuoteMenuItem quoteId={quote.id} />
                               <DropdownMenuItem asChild>
                                 <Link href={`/quotes/${quote.id}/edit`}>
                                   <Pencil className="h-4 w-4 mr-2" />
@@ -586,6 +727,25 @@ export default function QuoteHistoryPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function ViewQuoteMenuItem({ quoteId }: { quoteId: string }) {
+  const { data, isLoading } = trpc.quotes.getPublicLink.useQuery({ id: quoteId })
+
+  const viewQuote = () => {
+    if (!data?.token) {
+      toast.error('Failed to get quote link')
+      return
+    }
+    window.open(`/quote/${data.token}`, '_blank')
+  }
+
+  return (
+    <DropdownMenuItem onClick={viewQuote} disabled={isLoading}>
+      <Eye className="h-4 w-4 mr-2" />
+      {isLoading ? 'Loading...' : 'View Quote'}
+    </DropdownMenuItem>
   )
 }
 
