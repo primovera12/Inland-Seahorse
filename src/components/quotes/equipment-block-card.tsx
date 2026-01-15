@@ -51,6 +51,14 @@ interface EquipmentBlockCardProps {
   canRemove: boolean
 }
 
+// Helper to sanitize cost value - converts NaN/undefined/null to 0
+function sanitizeCost(value: number | null | undefined): number {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 0
+  }
+  return value
+}
+
 export function EquipmentBlockCard({
   block,
   index,
@@ -62,6 +70,16 @@ export function EquipmentBlockCard({
   const [isOpen, setIsOpen] = useState(true)
   const [selectedMakeId, setSelectedMakeId] = useState(block.make_id || '')
   const [selectedModelId, setSelectedModelId] = useState(block.model_id || '')
+
+  // Sync selectedMakeId and selectedModelId when block prop changes (e.g., when editing existing quote)
+  useEffect(() => {
+    if (block.make_id && block.make_id !== selectedMakeId) {
+      setSelectedMakeId(block.make_id)
+    }
+    if (block.model_id && block.model_id !== selectedModelId) {
+      setSelectedModelId(block.model_id)
+    }
+  }, [block.make_id, block.model_id])
 
   // Use refs to avoid stale closure issues when rates/dimensions return from cache
   const blockRef = useRef(block)
@@ -185,7 +203,7 @@ export function EquipmentBlockCard({
   const calculateCostsSubtotal = () => {
     return COST_FIELDS.reduce((total, field) => {
       if (!block.enabled_costs[field]) return total
-      const cost = block.cost_overrides[field] ?? block.costs[field]
+      const cost = sanitizeCost(block.cost_overrides[field] ?? block.costs[field])
       return total + cost
     }, 0)
   }
@@ -428,10 +446,15 @@ export function EquipmentBlockCard({
               <h4 className="font-medium">Cost Breakdown</h4>
               <div className="grid gap-2">
                 {COST_FIELDS.map((field) => {
-                  const baseCost = block.costs[field]
+                  const baseCost = sanitizeCost(block.costs[field])
                   const override = block.cost_overrides[field]
-                  const displayValue = override ?? baseCost
+                  const displayValue = sanitizeCost(override ?? baseCost)
                   const isEnabled = block.enabled_costs[field]
+
+                  // Hide items with 0 value (unless they have an override set)
+                  if (displayValue === 0 && override === null) {
+                    return null
+                  }
 
                   return (
                     <div

@@ -155,7 +155,22 @@ export const quotesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Quote')
-      return { token: data?.public_token }
+
+      // Generate token if it doesn't exist
+      if (!data?.public_token) {
+        const newToken = crypto.randomUUID()
+        const { error: updateError } = await ctx.supabase
+          .from('quote_history')
+          .update({ public_token: newToken })
+          .eq('id', input.id)
+
+        if (updateError) {
+          throw new Error('Failed to generate public link')
+        }
+        return { token: newToken }
+      }
+
+      return { token: data.public_token }
     }),
 
   // Regenerate public token for a quote

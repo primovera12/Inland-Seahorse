@@ -188,7 +188,21 @@ export default function EditQuotePage() {
       }
 
       if (quoteData) {
-        if (quoteData.costs) setCosts(quoteData.costs)
+        // Helper to sanitize cost values
+        const sanitizeCost = (value: number | null | undefined): number => {
+          if (value === null || value === undefined || isNaN(value)) return 0
+          return value
+        }
+
+        const sanitizeCosts = (costs: Record<string, number | null | undefined>): Record<string, number> => {
+          const result: Record<string, number> = {}
+          for (const key of Object.keys(costs)) {
+            result[key] = sanitizeCost(costs[key])
+          }
+          return result
+        }
+
+        if (quoteData.costs) setCosts(sanitizeCosts(quoteData.costs) as CostState)
         if (quoteData.enabledCosts) setEnabledCosts(quoteData.enabledCosts)
         if (quoteData.costOverrides) setCostOverrides(quoteData.costOverrides)
         if (quoteData.descriptionOverrides) setDescriptionOverrides(quoteData.descriptionOverrides)
@@ -199,7 +213,15 @@ export default function EditQuotePage() {
 
         // Load equipment blocks - convert legacy single-equipment quotes to multi-equipment format
         if (quoteData.equipmentBlocks && quoteData.equipmentBlocks.length > 0) {
-          setEquipmentBlocks(quoteData.equipmentBlocks)
+          // Sanitize costs in equipment blocks
+          const sanitizedBlocks = quoteData.equipmentBlocks.map(block => ({
+            ...block,
+            costs: sanitizeCosts(block.costs || {}),
+            subtotal: sanitizeCost(block.subtotal),
+            misc_fees_total: sanitizeCost(block.misc_fees_total),
+            total_with_quantity: sanitizeCost(block.total_with_quantity),
+          }))
+          setEquipmentBlocks(sanitizedBlocks as EquipmentBlock[])
         } else if (quote.make_name || quote.model_name) {
           // Convert legacy single-equipment data to equipment block format
           const legacyBlock: EquipmentBlock = {
@@ -210,13 +232,13 @@ export default function EditQuotePage() {
             model_name: quote.model_name || '',
             location: quote.location as LocationName,
             quantity: 1,
-            costs: quoteData.costs || initialCosts,
+            costs: sanitizeCosts(quoteData.costs || initialCosts),
             enabled_costs: quoteData.enabledCosts || initialEnabled,
             cost_overrides: quoteData.costOverrides || initialOverrides,
             misc_fees: quoteData.miscFees || [],
-            subtotal: quote.subtotal || 0,
+            subtotal: sanitizeCost(quote.subtotal) || 0,
             misc_fees_total: 0,
-            total_with_quantity: quote.total || 0,
+            total_with_quantity: sanitizeCost(quote.total) || 0,
           }
           setEquipmentBlocks([legacyBlock])
         }

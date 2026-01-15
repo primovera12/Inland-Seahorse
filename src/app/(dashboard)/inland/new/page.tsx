@@ -33,8 +33,8 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, X, MonitorPlay, Loader2, Mail, Save, Trash2, ChevronRight } from 'lucide-react'
-import { CustomerForm } from '@/components/quotes/customer-form'
+import { Plus, FileDown, Eye, X, MonitorPlay, Loader2, Mail, Save, Trash2, ChevronRight, FolderOpen } from 'lucide-react'
+import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAutoSave } from '@/hooks/use-auto-save'
 import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
@@ -84,6 +84,12 @@ export default function NewInlandQuotePage() {
   const [customerEmail, setCustomerEmail] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerCompany, setCustomerCompany] = useState('')
+  const [customerAddress, setCustomerAddress] = useState<CustomerAddress>({
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+  })
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
 
   // Notes
@@ -207,6 +213,7 @@ export default function NewInlandQuotePage() {
       customerEmail,
       customerPhone,
       customerCompany,
+      customerAddress,
       selectedCompanyId,
       internalNotes,
       quoteNotes,
@@ -218,6 +225,7 @@ export default function NewInlandQuotePage() {
       customerEmail,
       customerPhone,
       customerCompany,
+      customerAddress,
       selectedCompanyId,
       internalNotes,
       quoteNotes,
@@ -245,6 +253,7 @@ export default function NewInlandQuotePage() {
         if (data.customerEmail) setCustomerEmail(data.customerEmail)
         if (data.customerPhone) setCustomerPhone(data.customerPhone)
         if (data.customerCompany) setCustomerCompany(data.customerCompany)
+        if (data.customerAddress) setCustomerAddress(data.customerAddress)
         if (data.selectedCompanyId) setSelectedCompanyId(data.selectedCompanyId)
         if (data.internalNotes) setInternalNotes(data.internalNotes)
         if (data.quoteNotes) setQuoteNotes(data.quoteNotes)
@@ -262,12 +271,16 @@ export default function NewInlandQuotePage() {
 
   // Discard draft
   const handleDiscardDraft = () => {
+    if (!confirm('Are you sure you want to discard this draft? All changes will be lost.')) {
+      return
+    }
     // Reset all fields
     setQuoteNumber(generateInlandQuoteNumber())
     setCustomerName('')
     setCustomerEmail('')
     setCustomerPhone('')
     setCustomerCompany('')
+    setCustomerAddress({ address: '', city: '', state: '', zip: '' })
     setSelectedCompanyId(null)
     setInternalNotes('')
     setQuoteNotes('')
@@ -289,8 +302,16 @@ export default function NewInlandQuotePage() {
       subtotal,
       total,
       quoteNotes: quoteNotes || undefined,
-      companyName: 'Seahorse Express',
-      primaryColor: '#6366F1',
+      companyName: settings?.company_name || 'Seahorse Express',
+      companyLogoUrl: settings?.company_logo_url || undefined,
+      logoSizePercentage: settings?.logo_size_percentage || 100,
+      companyAddress: [settings?.company_address, settings?.company_city, settings?.company_state, settings?.company_zip].filter(Boolean).join(', ') || undefined,
+      companyPhone: settings?.company_phone || undefined,
+      companyEmail: settings?.company_email || undefined,
+      companyWebsite: settings?.company_website || undefined,
+      primaryColor: settings?.primary_color || '#6366F1',
+      secondaryColor: settings?.secondary_color || undefined,
+      termsAndConditions: settings?.terms_inland || undefined,
     }
   }, [
     quoteNumber,
@@ -299,6 +320,7 @@ export default function NewInlandQuotePage() {
     customerPhone,
     customerCompany,
     destinationBlocks,
+    settings,
     subtotal,
     total,
     quoteNotes,
@@ -624,7 +646,8 @@ export default function NewInlandQuotePage() {
               <p className="text-sm sm:text-base text-muted-foreground">Quote #{quoteNumber}</p>
               <AutoSaveIndicator status={autoSaveStatus} lastSaved={lastSaved} />
               {draftRestored && (
-                <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-1 rounded-full">
+                  <FolderOpen className="h-3 w-3" />
                   Draft Restored
                 </span>
               )}
@@ -728,10 +751,12 @@ export default function NewInlandQuotePage() {
                 customerEmail={customerEmail}
                 customerPhone={customerPhone}
                 customerCompany={customerCompany}
+                customerAddress={customerAddress}
                 onCustomerNameChange={setCustomerName}
                 onCustomerEmailChange={setCustomerEmail}
                 onCustomerPhoneChange={setCustomerPhone}
                 onCustomerCompanyChange={setCustomerCompany}
+                onCustomerAddressChange={setCustomerAddress}
                 onCompanySelect={(id, name) => {
                   setSelectedCompanyId(id)
                   setCustomerCompany(name)
