@@ -118,8 +118,12 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
           const totalDistanceMiles = Math.round(totalDistanceMeters * 0.000621371 * 10) / 10
           const totalDurationMinutes = Math.round(totalDurationSeconds / 60)
 
-          // Pass the polyline back via callback (overview_polyline.points contains the encoded string)
-          const polylineString = route.overview_polyline?.points
+          // Pass the polyline back via callback
+          // overview_polyline can be a string or object with points property depending on Google Maps version
+          const overviewPolyline = route.overview_polyline as unknown
+          const polylineString = typeof overviewPolyline === 'string'
+            ? overviewPolyline
+            : (overviewPolyline as { points?: string })?.points
           if (onRouteCalculated && polylineString) {
             onRouteCalculated({
               destinationId: dest.id,
