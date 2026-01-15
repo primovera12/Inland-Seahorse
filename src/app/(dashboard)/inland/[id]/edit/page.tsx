@@ -235,6 +235,8 @@ export default function EditInlandQuotePage() {
               custom_make_name: cargo.custom_make_name,
               custom_model_name: cargo.custom_model_name,
               image_url: cargo.image_url,
+              front_image_url: cargo.front_image_url,
+              side_image_url: cargo.side_image_url,
             })),
             service_items: loadBlock.service_items,
             accessorial_charges: loadBlock.accessorial_charges,
@@ -252,7 +254,24 @@ export default function EditInlandQuotePage() {
           if (firstDest?.pickup_lat && firstDest?.pickup_lng && lastDest?.dropoff_lat && lastDest?.dropoff_lng) {
             const origin = `${firstDest.pickup_lat},${firstDest.pickup_lng}`
             const destination = `${lastDest.dropoff_lat},${lastDest.dropoff_lng}`
-            // Collect waypoints from intermediate destinations
+            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+            // Collect polylines from destination blocks that have them
+            const polylines = destinationBlocks
+              .filter(dest => dest.route_polyline)
+              .map(dest => dest.route_polyline as string)
+
+            // Use encoded polylines for actual route display if available
+            if (polylines.length > 0) {
+              // Build path parameters for each polyline
+              const pathParams = polylines
+                .map(polyline => `path=color:0x4285F4|weight:4|enc:${encodeURIComponent(polyline)}`)
+                .join('&')
+
+              return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&${pathParams}&key=${apiKey}`
+            }
+
+            // Fallback to straight line if no polylines available yet
             const waypoints: string[] = []
             destinationBlocks.forEach((dest, idx) => {
               if (idx > 0 && dest.pickup_lat && dest.pickup_lng) {
@@ -262,8 +281,7 @@ export default function EditInlandQuotePage() {
                 waypoints.push(`${dest.dropoff_lat},${dest.dropoff_lng}`)
               }
             })
-            const waypointParam = waypoints.length > 0 ? `&waypoints=${waypoints.join('|')}` : ''
-            return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&path=color:0x4285F4|weight:4|${origin}|${waypoints.join('|')}${waypoints.length > 0 ? '|' : ''}${destination}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+            return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&path=color:0x4285F4|weight:4|${origin}|${waypoints.join('|')}${waypoints.length > 0 ? '|' : ''}${destination}&key=${apiKey}`
           }
           return undefined
         })(),
@@ -370,6 +388,27 @@ export default function EditInlandQuotePage() {
       })
     }
   }
+
+  // Handle route calculated callback from RouteMap
+  const handleRouteCalculated = useCallback((data: {
+    destinationId: string
+    polyline: string
+    distance_miles: number
+    duration_minutes: number
+  }) => {
+    setDestinationBlocks(prevBlocks =>
+      prevBlocks.map(block =>
+        block.id === data.destinationId
+          ? {
+              ...block,
+              route_polyline: data.polyline,
+              distance_miles: data.distance_miles,
+              duration_minutes: data.duration_minutes,
+            }
+          : block
+      )
+    )
+  }, [])
 
   // Update quote mutation
   const updateQuote = trpc.inland.update.useMutation({
@@ -516,7 +555,7 @@ export default function EditInlandQuotePage() {
             {/* Quote Details Tab */}
             <TabsContent value="quote" className="mt-6 space-y-6">
               {/* Route Map */}
-              <RouteMap destinationBlocks={destinationBlocks} />
+              <RouteMap destinationBlocks={destinationBlocks} onRouteCalculated={handleRouteCalculated} />
 
               {/* Destination Blocks */}
               <Card>

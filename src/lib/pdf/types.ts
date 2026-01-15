@@ -163,7 +163,10 @@ export interface InlandCargoItem {
   equipment_model_name?: string
   custom_make_name?: string
   custom_model_name?: string
-  image_url?: string
+  // Images
+  image_url?: string // Generic cargo image
+  front_image_url?: string // Equipment front view
+  side_image_url?: string // Equipment side view
 }
 
 // Load block for inland transport

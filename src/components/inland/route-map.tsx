@@ -40,9 +40,17 @@ const MARKER_COLORS = [
   '#EC4899', // Pink (F)
 ]
 
+interface RouteCalculatedData {
+  destinationId: string
+  polyline: string
+  distance_miles: number
+  duration_minutes: number
+}
+
 interface RouteMapProps {
   destinationBlocks: InlandDestinationBlock[]
   className?: string
+  onRouteCalculated?: (data: RouteCalculatedData) => void
 }
 
 interface RouteInfo {
@@ -50,7 +58,7 @@ interface RouteInfo {
   duration: string
 }
 
-export function RouteMap({ destinationBlocks, className }: RouteMapProps) {
+export function RouteMap({ destinationBlocks, className, onRouteCalculated }: RouteMapProps) {
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [directions, setDirections] = useState<google.maps.DirectionsResult[]>([])
   const [routeInfos, setRouteInfos] = useState<Map<string, RouteInfo>>(new Map())
@@ -80,21 +88,48 @@ export function RouteMap({ destinationBlocks, className }: RouteMapProps) {
 
     for (const dest of validDestinations) {
       try {
+        // Build waypoints if they exist
+        const waypointLocations = dest.waypoints?.filter(w => w.address.trim())?.map(w => ({
+          location: w.address,
+          stopover: true,
+        })) || []
+
         const result = await directionsService.route({
           origin: dest.pickup_address,
           destination: dest.dropoff_address,
+          waypoints: waypointLocations,
           travelMode: google.maps.TravelMode.DRIVING,
         })
 
         newDirections.push(result)
 
-        // Extract route info
-        const leg = result.routes[0]?.legs[0]
-        if (leg) {
+        // Extract route info and polyline
+        const route = result.routes[0]
+        const leg = route?.legs[0]
+        if (leg && route) {
           newRouteInfos.set(dest.id, {
             distance: leg.distance?.text || 'N/A',
             duration: leg.duration?.text || 'N/A',
           })
+
+          // Extract total distance and duration across all legs
+          const totalDistanceMeters = route.legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0)
+          const totalDurationSeconds = route.legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0)
+          const totalDistanceMiles = Math.round(totalDistanceMeters * 0.000621371 * 10) / 10
+          const totalDurationMinutes = Math.round(totalDurationSeconds / 60)
+
+          // Pass the polyline back via callback (overview_polyline.points contains the encoded string)
+          const polylineString = typeof route.overview_polyline === 'string'
+            ? route.overview_polyline
+            : route.overview_polyline?.points
+          if (onRouteCalculated && polylineString) {
+            onRouteCalculated({
+              destinationId: dest.id,
+              polyline: polylineString,
+              distance_miles: totalDistanceMiles,
+              duration_minutes: totalDurationMinutes,
+            })
+          }
         }
       } catch (error) {
         console.error(`Failed to calculate route for destination ${dest.label}:`, error)
@@ -116,7 +151,7 @@ export function RouteMap({ destinationBlocks, className }: RouteMapProps) {
       })
       map.fitBounds(bounds, 50)
     }
-  }, [isLoaded, validDestinations, map])
+  }, [isLoaded, validDestinations, map, onRouteCalculated])
 
   // Recalculate routes when destinations change
   useEffect(() => {

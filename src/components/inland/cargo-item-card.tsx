@@ -53,11 +53,14 @@ export function CargoItemCard({
     { enabled: !!selectedMakeId }
   )
 
-  // Fetch dimensions when model is selected
+  // Fetch dimensions (includes images) when model is selected
   const { data: dimensions } = trpc.equipment.getDimensions.useQuery(
     { modelId: item.equipment_model_id || '' },
     { enabled: !!item.equipment_model_id }
   )
+
+  // Mutation to save equipment images back to library
+  const updateEquipmentImages = trpc.equipment.updateImages.useMutation()
 
   // Check for oversize/overweight
   const checkLimits = (
@@ -180,29 +183,36 @@ export function CargoItemCard({
     })
   }
 
-  // Auto-fill dimensions when they're loaded
+  // Auto-fill dimensions and images when they're loaded from library
   if (dimensions && item.equipment_model_id && dimensions.model_id === item.equipment_model_id) {
+    const dimData = dimensions as typeof dimensions & { front_image_url?: string; side_image_url?: string }
     const shouldUpdate =
-      item.length_inches !== dimensions.length_inches ||
-      item.width_inches !== dimensions.width_inches ||
-      item.height_inches !== dimensions.height_inches ||
-      item.weight_lbs !== dimensions.weight_lbs
+      item.length_inches !== dimData.length_inches ||
+      item.width_inches !== dimData.width_inches ||
+      item.height_inches !== dimData.height_inches ||
+      item.weight_lbs !== dimData.weight_lbs ||
+      // Also check if library has images that the item doesn't
+      (dimData.front_image_url && !item.front_image_url) ||
+      (dimData.side_image_url && !item.side_image_url)
 
     if (shouldUpdate) {
       const { isOversize, isOverweight } = checkLimits(
-        dimensions.length_inches,
-        dimensions.width_inches,
-        dimensions.height_inches,
-        dimensions.weight_lbs
+        dimData.length_inches,
+        dimData.width_inches,
+        dimData.height_inches,
+        dimData.weight_lbs
       )
       onUpdate({
         ...item,
-        length_inches: dimensions.length_inches,
-        width_inches: dimensions.width_inches,
-        height_inches: dimensions.height_inches,
-        weight_lbs: dimensions.weight_lbs,
+        length_inches: dimData.length_inches,
+        width_inches: dimData.width_inches,
+        height_inches: dimData.height_inches,
+        weight_lbs: dimData.weight_lbs,
         is_oversize: isOversize,
         is_overweight: isOverweight,
+        // Auto-fill images from library if available and item doesn't have them
+        front_image_url: item.front_image_url || dimData.front_image_url || undefined,
+        side_image_url: item.side_image_url || dimData.side_image_url || undefined,
       })
     }
   }
@@ -425,46 +435,155 @@ export function CargoItemCard({
         </div>
       )}
 
-      {/* Cargo Image */}
+      {/* Cargo/Equipment Images */}
       <div className="mt-4 pt-4 border-t">
         <Label className="text-xs flex items-center gap-1 mb-2">
           <ImageIcon className="h-3 w-3" />
-          Cargo Image (optional)
+          {isEquipmentMode ? 'Equipment Images' : 'Cargo Image'} (optional)
         </Label>
-        <div className="flex items-start gap-4">
-          {item.image_url ? (
-            <div className="relative w-32 h-24 rounded-lg overflow-hidden border bg-muted">
-              <Image
-                src={item.image_url}
-                alt={item.description || 'Cargo image'}
-                fill
-                className="object-cover"
-                sizes="128px"
-              />
+
+        {/* Equipment Mode: Show front and side image uploads */}
+        {isEquipmentMode ? (
+          <div className="grid grid-cols-2 gap-4">
+            {/* Front Image */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Front View</Label>
+              <div className="flex flex-col items-center gap-2">
+                {item.front_image_url ? (
+                  <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
+                    <Image
+                      src={item.front_image_url}
+                      alt={`${item.description || 'Equipment'} - Front`}
+                      fill
+                      className="object-contain"
+                      sizes="200px"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center text-muted-foreground text-xs">
+                    No front image
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <ImageUpload
+                    value={item.front_image_url || null}
+                    onChange={(url) => {
+                      onUpdate({ ...item, front_image_url: url || undefined })
+                      // Save to library if model is selected from database
+                      if (url && item.equipment_model_id && !isCustomEquipment) {
+                        updateEquipmentImages.mutate({
+                          modelId: item.equipment_model_id,
+                          frontImageUrl: url,
+                        })
+                      }
+                    }}
+                    bucket="cargo-images"
+                    folder={`equipment/${item.equipment_model_id || item.id}/front`}
+                    label={item.front_image_url ? 'Change' : 'Upload Front'}
+                    maxSizeMB={5}
+                  />
+                  {item.front_image_url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive text-xs h-7 px-2"
+                      onClick={() => onUpdate({ ...item, front_image_url: undefined })}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
-          ) : null}
-          <div className="flex-1">
-            <ImageUpload
-              value={item.image_url || null}
-              onChange={(url) => onUpdate({ ...item, image_url: url || undefined })}
-              bucket="cargo-images"
-              folder={`cargo/${item.id}`}
-              label={item.image_url ? 'Change Image' : 'Upload Image'}
-              maxSizeMB={5}
-            />
-            {item.image_url && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-1 text-destructive text-xs h-7"
-                onClick={() => onUpdate({ ...item, image_url: undefined })}
-              >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Remove
-              </Button>
-            )}
+
+            {/* Side Image */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Side View</Label>
+              <div className="flex flex-col items-center gap-2">
+                {item.side_image_url ? (
+                  <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
+                    <Image
+                      src={item.side_image_url}
+                      alt={`${item.description || 'Equipment'} - Side`}
+                      fill
+                      className="object-contain"
+                      sizes="200px"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center text-muted-foreground text-xs">
+                    No side image
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <ImageUpload
+                    value={item.side_image_url || null}
+                    onChange={(url) => {
+                      onUpdate({ ...item, side_image_url: url || undefined })
+                      // Save to library if model is selected from database
+                      if (url && item.equipment_model_id && !isCustomEquipment) {
+                        updateEquipmentImages.mutate({
+                          modelId: item.equipment_model_id,
+                          sideImageUrl: url,
+                        })
+                      }
+                    }}
+                    bucket="cargo-images"
+                    folder={`equipment/${item.equipment_model_id || item.id}/side`}
+                    label={item.side_image_url ? 'Change' : 'Upload Side'}
+                    maxSizeMB={5}
+                  />
+                  {item.side_image_url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive text-xs h-7 px-2"
+                      onClick={() => onUpdate({ ...item, side_image_url: undefined })}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Standard cargo mode: Single image upload */
+          <div className="flex items-start gap-4">
+            {item.image_url ? (
+              <div className="relative w-32 h-24 rounded-lg overflow-hidden border bg-muted">
+                <Image
+                  src={item.image_url}
+                  alt={item.description || 'Cargo image'}
+                  fill
+                  className="object-cover"
+                  sizes="128px"
+                />
+              </div>
+            ) : null}
+            <div className="flex-1">
+              <ImageUpload
+                value={item.image_url || null}
+                onChange={(url) => onUpdate({ ...item, image_url: url || undefined })}
+                bucket="cargo-images"
+                folder={`cargo/${item.id}`}
+                label={item.image_url ? 'Change Image' : 'Upload Image'}
+                maxSizeMB={5}
+              />
+              {item.image_url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 text-destructive text-xs h-7"
+                  onClick={() => onUpdate({ ...item, image_url: undefined })}
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Remove
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

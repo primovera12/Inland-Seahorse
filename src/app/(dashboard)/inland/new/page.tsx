@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -111,6 +111,8 @@ export default function NewInlandQuotePage() {
   const saveDraftMutation = trpc.inland.saveDraft.useMutation()
   const deleteDraftMutation = trpc.inland.deleteDraft.useMutation({
     onSuccess: () => {
+      // Invalidate the draft cache so it doesn't restore on navigation
+      utils.inland.getDraft.invalidate()
       toast.success('Draft discarded')
     },
   })
@@ -190,6 +192,8 @@ export default function NewInlandQuotePage() {
               custom_make_name: cargo.custom_make_name,
               custom_model_name: cargo.custom_model_name,
               image_url: cargo.image_url,
+              front_image_url: cargo.front_image_url,
+              side_image_url: cargo.side_image_url,
             })),
             service_items: loadBlock.service_items,
             accessorial_charges: loadBlock.accessorial_charges,
@@ -207,7 +211,24 @@ export default function NewInlandQuotePage() {
           if (firstDest?.pickup_lat && firstDest?.pickup_lng && lastDest?.dropoff_lat && lastDest?.dropoff_lng) {
             const origin = `${firstDest.pickup_lat},${firstDest.pickup_lng}`
             const destination = `${lastDest.dropoff_lat},${lastDest.dropoff_lng}`
-            // Collect waypoints from intermediate destinations
+            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+            // Collect polylines from destination blocks that have them
+            const polylines = destinationBlocks
+              .filter(dest => dest.route_polyline)
+              .map(dest => dest.route_polyline as string)
+
+            // Use encoded polylines for actual route display if available
+            if (polylines.length > 0) {
+              // Build path parameters for each polyline
+              const pathParams = polylines
+                .map(polyline => `path=color:0x4285F4|weight:4|enc:${encodeURIComponent(polyline)}`)
+                .join('&')
+
+              return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&${pathParams}&key=${apiKey}`
+            }
+
+            // Fallback to straight line if no polylines available yet
             const waypoints: string[] = []
             destinationBlocks.forEach((dest, idx) => {
               if (idx > 0 && dest.pickup_lat && dest.pickup_lng) {
@@ -217,8 +238,7 @@ export default function NewInlandQuotePage() {
                 waypoints.push(`${dest.dropoff_lat},${dest.dropoff_lng}`)
               }
             })
-            const waypointParam = waypoints.length > 0 ? `&waypoints=${waypoints.join('|')}` : ''
-            return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&path=color:0x4285F4|weight:4|${origin}|${waypoints.join('|')}${waypoints.length > 0 ? '|' : ''}${destination}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+            return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&path=color:0x4285F4|weight:4|${origin}|${waypoints.join('|')}${waypoints.length > 0 ? '|' : ''}${destination}&key=${apiKey}`
           }
           return undefined
         })(),
@@ -384,6 +404,27 @@ export default function NewInlandQuotePage() {
     toast.success(`Destination ${blockToDuplicate.label} duplicated`)
   }
 
+  // Handle route calculated callback from RouteMap
+  const handleRouteCalculated = useCallback((data: {
+    destinationId: string
+    polyline: string
+    distance_miles: number
+    duration_minutes: number
+  }) => {
+    setDestinationBlocks(prevBlocks =>
+      prevBlocks.map(block =>
+        block.id === data.destinationId
+          ? {
+              ...block,
+              route_polyline: data.polyline,
+              distance_miles: data.distance_miles,
+              duration_minutes: data.duration_minutes,
+            }
+          : block
+      )
+    )
+  }, [])
+
   // Handle drag end for reordering
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -428,32 +469,6 @@ export default function NewInlandQuotePage() {
       toast.error(`Failed to create quote: ${error.message}`)
     },
   })
-
-  // Save as template mutation
-  const saveTemplate = trpc.templates.create.useMutation({
-    onSuccess: () => {
-      toast.success('Template saved successfully')
-    },
-    onError: (error) => {
-      toast.error(`Failed to save template: ${error.message}`)
-    },
-  })
-
-  const handleSaveAsTemplate = () => {
-    const firstDest = destinationBlocks[0]
-    const templateName = `Inland - ${firstDest?.pickup_address || 'Origin'} to ${firstDest?.dropoff_address || 'Destination'}`
-    saveTemplate.mutate({
-      name: templateName.slice(0, 100),
-      description: `Inland transportation template with ${destinationBlocks.length} destination(s)`,
-      template_type: 'inland',
-      template_data: {
-        destination_blocks: destinationBlocks.map((d) => ({
-          pickup_address: d.pickup_address,
-          dropoff_address: d.dropoff_address,
-        })),
-      },
-    })
-  }
 
   const handleSaveQuote = () => {
     if (!customerName) {
@@ -501,23 +516,14 @@ export default function NewInlandQuotePage() {
               )}
             </div>
           </div>
-          <Button onClick={handleSaveQuote} disabled={createQuote.isPending} className="w-full sm:w-auto">
-            {createQuote.isPending ? 'Saving...' : 'Save Draft'}
-          </Button>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSaveAsTemplate}
-            disabled={saveTemplate.isPending}
-          >
+          <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
             <Save className="h-4 w-4 mr-2" />
-            Save as Template
+            {createQuote.isPending ? 'Saving...' : 'Save Draft'}
           </Button>
           <Button
             variant="outline"
-            size="sm"
             onClick={handleDiscardDraft}
             disabled={deleteDraftMutation.isPending}
           >
@@ -726,7 +732,7 @@ export default function NewInlandQuotePage() {
           </Card>
 
           {/* Route Map */}
-          <RouteMap destinationBlocks={destinationBlocks} />
+          <RouteMap destinationBlocks={destinationBlocks} onRouteCalculated={handleRouteCalculated} />
         </div>
       </div>
 

@@ -411,58 +411,141 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
   const inlandTransport = data.inlandTransport
 
-  if (!inlandTransport?.enabled || !inlandTransport.load_blocks || inlandTransport.load_blocks.length === 0) {
+  if (!inlandTransport?.enabled) {
     return null
   }
 
-  return (
-    <div className="border-b border-slate-100">
-      {/* Inland Transport Header */}
-      <div className="p-8 pb-4">
-        <h3
-          className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
-          style={{ color: primaryColor }}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-          </svg>
-          Inland Transportation Services
-        </h3>
-      </div>
+  // Use destination blocks if available, otherwise fall back to load_blocks
+  const destinationBlocks = inlandTransport.destinationBlocks
+  const hasDestinationBlocks = destinationBlocks && destinationBlocks.length > 0
+  const hasLoadBlocks = inlandTransport.load_blocks && inlandTransport.load_blocks.length > 0
 
-      {/* Load Blocks */}
-      {inlandTransport.load_blocks.map((block, blockIndex) => (
-        <div key={block.id} className="px-8 pb-6">
-          {/* Load Block Header with Truck Type */}
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-slate-700">
-                Load {blockIndex + 1}
-              </span>
-              <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">
-                {block.truck_type_name}
-              </span>
-            </div>
-            <span className="text-sm font-bold" style={{ color: primaryColor }}>
-              {formatCurrency(block.subtotal)}
+  if (!hasDestinationBlocks && !hasLoadBlocks) {
+    return null
+  }
+
+  // Render load block content (shared between both modes)
+  const renderLoadBlock = (block: typeof inlandTransport.load_blocks[0], blockIndex: number, showHeader = true) => (
+    <div key={block.id} className="pb-4">
+      {/* Load Block Header with Truck Type */}
+      {showHeader && (
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-slate-700">
+              Load {blockIndex + 1}
+            </span>
+            <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">
+              {block.truck_type_name}
             </span>
           </div>
+          <span className="text-sm font-bold" style={{ color: primaryColor }}>
+            {formatCurrency(block.subtotal)}
+          </span>
+        </div>
+      )}
 
-          {/* Cargo Items Details */}
-          {block.cargo_items && block.cargo_items.length > 0 && (
-            <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
-              <div className="px-4 py-2" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Cargo Details
-                </h4>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {block.cargo_items.map((cargo) => {
-                  const displayName = cargo.is_equipment
-                    ? `${cargo.equipment_make_name || cargo.custom_make_name || ''} ${cargo.equipment_model_name || cargo.custom_model_name || ''}`.trim() || cargo.description
-                    : cargo.description
-                  return (
-                    <div key={cargo.id} className="p-4 flex gap-4">
+      {/* Cargo Items Details */}
+      {block.cargo_items && block.cargo_items.length > 0 && (
+        <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
+          <div className="px-4 py-2" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              Cargo Details
+            </h4>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {block.cargo_items.map((cargo) => {
+              const displayName = cargo.is_equipment
+                ? `${cargo.equipment_make_name || cargo.custom_make_name || ''} ${cargo.equipment_model_name || cargo.custom_model_name || ''}`.trim() || cargo.description
+                : cargo.description
+              const hasEquipmentImages = cargo.is_equipment && (cargo.front_image_url || cargo.side_image_url)
+              return (
+                <div key={cargo.id} className="p-4">
+                  {/* Equipment with front/side images */}
+                  {hasEquipmentImages ? (
+                    <div className="space-y-3">
+                      <p className="text-sm font-bold text-slate-900">
+                        {displayName}
+                        {cargo.quantity > 1 && (
+                          <span className="text-slate-500 font-normal ml-2">(Qty: {cargo.quantity})</span>
+                        )}
+                      </p>
+                      {/* Equipment Images Grid */}
+                      <div className="grid grid-cols-2 gap-4">
+                        {cargo.front_image_url && (
+                          <div className="space-y-1">
+                            <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                              <img
+                                src={cargo.front_image_url}
+                                alt={`${displayName} - Front`}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <p className="text-[9px] uppercase font-bold text-slate-400 text-center tracking-widest">
+                              Front View
+                            </p>
+                          </div>
+                        )}
+                        {cargo.side_image_url && (
+                          <div className="space-y-1">
+                            <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                              <img
+                                src={cargo.side_image_url}
+                                alt={`${displayName} - Side`}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <p className="text-[9px] uppercase font-bold text-slate-400 text-center tracking-widest">
+                              Side View
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {/* Dimensions Grid */}
+                      <div className="grid grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <span className="text-slate-400">Length</span>
+                          <p className="font-medium text-slate-700">
+                            {formatDimension(cargo.length_inches)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Width</span>
+                          <p className="font-medium text-slate-700">
+                            {formatDimension(cargo.width_inches)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Height</span>
+                          <p className="font-medium text-slate-700">
+                            {formatDimension(cargo.height_inches)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Weight</span>
+                          <p className="font-medium text-slate-700">
+                            {formatWeight(cargo.weight_lbs)}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Oversize/Overweight Badges */}
+                      {(cargo.is_oversize || cargo.is_overweight) && (
+                        <div className="flex gap-2">
+                          {cargo.is_oversize && (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-700 uppercase">
+                              Oversize
+                            </span>
+                          )}
+                          {cargo.is_overweight && (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase">
+                              Overweight
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Standard cargo layout with single image */
+                    <div className="flex gap-4">
                       {/* Cargo Image */}
                       {cargo.image_url && (
                         <div className="w-24 h-20 flex-shrink-0 rounded overflow-hidden border border-slate-200">
@@ -525,126 +608,263 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                         )}
                       </div>
                     </div>
-                  )
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Service Items Table */}
+      {block.service_items.length > 0 && (
+        <table className="w-full text-left border-collapse mb-4">
+          <thead>
+            <tr style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
+              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                Service
+              </th>
+              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
+                Qty
+              </th>
+              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                Rate
+              </th>
+              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {block.service_items.map((item) => (
+              <tr key={item.id}>
+                <td className="px-4 py-3 text-sm font-medium text-slate-900">{item.name}</td>
+                <td className="px-4 py-3 text-sm text-center">{item.quantity}</td>
+                <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.rate)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-right">{formatCurrency(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Accessorial Charges (if applicable) */}
+      {block.accessorial_charges.length > 0 && (
+        <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-3 flex items-center gap-2">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Accessorial Fees (If Applicable)
+          </h4>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr>
+                <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
+                  Fee Type
+                </th>
+                <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
+                  Unit
+                </th>
+                <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-center">
+                  Qty
+                </th>
+                <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
+                  Rate
+                </th>
+                <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-200">
+              {block.accessorial_charges.map((charge) => {
+                const isVariable = isVariableBillingUnit(charge.billing_unit)
+                const rateDisplay = isVariable
+                  ? `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
+                  : formatCurrency(charge.rate)
+                return (
+                  <tr key={charge.id}>
+                    <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
+                    <td className="px-3 py-2 text-xs text-amber-700">{charge.billing_unit}</td>
+                    <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
+                    <td className="px-3 py-2 text-xs text-right text-amber-700">{rateDisplay}</td>
+                    <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">
+                      {isVariable ? (
+                        <span className="italic">As incurred</span>
+                      ) : (
+                        formatCurrency(charge.total)
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-amber-300">
+                <td colSpan={4} className="px-3 py-2 text-xs font-bold text-amber-800">
+                  Total Accessorial Fees (If Applicable)
+                </td>
+                <td className="px-3 py-2 text-sm font-bold text-right text-amber-900">
+                  {formatCurrency(block.accessorials_total || 0)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="border-b border-slate-100">
+      {/* Inland Transport Header */}
+      <div className="p-8 pb-4">
+        <h3
+          className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
+          style={{ color: primaryColor }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          Inland Transportation Services
+        </h3>
+      </div>
+
+      {/* Render by Destination Blocks if available */}
+      {hasDestinationBlocks ? (
+        <>
+          {destinationBlocks!.map((dest, destIndex) => (
+            <div key={dest.id} className="mb-6">
+              {/* Destination Header */}
+              <div className="px-8 pb-4">
+                <div className="p-4 rounded-lg border-2 border-slate-200" style={{ borderLeftColor: primaryColor, borderLeftWidth: '4px' }}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      {dest.label}
+                    </span>
+                    <span className="text-lg font-bold text-slate-900">Destination {dest.label}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-slate-500 text-xs uppercase tracking-wide">Pickup</span>
+                      <p className="font-medium text-slate-900">{dest.pickup_address || '-'}</p>
+                      {(dest.pickup_city || dest.pickup_state) && (
+                        <p className="text-slate-500 text-xs">
+                          {[dest.pickup_city, dest.pickup_state, dest.pickup_zip].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-xs uppercase tracking-wide">Dropoff</span>
+                      <p className="font-medium text-slate-900">{dest.dropoff_address || '-'}</p>
+                      {(dest.dropoff_city || dest.dropoff_state) && (
+                        <p className="text-slate-500 text-xs">
+                          {[dest.dropoff_city, dest.dropoff_state, dest.dropoff_zip].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {dest.distance_miles && (
+                    <div className="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-500">
+                      Distance: {Math.round(dest.distance_miles).toLocaleString()} miles
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Load Blocks for this destination */}
+              <div className="px-8">
+                {dest.load_blocks.map((loadBlock, loadIndex) => {
+                  // Map load block to the expected format
+                  const formattedBlock = {
+                    id: loadBlock.id,
+                    truck_type_id: loadBlock.truck_type_id,
+                    truck_type_name: loadBlock.truck_type_name,
+                    cargo_items: loadBlock.cargo_items?.map(cargo => ({
+                      id: cargo.id,
+                      description: cargo.description,
+                      quantity: cargo.quantity,
+                      length_inches: cargo.length_inches,
+                      width_inches: cargo.width_inches,
+                      height_inches: cargo.height_inches,
+                      weight_lbs: cargo.weight_lbs,
+                      is_oversize: cargo.is_oversize,
+                      is_overweight: cargo.is_overweight,
+                      is_equipment: cargo.is_equipment,
+                      equipment_make_name: cargo.equipment_make_name,
+                      equipment_model_name: cargo.equipment_model_name,
+                      custom_make_name: cargo.custom_make_name,
+                      custom_model_name: cargo.custom_model_name,
+                      image_url: cargo.image_url,
+                    })) || [],
+                    service_items: loadBlock.service_items,
+                    accessorial_charges: loadBlock.accessorial_charges,
+                    subtotal: loadBlock.subtotal,
+                    accessorials_total: loadBlock.accessorials_total || 0,
+                  }
+                  return renderLoadBlock(formattedBlock, loadIndex, dest.load_blocks.length > 1)
                 })}
               </div>
-            </div>
-          )}
 
-          {/* Service Items Table */}
-          {block.service_items.length > 0 && (
-            <table className="w-full text-left border-collapse mb-4">
-              <thead>
-                <tr style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
-                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
-                    Service
-                  </th>
-                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
-                    Qty
-                  </th>
-                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
-                    Rate
-                  </th>
-                  <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {block.service_items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{item.name}</td>
-                    <td className="px-4 py-3 text-sm text-center">{item.quantity}</td>
-                    <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.rate)}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-right">{formatCurrency(item.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              {/* Destination Subtotal */}
+              <div className="px-8 pb-4">
+                <div className="flex justify-end">
+                  <div className="w-64 p-3 rounded-lg" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium text-slate-600">Destination {dest.label} Total</span>
+                      <span className="font-bold" style={{ color: primaryColor }}>
+                        {formatCurrency(dest.subtotal)}
+                      </span>
+                    </div>
+                    {(dest.accessorials_total ?? 0) > 0 && (
+                      <div className="flex justify-between text-xs text-amber-600 mt-1">
+                        <span>+ Accessorials (if applicable)</span>
+                        <span className="font-medium">
+                          {formatCurrency(dest.accessorials_total || 0)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-          {/* Accessorial Charges (if applicable) */}
-          {block.accessorial_charges.length > 0 && (
-            <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-3 flex items-center gap-2">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                Accessorial Fees (If Applicable)
-              </h4>
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr>
-                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
-                      Fee Type
-                    </th>
-                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
-                      Unit
-                    </th>
-                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-center">
-                      Qty
-                    </th>
-                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
-                      Rate
-                    </th>
-                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-200">
-                  {block.accessorial_charges.map((charge) => {
-                    const isVariable = isVariableBillingUnit(charge.billing_unit)
-                    const rateDisplay = isVariable
-                      ? `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
-                      : formatCurrency(charge.rate)
-                    return (
-                      <tr key={charge.id}>
-                        <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
-                        <td className="px-3 py-2 text-xs text-amber-700">{charge.billing_unit}</td>
-                        <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
-                        <td className="px-3 py-2 text-xs text-right text-amber-700">{rateDisplay}</td>
-                        <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">
-                          {isVariable ? (
-                            <span className="italic">As incurred</span>
-                          ) : (
-                            formatCurrency(charge.total)
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-amber-300">
-                    <td colSpan={4} className="px-3 py-2 text-xs font-bold text-amber-800">
-                      Total Accessorial Fees (If Applicable)
-                    </td>
-                    <td className="px-3 py-2 text-sm font-bold text-right text-amber-900">
-                      {formatCurrency(block.accessorials_total || 0)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+              {/* Separator between destinations */}
+              {destIndex < destinationBlocks!.length - 1 && (
+                <div className="px-8 pb-4">
+                  <div className="border-t-2 border-dashed border-slate-200" />
+                </div>
+              )}
             </div>
-          )}
+          ))}
+        </>
+      ) : (
+        /* Fallback: Render load blocks directly (legacy mode) */
+        <div className="px-8">
+          {inlandTransport.load_blocks!.map((block, blockIndex) => renderLoadBlock(block, blockIndex))}
         </div>
-      ))}
+      )}
 
-      {/* Inland Transport Summary */}
+      {/* Grand Total Summary */}
       <div className="px-8 pb-6">
         <div className="flex justify-end">
-          <div className="w-64 space-y-2">
-            <div className="flex justify-between text-sm border-t border-slate-200 pt-2">
+          <div className="w-72 space-y-2 p-4 rounded-lg border-2" style={{ borderColor: primaryColor }}>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+              Grand Total
+            </div>
+            <div className="flex justify-between text-base">
               <span className="font-medium text-slate-700">Inland Transport Total</span>
-              <span className="font-bold" style={{ color: primaryColor }}>
+              <span className="font-bold text-lg" style={{ color: primaryColor }}>
                 {formatCurrency(inlandTransport.total)}
               </span>
             </div>
             {(inlandTransport.accessorials_total ?? 0) > 0 && (
-              <div className="flex justify-between text-xs text-amber-700">
+              <div className="flex justify-between text-sm text-amber-700 pt-2 border-t border-slate-200">
                 <span>+ Accessorials (if applicable)</span>
-                <span className="font-medium">
+                <span className="font-bold">
                   {formatCurrency(inlandTransport.accessorials_total || 0)}
                 </span>
               </div>
@@ -1117,32 +1337,35 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
           {/* Location(s) */}
           <LocationSection data={data} />
 
-          {isMultiEquipmentQuote ? (
-            /* Multi-Equipment Layout: Each equipment has its own section with services and subtotal */
-            <>
-              {data.equipment.map((eq, index) => (
-                <EquipmentWithServicesSection
-                  key={eq.id}
-                  equipment={eq}
-                  primaryColor={primaryColor}
-                  equipmentNumber={index + 1}
-                />
-              ))}
-            </>
-          ) : (
-            /* Single Equipment Layout: Traditional equipment showcase + combined services table */
-            <>
-              {data.equipment.map((eq) => (
-                <EquipmentSection
-                  key={eq.id}
-                  equipment={eq}
-                  primaryColor={primaryColor}
-                  showQuantity={false}
-                />
-              ))}
-              {/* Services Table */}
-              <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />
-            </>
+          {/* Equipment and Services - only show if there's equipment */}
+          {data.equipment.length > 0 && (
+            isMultiEquipmentQuote ? (
+              /* Multi-Equipment Layout: Each equipment has its own section with services and subtotal */
+              <>
+                {data.equipment.map((eq, index) => (
+                  <EquipmentWithServicesSection
+                    key={eq.id}
+                    equipment={eq}
+                    primaryColor={primaryColor}
+                    equipmentNumber={index + 1}
+                  />
+                ))}
+              </>
+            ) : (
+              /* Single Equipment Layout: Traditional equipment showcase + combined services table */
+              <>
+                {data.equipment.map((eq) => (
+                  <EquipmentSection
+                    key={eq.id}
+                    equipment={eq}
+                    primaryColor={primaryColor}
+                    showQuantity={false}
+                  />
+                ))}
+                {/* Services Table */}
+                <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />
+              </>
+            )
           )}
 
           {/* Inland Transport Services (if enabled) */}

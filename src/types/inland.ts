@@ -144,8 +144,11 @@ export interface CargoItem {
   equipment_model_name?: string
   custom_make_name?: string // Manual make name entry
   custom_model_name?: string // Manual model name entry
-  // Cargo image
+  // Cargo image (generic)
   image_url?: string
+  // Equipment-specific images (front and side views)
+  front_image_url?: string
+  side_image_url?: string
 }
 
 export interface ServiceItem {
