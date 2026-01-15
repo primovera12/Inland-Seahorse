@@ -53,6 +53,7 @@ import {
   AlertTriangle,
   CheckSquare,
   X,
+  GitCompare,
 } from 'lucide-react'
 
 // Helper to check if quote is expiring soon (within 7 days)
@@ -256,8 +257,7 @@ export default function InlandHistoryPage() {
           <Link href="/inland/new" className="flex-1 sm:flex-initial">
             <Button className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">New Inland Quote</span>
-              <span className="sm:hidden">New Quote</span>
+              New Quote
             </Button>
           </Link>
         </div>
@@ -426,6 +426,12 @@ export default function InlandHistoryPage() {
                             {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
                           </DropdownMenuItem>
                           <ShareLinkMenuItem quoteId={quote.id} />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/inland/${quote.id}/versions`}>
+                              <GitCompare className="h-4 w-4 mr-2" />
+                              Compare Versions
+                            </Link>
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                           {quote.status === 'draft' && (
@@ -606,6 +612,12 @@ export default function InlandHistoryPage() {
                                 {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
                               </DropdownMenuItem>
                               <ShareLinkMenuItem quoteId={quote.id} />
+                              <DropdownMenuItem asChild>
+                                <Link href={`/inland/${quote.id}/versions`}>
+                                  <GitCompare className="h-4 w-4 mr-2" />
+                                  Compare Versions
+                                </Link>
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                               {quote.status === 'draft' && (

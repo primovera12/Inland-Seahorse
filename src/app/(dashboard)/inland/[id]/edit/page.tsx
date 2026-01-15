@@ -31,12 +31,11 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, Loader2, Mail, ArrowLeft } from 'lucide-react'
+import { Plus, Eye, Loader2, Mail, ArrowLeft } from 'lucide-react'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { InlandDestinationBlock } from '@/types/inland'
 import {
-  downloadInlandQuotePDF,
   getInlandQuotePDFDataUrl,
   type InlandQuotePDFData,
 } from '@/lib/pdf/inland-quote-generator'
@@ -103,7 +102,6 @@ export default function EditInlandQuotePage() {
   // PDF Preview
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   // Email dialog
   const [showEmailDialog, setShowEmailDialog] = useState(false)
@@ -323,7 +321,6 @@ export default function EditInlandQuotePage() {
 
   // PDF Preview
   const handlePreviewPdf = async () => {
-    setIsGeneratingPdf(true)
     try {
       const pdfData = buildPdfData()
       const dataUrl = await getInlandQuotePDFDataUrl(pdfData)
@@ -332,16 +329,7 @@ export default function EditInlandQuotePage() {
     } catch (error) {
       console.error('Error generating PDF:', error)
       toast.error('Failed to generate PDF preview')
-    } finally {
-      setIsGeneratingPdf(false)
     }
-  }
-
-  // Download PDF
-  const handleDownloadPdf = async () => {
-    const pdfData = buildPdfData()
-    await downloadInlandQuotePDF(pdfData, `inland-quote-${quoteNumber}.pdf`)
-    toast.success('PDF downloaded')
   }
 
   // Destination block management
@@ -442,36 +430,21 @@ export default function EditInlandQuotePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Button variant="ghost" size="icon" onClick={() => router.push('/inland/history')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Edit Inland Quote</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Inland Quote</h1>
           </div>
-          <p className="text-sm sm:text-base text-muted-foreground ml-10">
+          <p className="text-muted-foreground ml-10">
             Quote #{quoteNumber}
           </p>
         </div>
         <div className="flex gap-2 items-center">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handlePreviewPdf}
-            disabled={isGeneratingPdf}
-            title="Preview PDF"
-          >
-            {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleDownloadPdf}
-            title="Download PDF"
-          >
-            <FileDown className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={handlePreviewPdf} title="Preview PDF">
+            <Eye className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
@@ -489,11 +462,11 @@ export default function EditInlandQuotePage() {
 
       {/* PDF Preview Modal */}
       <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Quote Preview</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
             {pdfDataUrl && (
               <iframe
                 src={pdfDataUrl}
@@ -510,9 +483,9 @@ export default function EditInlandQuotePage() {
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full flex overflow-x-auto no-scrollbar">
-              <TabsTrigger value="customer" className="flex-1 min-w-[100px]">Customer</TabsTrigger>
-              <TabsTrigger value="quote" className="flex-1 min-w-[100px]">Quote Details</TabsTrigger>
-              <TabsTrigger value="preview" className="flex-1 min-w-[100px] flex items-center justify-center gap-1">
+              <TabsTrigger value="customer" className="flex-1 min-w-[80px]">Customer</TabsTrigger>
+              <TabsTrigger value="quote" className="flex-1 min-w-[80px]">Quote Details</TabsTrigger>
+              <TabsTrigger value="preview" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
                 <Eye className="h-3 w-3 hidden sm:inline" />
                 <span>Preview</span>
               </TabsTrigger>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,7 +33,7 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, FileDown, Eye, X, MonitorPlay, Loader2, Mail, Save, Trash2, ChevronRight, FolderOpen } from 'lucide-react'
+import { Plus, Eye, Loader2, Mail, Save, Trash2, FolderOpen } from 'lucide-react'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAutoSave } from '@/hooks/use-auto-save'
@@ -102,11 +102,6 @@ export default function NewInlandQuotePage() {
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
-  // Live PDF Preview
-  const [showLivePdfPreview, setShowLivePdfPreview] = useState(false)
-  const [livePdfUrl, setLivePdfUrl] = useState<string | null>(null)
-  const [isGeneratingLivePdf, setIsGeneratingLivePdf] = useState(false)
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Email & Template dialogs
   const [showEmailDialog, setShowEmailDialog] = useState(false)
@@ -116,8 +111,6 @@ export default function NewInlandQuotePage() {
   const [draftRestored, setDraftRestored] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Active tab
-  const [activeTab, setActiveTab] = useState('customer')
 
   // Generate quote number on mount
   useEffect(() => {
@@ -412,83 +405,6 @@ export default function NewInlandQuotePage() {
     }
   }
 
-  // Create a stable hash of the PDF data to detect changes
-  const pdfDataHash = useMemo(() => {
-    return JSON.stringify({
-      quoteNumber,
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerCompany,
-      destinationBlocks: destinationBlocks.map((d) => ({
-        label: d.label,
-        pickup_address: d.pickup_address,
-        dropoff_address: d.dropoff_address,
-        subtotal: d.subtotal,
-        load_blocks: d.load_blocks.map((lb) => ({
-          truck_type_id: lb.truck_type_id,
-          subtotal: lb.subtotal,
-        })),
-      })),
-      subtotal,
-      quoteNotes,
-    })
-  }, [
-    quoteNumber,
-    customerName,
-    customerEmail,
-    customerPhone,
-    customerCompany,
-    destinationBlocks,
-    subtotal,
-    quoteNotes,
-  ])
-
-  // Live PDF preview with debouncing
-  useEffect(() => {
-    if (!showLivePdfPreview) return
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
-
-    setIsGeneratingLivePdf(true)
-
-    debounceTimerRef.current = setTimeout(() => {
-      try {
-        const pdfData = buildPdfData()
-        const dataUrl = getInlandQuotePDFDataUrl(pdfData)
-        setLivePdfUrl(dataUrl)
-      } catch (error) {
-        console.error('Failed to generate live PDF preview:', error)
-      } finally {
-        setIsGeneratingLivePdf(false)
-      }
-    }, 800)
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-    }
-  }, [pdfDataHash, showLivePdfPreview, buildPdfData])
-
-  // Toggle live preview
-  const handleToggleLivePreview = useCallback(() => {
-    setShowLivePdfPreview((prev) => {
-      if (!prev) {
-        try {
-          const pdfData = buildPdfData()
-          const dataUrl = getInlandQuotePDFDataUrl(pdfData)
-          setLivePdfUrl(dataUrl)
-        } catch (error) {
-          console.error('Failed to generate initial PDF preview:', error)
-        }
-      }
-      return !prev
-    })
-  }, [buildPdfData])
-
   // Destination management
   const addDestination = () => {
     if (destinationBlocks.length >= 6) {
@@ -649,50 +565,6 @@ export default function NewInlandQuotePage() {
     })
   }
 
-  // Download PDF and auto-save if not already saved
-  const handleDownloadAndSave = () => {
-    // Validate required fields
-    if (!customerName) {
-      toast.error('Please enter a customer name before downloading')
-      return
-    }
-    if (destinationBlocks.every((b) => !b.pickup_address && !b.dropoff_address)) {
-      toast.error('Please enter at least one destination before downloading')
-      return
-    }
-
-    // Download PDF
-    try {
-      const pdfData = buildPdfData()
-      downloadInlandQuotePDF(pdfData, `inland-quote-${quoteNumber}.pdf`)
-      toast.success('PDF downloaded successfully')
-    } catch (error) {
-      console.error('Error downloading PDF:', error)
-      toast.error('Failed to download PDF')
-      return
-    }
-
-    // Auto-save the quote if not already saved
-    if (!savedQuoteId && !createQuote.isPending) {
-      createQuote.mutate({
-        quote_number: quoteNumber,
-        status: 'draft',
-        customer_name: customerName,
-        customer_email: customerEmail || undefined,
-        customer_phone: customerPhone || undefined,
-        customer_company: customerCompany || undefined,
-        company_id: selectedCompanyId || undefined,
-        subtotal,
-        total,
-        quote_data: {
-          destination_blocks: destinationBlocks,
-          internal_notes: internalNotes,
-          quote_notes: quoteNotes,
-        },
-      })
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -715,32 +587,9 @@ export default function NewInlandQuotePage() {
             {createQuote.isPending ? 'Saving...' : 'Create Quote'}
           </Button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={showLivePdfPreview ? 'default' : 'outline'}
-            size="icon"
-            title={showLivePdfPreview ? 'Hide Live Preview' : 'Show Live Preview'}
-            onClick={handleToggleLivePreview}
-            className="hidden lg:inline-flex"
-          >
-            <MonitorPlay className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            title="Preview PDF"
-            onClick={handlePreviewPdf}
-            disabled={isGeneratingPdf}
-          >
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" size="icon" onClick={handlePreviewPdf} title="Preview PDF">
             <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            title="Download PDF"
-            onClick={handleDownloadAndSave}
-          >
-            <FileDown className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
@@ -760,80 +609,64 @@ export default function NewInlandQuotePage() {
           >
             <Save className="h-4 w-4" />
           </Button>
-          {(draftRestored || autoSaveStatus !== 'idle') && (
+          {draftRestored && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={handleDiscardDraft}
+              title="Discard Draft"
               disabled={deleteDraftMutation.isPending}
-              className="text-destructive hover:text-destructive"
             >
-              <Trash2 className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Discard Draft</span>
+              <Trash2 className="h-4 w-4" />
             </Button>
           )}
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Content with Tabs */}
         <div className="lg:col-span-2 space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="customer" className="flex items-center gap-2">
-                Customer
-                {customerName && (
-                  <span className="hidden sm:inline text-xs text-muted-foreground truncate max-w-[100px]">
-                    ({customerName})
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="details" className="flex items-center gap-2">
-                Quote Details
-                {destinationBlocks.length > 0 && destinationBlocks[0].pickup_address && (
-                  <span className="hidden sm:inline text-xs text-muted-foreground">
-                    ({destinationBlocks.length} dest.)
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="preview" className="flex items-center gap-2">
-                <Eye className="h-4 w-4" />
-                Preview
+          <Tabs defaultValue="customer" className="w-full">
+            <TabsList className="w-full flex overflow-x-auto no-scrollbar">
+              <TabsTrigger value="customer" className="flex-1 min-w-[80px]">Customer</TabsTrigger>
+              <TabsTrigger value="details" className="flex-1 min-w-[80px]">Destinations</TabsTrigger>
+              <TabsTrigger value="preview" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
+                <Eye className="h-3 w-3 hidden sm:inline" />
+                <span>Preview</span>
               </TabsTrigger>
             </TabsList>
 
-            {/* Customer Tab */}
-            <TabsContent value="customer" className="mt-6 space-y-6">
-              <CustomerForm
-                customerName={customerName}
-                customerEmail={customerEmail}
-                customerPhone={customerPhone}
-                customerCompany={customerCompany}
-                customerAddress={customerAddress}
-                onCustomerNameChange={setCustomerName}
-                onCustomerEmailChange={setCustomerEmail}
-                onCustomerPhoneChange={setCustomerPhone}
-                onCustomerCompanyChange={setCustomerCompany}
-                onCustomerAddressChange={setCustomerAddress}
-                onCompanySelect={(id, name) => {
-                  setSelectedCompanyId(id)
-                  setCustomerCompany(name)
-                }}
-                notes={internalNotes}
-                onNotesChange={setInternalNotes}
-              />
-
-              {/* Navigation to next tab */}
-              <div className="flex justify-end">
-                <Button onClick={() => setActiveTab('details')} variant="outline">
-                  Next: Quote Details
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
+            <TabsContent value="customer" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Customer Information</CardTitle>
+                  <CardDescription>
+                    Enter customer details or select from existing companies
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CustomerForm
+                    customerName={customerName}
+                    customerEmail={customerEmail}
+                    customerPhone={customerPhone}
+                    customerCompany={customerCompany}
+                    customerAddress={customerAddress}
+                    onCustomerNameChange={setCustomerName}
+                    onCustomerEmailChange={setCustomerEmail}
+                    onCustomerPhoneChange={setCustomerPhone}
+                    onCustomerCompanyChange={setCustomerCompany}
+                    onCustomerAddressChange={setCustomerAddress}
+                    onCompanySelect={(id, name) => {
+                      setSelectedCompanyId(id)
+                      setCustomerCompany(name)
+                    }}
+                    notes={internalNotes}
+                    onNotesChange={setInternalNotes}
+                  />
+                </CardContent>
+              </Card>
             </TabsContent>
 
-            {/* Quote Details Tab */}
-            <TabsContent value="details" className="mt-6 space-y-6">
+            <TabsContent value="details" className="mt-4 space-y-4">
               {/* Destinations */}
               <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -907,11 +740,13 @@ export default function NewInlandQuotePage() {
               </Card>
             </TabsContent>
 
-            {/* Preview Tab */}
-            <TabsContent value="preview" className="mt-6">
+            <TabsContent value="preview" className="mt-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Quote Preview</CardTitle>
+                  <CardDescription>
+                    Preview how the quote will appear to the customer
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   {settings && previewPdfData ? (
@@ -972,67 +807,18 @@ export default function NewInlandQuotePage() {
             </CardContent>
           </Card>
 
-          {/* Route Map - moved here under Quote Summary */}
+          {/* Route Map */}
           <RouteMap destinationBlocks={destinationBlocks} />
-
-          {/* Live PDF Preview Panel */}
-          {showLivePdfPreview && (
-            <Card className="overflow-hidden">
-              <CardHeader className="py-2 px-3 border-b">
-                <CardTitle className="text-sm font-medium flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <MonitorPlay className="h-4 w-4" />
-                    Live Preview
-                  </span>
-                  {isGeneratingLivePdf && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Updating...
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <div className="h-[600px]">
-                {livePdfUrl ? (
-                  <iframe
-                    src={livePdfUrl}
-                    className="w-full h-full border-0"
-                    title="Live Inland Quote PDF Preview"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground bg-muted/30">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    Generating preview...
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
         </div>
       </div>
 
       {/* PDF Preview Dialog */}
       <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <DialogTitle className="flex items-center justify-between">
-              <span>Quote Preview - {quoteNumber}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleDownloadAndSave}>
-                  <FileDown className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowPdfPreview(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </DialogTitle>
+        <DialogContent className="max-w-6xl h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Quote Preview</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
             {pdfDataUrl ? (
               <iframe
                 src={pdfDataUrl}
