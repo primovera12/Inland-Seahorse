@@ -119,9 +119,7 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
           const totalDurationMinutes = Math.round(totalDurationSeconds / 60)
 
           // Pass the polyline back via callback (overview_polyline.points contains the encoded string)
-          const polylineString = typeof route.overview_polyline === 'string'
-            ? route.overview_polyline
-            : route.overview_polyline?.points
+          const polylineString = route.overview_polyline?.points
           if (onRouteCalculated && polylineString) {
             onRouteCalculated({
               destinationId: dest.id,
