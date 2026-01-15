@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
-import type { UnifiedPDFData, ServiceLineItem, CostCategory } from '../types'
+import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock } from '../types'
 import { generateServiceLineItems, CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES } from '../types'
 
 interface QuotePDFTemplateProps {
@@ -425,7 +425,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   }
 
   // Render load block content (shared between both modes)
-  const renderLoadBlock = (block: typeof inlandTransport.load_blocks[0], blockIndex: number, showHeader = true) => (
+  const renderLoadBlock = (block: InlandLoadBlock, blockIndex: number, showHeader = true) => (
     <div key={block.id} className="pb-4">
       {/* Load Block Header with Truck Type */}
       {showHeader && (
