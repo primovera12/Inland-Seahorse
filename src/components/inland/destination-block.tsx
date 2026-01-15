@@ -125,24 +125,28 @@ export function DestinationBlock({
       ],
       accessorial_charges: [],
       subtotal: 0,
+      accessorials_total: 0,
     }
 
     const newLoadBlocks = [...block.load_blocks, newLoadBlock]
     const subtotal = newLoadBlocks.reduce((sum, lb) => sum + lb.subtotal, 0)
-    onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal })
+    const accessorials_total = newLoadBlocks.reduce((sum, lb) => sum + (lb.accessorials_total || 0), 0)
+    onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal, accessorials_total })
   }
 
   const updateLoadBlock = (index: number, loadBlock: InlandLoadBlock) => {
     const newLoadBlocks = [...block.load_blocks]
     newLoadBlocks[index] = loadBlock
     const subtotal = newLoadBlocks.reduce((sum, lb) => sum + lb.subtotal, 0)
-    onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal })
+    const accessorials_total = newLoadBlocks.reduce((sum, lb) => sum + (lb.accessorials_total || 0), 0)
+    onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal, accessorials_total })
   }
 
   const removeLoadBlock = (index: number) => {
     const newLoadBlocks = block.load_blocks.filter((_, i) => i !== index)
     const subtotal = newLoadBlocks.reduce((sum, lb) => sum + lb.subtotal, 0)
-    onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal })
+    const accessorials_total = newLoadBlocks.reduce((sum, lb) => sum + (lb.accessorials_total || 0), 0)
+    onUpdate({ ...block, load_blocks: newLoadBlocks, subtotal, accessorials_total })
   }
 
   const handleSelectLane = (pickup: string, dropoff: string) => {

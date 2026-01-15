@@ -1,17 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   DndContext,
   closestCenter,
@@ -33,19 +26,13 @@ import { RouteMap } from '@/components/inland/route-map'
 import { trpc } from '@/lib/trpc/client'
 import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Eye, Loader2, Mail, Save, Trash2, FolderOpen } from 'lucide-react'
+import { Plus, Save, Trash2, FolderOpen } from 'lucide-react'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAutoSave } from '@/hooks/use-auto-save'
 import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 import type { InlandDestinationBlock } from '@/types/inland'
-import {
-  downloadInlandQuotePDF,
-  getInlandQuotePDFDataUrl,
-  type InlandQuotePDFData,
-} from '@/lib/pdf/inland-quote-generator'
-import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
-import { QuotePDFPreview, buildUnifiedPDFData, type UnifiedPDFData } from '@/lib/pdf'
+import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
 
 const DESTINATION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -97,14 +84,7 @@ export default function NewInlandQuotePage() {
   const [quoteNotes, setQuoteNotes] = useState('')
 
 
-  // PDF Preview
-  const [showPdfPreview, setShowPdfPreview] = useState(false)
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
-
-
-  // Email & Template dialogs
-  const [showEmailDialog, setShowEmailDialog] = useState(false)
+  // Template dialogs
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null)
 
   // Draft management
@@ -136,8 +116,9 @@ export default function NewInlandQuotePage() {
   })
 
 
-  // Calculate totals
+  // Calculate totals (services only - accessorials tracked separately)
   const subtotal = destinationBlocks.reduce((sum, block) => sum + block.subtotal, 0)
+  const accessorialsTotal = destinationBlocks.reduce((sum, block) => sum + (block.accessorials_total || 0), 0)
   const total = subtotal
 
   // Build preview PDF data for the Preview tab
@@ -340,70 +321,7 @@ export default function NewInlandQuotePage() {
     deleteDraftMutation.mutate()
   }
 
-  // Build PDF data
-  const buildPdfData = useCallback((): InlandQuotePDFData => {
-    return {
-      quoteNumber,
-      date: formatDate(new Date()),
-      customerName,
-      customerEmail: customerEmail || undefined,
-      customerPhone: customerPhone || undefined,
-      customerCompany: customerCompany || undefined,
-      destinationBlocks,
-      subtotal,
-      total,
-      quoteNotes: quoteNotes || undefined,
-      companyName: settings?.company_name || 'Seahorse Express',
-      companyLogoUrl: settings?.company_logo_url || undefined,
-      logoSizePercentage: settings?.logo_size_percentage || 100,
-      companyAddress: [settings?.company_address, settings?.company_city, settings?.company_state, settings?.company_zip].filter(Boolean).join(', ') || undefined,
-      companyPhone: settings?.company_phone || undefined,
-      companyEmail: settings?.company_email || undefined,
-      companyWebsite: settings?.company_website || undefined,
-      primaryColor: settings?.primary_color || '#6366F1',
-      secondaryColor: settings?.secondary_color || undefined,
-      termsAndConditions: settings?.terms_inland || undefined,
-    }
-  }, [
-    quoteNumber,
-    customerName,
-    customerEmail,
-    customerPhone,
-    customerCompany,
-    destinationBlocks,
-    settings,
-    subtotal,
-    total,
-    quoteNotes,
-  ])
 
-  // PDF Preview
-  const handlePreviewPdf = async () => {
-    setIsGeneratingPdf(true)
-    try {
-      const pdfData = buildPdfData()
-      const dataUrl = getInlandQuotePDFDataUrl(pdfData)
-      setPdfDataUrl(dataUrl)
-      setShowPdfPreview(true)
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-      toast.error('Failed to generate PDF preview')
-    } finally {
-      setIsGeneratingPdf(false)
-    }
-  }
-
-  // PDF Download
-  const handleDownloadPdf = () => {
-    try {
-      const pdfData = buildPdfData()
-      downloadInlandQuotePDF(pdfData, `inland-quote-${quoteNumber}.pdf`)
-      toast.success('PDF downloaded successfully')
-    } catch (error) {
-      console.error('Error downloading PDF:', error)
-      toast.error('Failed to download PDF')
-    }
-  }
 
   // Destination management
   const addDestination = () => {
@@ -584,42 +502,28 @@ export default function NewInlandQuotePage() {
             </div>
           </div>
           <Button onClick={handleSaveQuote} disabled={createQuote.isPending} className="w-full sm:w-auto">
-            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
+            {createQuote.isPending ? 'Saving...' : 'Save Draft'}
           </Button>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <Button variant="outline" size="icon" onClick={handlePreviewPdf} title="Preview PDF">
-            <Eye className="h-4 w-4" />
-          </Button>
           <Button
             variant="outline"
-            size="icon"
-            onClick={() => setShowEmailDialog(true)}
-            title="Send via Email"
-            disabled={!savedQuoteId}
-          >
-            <Mail className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
+            size="sm"
             onClick={handleSaveAsTemplate}
-            title="Save as Template"
             disabled={saveTemplate.isPending}
           >
-            <Save className="h-4 w-4" />
+            <Save className="h-4 w-4 mr-2" />
+            Save as Template
           </Button>
-          {draftRestored && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleDiscardDraft}
-              title="Discard Draft"
-              disabled={deleteDraftMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDiscardDraft}
+            disabled={deleteDraftMutation.isPending}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear Draft
+          </Button>
         </div>
       </div>
 
@@ -628,11 +532,8 @@ export default function NewInlandQuotePage() {
           <Tabs defaultValue="customer" className="w-full">
             <TabsList className="w-full flex overflow-x-auto no-scrollbar">
               <TabsTrigger value="customer" className="flex-1 min-w-[80px]">Customer</TabsTrigger>
-              <TabsTrigger value="details" className="flex-1 min-w-[80px]">Destinations</TabsTrigger>
-              <TabsTrigger value="preview" className="flex-1 min-w-[80px] flex items-center justify-center gap-1">
-                <Eye className="h-3 w-3 hidden sm:inline" />
-                <span>Preview</span>
-              </TabsTrigger>
+              <TabsTrigger value="details" className="flex-1 min-w-[80px]">Cargo Details</TabsTrigger>
+              <TabsTrigger value="preview" className="flex-1 min-w-[80px]">Preview</TabsTrigger>
             </TabsList>
 
             <TabsContent value="customer" className="mt-4">
@@ -800,6 +701,23 @@ export default function NewInlandQuotePage() {
                 </span>
               </div>
 
+              {/* Accessorial Fees (If Applicable) */}
+              {accessorialsTotal > 0 && (
+                <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-amber-700 dark:text-amber-400 font-medium">
+                      Accessorial Fees (if applicable)
+                    </span>
+                    <span className="text-amber-900 dark:text-amber-300 font-bold font-mono">
+                      {formatCurrency(accessorialsTotal)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                    These fees are charged only when the listed services are required.
+                  </p>
+                </div>
+              )}
+
               {/* Date */}
               <div className="text-sm text-muted-foreground text-center pt-2">
                 {formatDate(new Date())}
@@ -812,38 +730,6 @@ export default function NewInlandQuotePage() {
         </div>
       </div>
 
-      {/* PDF Preview Dialog */}
-      <Dialog open={showPdfPreview} onOpenChange={setShowPdfPreview}>
-        <DialogContent className="max-w-6xl h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Quote Preview</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto">
-            {pdfDataUrl ? (
-              <iframe
-                src={pdfDataUrl}
-                className="w-full h-full border-0"
-                title="PDF Preview"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                Loading preview...
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Email Quote Dialog */}
-      <EmailQuoteDialog
-        open={showEmailDialog}
-        onOpenChange={setShowEmailDialog}
-        quoteId={savedQuoteId || ''}
-        quoteType="inland"
-        quoteNumber={quoteNumber}
-        customerName={customerName || undefined}
-        customerEmail={customerEmail || undefined}
-      />
     </div>
   )
 }

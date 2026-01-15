@@ -97,13 +97,14 @@ export function LoadBlockCard({
     return recommendTruckType(loadBlock.cargo_items, equipmentTypes)
   }, [loadBlock.cargo_items, equipmentTypes])
 
-  const calculateSubtotal = (
+  // Calculate subtotal (services only) and accessorials total (separately)
+  const calculateTotals = (
     services: ServiceItem[],
     accessorials: AccessorialCharge[]
   ) => {
     const serviceTotal = services.reduce((sum, s) => sum + s.total, 0)
     const accessorialTotal = accessorials.reduce((sum, a) => sum + a.total, 0)
-    return serviceTotal + accessorialTotal
+    return { subtotal: serviceTotal, accessorials_total: accessorialTotal }
   }
 
   const updateTruckType = (truckTypeId: string) => {
@@ -125,8 +126,8 @@ export function LoadBlockCard({
       total: 0,
     }
     const newServices = [...loadBlock.service_items, newService]
-    const subtotal = calculateSubtotal(newServices, loadBlock.accessorial_charges)
-    onUpdate({ ...loadBlock, service_items: newServices, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(newServices, loadBlock.accessorial_charges)
+    onUpdate({ ...loadBlock, service_items: newServices, subtotal, accessorials_total })
   }
 
   const updateServiceItem = (index: number, field: keyof ServiceItem, value: string | number) => {
@@ -144,14 +145,14 @@ export function LoadBlockCard({
     }
 
     newServices[index] = service
-    const subtotal = calculateSubtotal(newServices, loadBlock.accessorial_charges)
-    onUpdate({ ...loadBlock, service_items: newServices, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(newServices, loadBlock.accessorial_charges)
+    onUpdate({ ...loadBlock, service_items: newServices, subtotal, accessorials_total })
   }
 
   const removeServiceItem = (index: number) => {
     const newServices = loadBlock.service_items.filter((_, i) => i !== index)
-    const subtotal = calculateSubtotal(newServices, loadBlock.accessorial_charges)
-    onUpdate({ ...loadBlock, service_items: newServices, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(newServices, loadBlock.accessorial_charges)
+    onUpdate({ ...loadBlock, service_items: newServices, subtotal, accessorials_total })
   }
 
   // Accessorial Charges
@@ -167,8 +168,8 @@ export function LoadBlockCard({
     }
 
     const newAccessorials = [...loadBlock.accessorial_charges, newCharge]
-    const subtotal = calculateSubtotal(loadBlock.service_items, newAccessorials)
-    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(loadBlock.service_items, newAccessorials)
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal, accessorials_total })
   }
 
   const updateAccessorialType = (index: number, typeId: string) => {
@@ -184,8 +185,8 @@ export function LoadBlockCard({
     charge.total = charge.rate * charge.quantity
 
     newAccessorials[index] = charge
-    const subtotal = calculateSubtotal(loadBlock.service_items, newAccessorials)
-    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(loadBlock.service_items, newAccessorials)
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal, accessorials_total })
   }
 
   const updateAccessorialBillingUnit = (index: number, billingUnit: AccessorialBillingUnit) => {
@@ -194,7 +195,8 @@ export function LoadBlockCard({
     charge.billing_unit = billingUnit
 
     newAccessorials[index] = charge
-    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials })
+    const { subtotal, accessorials_total } = calculateTotals(loadBlock.service_items, newAccessorials)
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal, accessorials_total })
   }
 
   const updateAccessorial = (
@@ -214,14 +216,14 @@ export function LoadBlockCard({
     }
 
     newAccessorials[index] = charge
-    const subtotal = calculateSubtotal(loadBlock.service_items, newAccessorials)
-    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(loadBlock.service_items, newAccessorials)
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal, accessorials_total })
   }
 
   const removeAccessorial = (index: number) => {
     const newAccessorials = loadBlock.accessorial_charges.filter((_, i) => i !== index)
-    const subtotal = calculateSubtotal(loadBlock.service_items, newAccessorials)
-    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal })
+    const { subtotal, accessorials_total } = calculateTotals(loadBlock.service_items, newAccessorials)
+    onUpdate({ ...loadBlock, accessorial_charges: newAccessorials, subtotal, accessorials_total })
   }
 
   // Cargo Items
@@ -254,7 +256,13 @@ export function LoadBlockCard({
   // Apply truck recommendation
   const applyRecommendation = () => {
     if (recommendation) {
-      const truck = truckTypes.find((t) => t.id === recommendation.recommendedId || t.name === recommendation.recommendedName)
+      // Match by exact ID, exact name, or case-insensitive name match
+      const truck = truckTypes.find((t) =>
+        t.id === recommendation.recommendedId ||
+        t.name === recommendation.recommendedName ||
+        t.name.toLowerCase() === recommendation.recommendedName.toLowerCase() ||
+        t.name.toLowerCase().includes(recommendation.recommendedId.toLowerCase())
+      )
       if (truck) {
         onUpdate({
           ...loadBlock,

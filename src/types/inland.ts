@@ -91,8 +91,11 @@ export interface InlandDestinationBlock {
   // Load blocks for this destination
   load_blocks: InlandLoadBlock[]
 
-  // Destination totals
+  // Destination totals (services only)
   subtotal: number
+
+  // Accessorial fees total (if applicable - not included in subtotal)
+  accessorials_total?: number
 }
 
 export interface InlandLoadBlock {
@@ -115,8 +118,11 @@ export interface InlandLoadBlock {
   // Notes
   notes?: string
 
-  // Load block total
+  // Load block total (services only - accessorials tracked separately)
   subtotal: number
+
+  // Accessorial fees total (if applicable - not included in subtotal)
+  accessorials_total?: number
 }
 
 export interface CargoItem {
