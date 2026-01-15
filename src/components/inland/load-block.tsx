@@ -292,20 +292,12 @@ export function LoadBlockCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Package className="h-5 w-5 text-muted-foreground" />
-            <div className="space-y-1">
-              <Label>Truck Type</Label>
-              <SearchableSelect
-                value={loadBlock.truck_type_id}
-                onChange={updateTruckType}
-                options={truckTypes.map((truck): SearchableSelectOption => ({
-                  value: truck.id,
-                  label: truck.name,
-                }))}
-                placeholder="Select truck"
-                searchPlaceholder="Search trucks..."
-                className="w-[180px]"
-              />
-            </div>
+            <span className="font-medium">Load</span>
+            {loadBlock.truck_type_name && (
+              <Badge variant="outline" className="text-xs">
+                {loadBlock.truck_type_name}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className="font-medium">{formatCurrency(loadBlock.subtotal)}</span>
@@ -427,6 +419,25 @@ export function LoadBlockCard({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Truck Type Selection - After cargo so recommendation can inform choice */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            Truck Type
+          </Label>
+          <SearchableSelect
+            value={loadBlock.truck_type_id}
+            onChange={updateTruckType}
+            options={truckTypes.map((truck): SearchableSelectOption => ({
+              value: truck.id,
+              label: truck.name,
+            }))}
+            placeholder="Select truck type"
+            searchPlaceholder="Search trucks..."
+            className="w-full sm:w-[250px]"
+          />
         </div>
 
         {/* Service Items */}

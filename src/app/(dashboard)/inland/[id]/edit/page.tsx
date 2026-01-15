@@ -215,7 +215,65 @@ export default function EditInlandQuotePage() {
           zip: destinationBlocks[destinationBlocks.length - 1]?.dropoff_zip,
         },
         destinationBlocks,
+        // Build load_blocks from all destination blocks' load_blocks
+        load_blocks: destinationBlocks.flatMap(dest =>
+          dest.load_blocks.map(loadBlock => ({
+            id: loadBlock.id,
+            truck_type_id: loadBlock.truck_type_id,
+            truck_type_name: loadBlock.truck_type_name,
+            cargo_items: loadBlock.cargo_items?.map(cargo => ({
+              id: cargo.id,
+              description: cargo.description,
+              quantity: cargo.quantity,
+              length_inches: cargo.length_inches,
+              width_inches: cargo.width_inches,
+              height_inches: cargo.height_inches,
+              weight_lbs: cargo.weight_lbs,
+              is_oversize: cargo.is_oversize,
+              is_overweight: cargo.is_overweight,
+              is_equipment: cargo.is_equipment,
+              equipment_make_name: cargo.equipment_make_name,
+              equipment_model_name: cargo.equipment_model_name,
+              custom_make_name: cargo.custom_make_name,
+              custom_model_name: cargo.custom_model_name,
+              image_url: cargo.image_url,
+            })),
+            service_items: loadBlock.service_items,
+            accessorial_charges: loadBlock.accessorial_charges,
+            subtotal: loadBlock.subtotal,
+            accessorials_total: loadBlock.accessorial_charges.reduce((sum, a) => sum + a.total, 0),
+          }))
+        ),
+        // Calculate total distance across all destinations
+        distance_miles: destinationBlocks.reduce((sum, dest) => sum + (dest.distance_miles || 0), 0) || undefined,
+        duration_minutes: destinationBlocks.reduce((sum, dest) => sum + (dest.duration_minutes || 0), 0) || undefined,
+        // Generate static map URL if we have coordinates
+        static_map_url: (() => {
+          const firstDest = destinationBlocks[0]
+          const lastDest = destinationBlocks[destinationBlocks.length - 1]
+          if (firstDest?.pickup_lat && firstDest?.pickup_lng && lastDest?.dropoff_lat && lastDest?.dropoff_lng) {
+            const origin = `${firstDest.pickup_lat},${firstDest.pickup_lng}`
+            const destination = `${lastDest.dropoff_lat},${lastDest.dropoff_lng}`
+            // Collect waypoints from intermediate destinations
+            const waypoints: string[] = []
+            destinationBlocks.forEach((dest, idx) => {
+              if (idx > 0 && dest.pickup_lat && dest.pickup_lng) {
+                waypoints.push(`${dest.pickup_lat},${dest.pickup_lng}`)
+              }
+              if (idx < destinationBlocks.length - 1 && dest.dropoff_lat && dest.dropoff_lng) {
+                waypoints.push(`${dest.dropoff_lat},${dest.dropoff_lng}`)
+              }
+            })
+            const waypointParam = waypoints.length > 0 ? `&waypoints=${waypoints.join('|')}` : ''
+            return `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${origin}&markers=color:red|label:B|${destination}&path=color:0x4285F4|weight:4|${origin}|${waypoints.join('|')}${waypoints.length > 0 ? '|' : ''}${destination}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+          }
+          return undefined
+        })(),
         total: subtotal,
+        // Calculate total accessorials
+        accessorials_total: destinationBlocks.reduce((sum, dest) =>
+          sum + dest.load_blocks.reduce((lbSum, lb) =>
+            lbSum + lb.accessorial_charges.reduce((accSum, acc) => accSum + acc.total, 0), 0), 0),
       },
       equipmentSubtotal: 0,
       miscFeesTotal: 0,

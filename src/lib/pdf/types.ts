@@ -146,6 +146,26 @@ export interface InlandAccessorialCharge {
   total: number // cents
 }
 
+// Cargo item for inland transport PDF
+export interface InlandCargoItem {
+  id: string
+  description: string
+  quantity: number
+  length_inches: number
+  width_inches: number
+  height_inches: number
+  weight_lbs: number
+  is_oversize?: boolean
+  is_overweight?: boolean
+  // Equipment fields
+  is_equipment?: boolean
+  equipment_make_name?: string
+  equipment_model_name?: string
+  custom_make_name?: string
+  custom_model_name?: string
+  image_url?: string
+}
+
 // Load block for inland transport
 export interface InlandLoadBlock {
   id: string
@@ -154,6 +174,7 @@ export interface InlandLoadBlock {
   pickup?: AddressInfo
   dropoff?: AddressInfo
   use_custom_locations?: boolean
+  cargo_items?: InlandCargoItem[] // Cargo items with dimensions
   service_items: InlandServiceItem[]
   accessorial_charges: InlandAccessorialCharge[]
   subtotal: number // cents - services only

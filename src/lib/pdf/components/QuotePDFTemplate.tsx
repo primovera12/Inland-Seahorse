@@ -448,6 +448,89 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
             </span>
           </div>
 
+          {/* Cargo Items Details */}
+          {block.cargo_items && block.cargo_items.length > 0 && (
+            <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
+              <div className="px-4 py-2" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Cargo Details
+                </h4>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {block.cargo_items.map((cargo) => {
+                  const displayName = cargo.is_equipment
+                    ? `${cargo.equipment_make_name || cargo.custom_make_name || ''} ${cargo.equipment_model_name || cargo.custom_model_name || ''}`.trim() || cargo.description
+                    : cargo.description
+                  return (
+                    <div key={cargo.id} className="p-4 flex gap-4">
+                      {/* Cargo Image */}
+                      {cargo.image_url && (
+                        <div className="w-24 h-20 flex-shrink-0 rounded overflow-hidden border border-slate-200">
+                          <img
+                            src={cargo.image_url}
+                            alt={displayName}
+                            className="w-full h-full object-contain bg-slate-50"
+                          />
+                        </div>
+                      )}
+                      {/* Cargo Info */}
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-900 mb-1">
+                          {displayName}
+                          {cargo.quantity > 1 && (
+                            <span className="text-slate-500 font-normal ml-2">(Qty: {cargo.quantity})</span>
+                          )}
+                        </p>
+                        {/* Dimensions Grid */}
+                        <div className="grid grid-cols-4 gap-3 text-xs mt-2">
+                          <div>
+                            <span className="text-slate-400">Length</span>
+                            <p className="font-medium text-slate-700">
+                              {formatDimension(cargo.length_inches)}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Width</span>
+                            <p className="font-medium text-slate-700">
+                              {formatDimension(cargo.width_inches)}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Height</span>
+                            <p className="font-medium text-slate-700">
+                              {formatDimension(cargo.height_inches)}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Weight</span>
+                            <p className="font-medium text-slate-700">
+                              {formatWeight(cargo.weight_lbs)}
+                            </p>
+                          </div>
+                        </div>
+                        {/* Oversize/Overweight Badges */}
+                        {(cargo.is_oversize || cargo.is_overweight) && (
+                          <div className="flex gap-2 mt-2">
+                            {cargo.is_oversize && (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-700 uppercase">
+                                Oversize
+                              </span>
+                            )}
+                            {cargo.is_overweight && (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase">
+                                Overweight
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Service Items Table */}
           {block.service_items.length > 0 && (
             <table className="w-full text-left border-collapse mb-4">
