@@ -830,6 +830,8 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                       custom_make_name: cargo.custom_make_name,
                       custom_model_name: cargo.custom_model_name,
                       image_url: cargo.image_url,
+                      front_image_url: cargo.front_image_url,
+                      side_image_url: cargo.side_image_url,
                     })) || [],
                     service_items: loadBlock.service_items,
                     accessorial_charges: loadBlock.accessorial_charges,
@@ -840,27 +842,29 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                 })}
               </div>
 
-              {/* Destination Subtotal */}
-              <div className="px-8 pb-4">
-                <div className="flex justify-end">
-                  <div className="w-64 p-3 rounded-lg" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-slate-600">Destination {dest.label} Total</span>
-                      <span className="font-bold" style={{ color: primaryColor }}>
-                        {formatCurrency(dest.subtotal)}
-                      </span>
-                    </div>
-                    {(dest.accessorials_total ?? 0) > 0 && (
-                      <div className="flex justify-between text-xs text-amber-600 mt-1">
-                        <span>+ Accessorials (if applicable)</span>
-                        <span className="font-medium">
-                          {formatCurrency(dest.accessorials_total || 0)}
+              {/* Destination Subtotal - Skip for single destination */}
+              {!skipDestinationHeader && (
+                <div className="px-8 pb-4">
+                  <div className="flex justify-end">
+                    <div className="w-64 p-3 rounded-lg" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium text-slate-600">Destination {dest.label} Total</span>
+                        <span className="font-bold" style={{ color: primaryColor }}>
+                          {formatCurrency(dest.subtotal)}
                         </span>
                       </div>
-                    )}
+                      {(dest.accessorials_total ?? 0) > 0 && (
+                        <div className="flex justify-between text-xs text-amber-600 mt-1">
+                          <span>+ Accessorials (if applicable)</span>
+                          <span className="font-medium">
+                            {formatCurrency(dest.accessorials_total || 0)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Separator between destinations */}
               {destIndex < destinationBlocks!.length - 1 && (
@@ -878,30 +882,32 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
         </div>
       )}
 
-      {/* Grand Total Summary */}
-      <div className="px-8 pb-6">
-        <div className="flex justify-end">
-          <div className="w-72 space-y-2 p-4 rounded-lg border-2" style={{ borderColor: primaryColor }}>
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-              Grand Total
-            </div>
-            <div className="flex justify-between text-base">
-              <span className="font-medium text-slate-700">Inland Transport Total</span>
-              <span className="font-bold text-lg" style={{ color: primaryColor }}>
-                {formatCurrency(inlandTransport.total)}
-              </span>
-            </div>
-            {(inlandTransport.accessorials_total ?? 0) > 0 && (
-              <div className="flex justify-between text-sm text-amber-700 pt-2 border-t border-slate-200">
-                <span>+ Accessorials (if applicable)</span>
-                <span className="font-bold">
-                  {formatCurrency(inlandTransport.accessorials_total || 0)}
+      {/* Grand Total Summary - Only show for multiple destinations to avoid duplicate */}
+      {!skipDestinationHeader && (
+        <div className="px-8 pb-6">
+          <div className="flex justify-end">
+            <div className="w-72 space-y-2 p-4 rounded-lg border-2" style={{ borderColor: primaryColor }}>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                Grand Total
+              </div>
+              <div className="flex justify-between text-base">
+                <span className="font-medium text-slate-700">Inland Transport Total</span>
+                <span className="font-bold text-lg" style={{ color: primaryColor }}>
+                  {formatCurrency(inlandTransport.total)}
                 </span>
               </div>
-            )}
+              {(inlandTransport.accessorials_total ?? 0) > 0 && (
+                <div className="flex justify-between text-sm text-amber-700 pt-2 border-t border-slate-200">
+                  <span>+ Accessorials (if applicable)</span>
+                  <span className="font-bold">
+                    {formatCurrency(inlandTransport.accessorials_total || 0)}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
