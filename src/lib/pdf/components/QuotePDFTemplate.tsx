@@ -387,17 +387,31 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
   )
 }
 
-// Helper to format billing unit for display
+// Helper to format billing unit for rate display (e.g., "/hour")
 function formatBillingUnit(unit: string): string {
   switch (unit) {
-    case 'hour': return '/hour'
+    case 'hour': return '/hr'
     case 'day': return '/day'
-    case 'week': return '/week'
-    case 'month': return '/month'
+    case 'week': return '/wk'
+    case 'month': return '/mo'
     case 'way': return '/way'
     case 'stop': return '/stop'
     case 'flat': return ''
     default: return ''
+  }
+}
+
+// Helper to format billing unit as label (e.g., "Per Hour")
+function formatBillingUnitLabel(unit: string): string {
+  switch (unit) {
+    case 'hour': return 'Per Hour'
+    case 'day': return 'Per Day'
+    case 'week': return 'Per Week'
+    case 'month': return 'Per Month'
+    case 'way': return 'Per Way'
+    case 'stop': return 'Per Stop'
+    case 'flat': return 'Flat Rate'
+    default: return unit
   }
 }
 
@@ -419,6 +433,12 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   const destinationBlocks = inlandTransport.destinationBlocks
   const hasDestinationBlocks = destinationBlocks && destinationBlocks.length > 0
   const hasLoadBlocks = inlandTransport.load_blocks && inlandTransport.load_blocks.length > 0
+  const isInlandOnlyQuote = data.quoteType === 'inland'
+
+  // For single destination in inland-only quotes, skip showing destination header
+  // since it's already shown in LocationSection
+  const hasSingleDestination = hasDestinationBlocks && destinationBlocks!.length === 1
+  const skipDestinationHeader = isInlandOnlyQuote && hasSingleDestination
 
   if (!hasDestinationBlocks && !hasLoadBlocks) {
     return null
@@ -447,8 +467,8 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       {/* Cargo Items Details */}
       {block.cargo_items && block.cargo_items.length > 0 && (
         <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
-          <div className="px-4 py-2" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <div className="px-6 py-3" style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+            <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
               Cargo Details
             </h4>
           </div>
@@ -459,7 +479,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                 : cargo.description
               const hasEquipmentImages = cargo.is_equipment && (cargo.front_image_url || cargo.side_image_url)
               return (
-                <div key={cargo.id} className="p-4">
+                <div key={cargo.id} className="px-6 py-4">
                   {/* Equipment with front/side images */}
                   {hasEquipmentImages ? (
                     <div className="space-y-3">
@@ -620,31 +640,41 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       {block.service_items.length > 0 && (
         <table className="w-full text-left border-collapse mb-4">
           <thead>
-            <tr style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
-              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
-                Service
+            <tr style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+              <th className="px-6 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                Service Description
               </th>
-              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
+              <th className="px-4 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
                 Qty
               </th>
-              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
-                Rate
+              <th className="px-4 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                Unit Rate
               </th>
-              <th className="px-4 py-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
-                Total
+              <th className="px-6 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                Line Total
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {block.service_items.map((item) => (
-              <tr key={item.id}>
-                <td className="px-4 py-3 text-sm font-medium text-slate-900">{item.name}</td>
-                <td className="px-4 py-3 text-sm text-center">{item.quantity}</td>
-                <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.rate)}</td>
-                <td className="px-4 py-3 text-sm font-bold text-right">{formatCurrency(item.total)}</td>
+            {block.service_items.map((item, index) => (
+              <tr key={item.id} className={index % 2 === 1 ? 'bg-slate-50/50' : ''}>
+                <td className="px-6 py-4 text-sm font-medium text-slate-900">{item.name}</td>
+                <td className="px-4 py-4 text-sm text-center font-medium">{item.quantity}</td>
+                <td className="px-4 py-4 text-sm text-right font-medium">{formatCurrency(item.rate)}</td>
+                <td className="px-6 py-4 text-sm font-bold text-right text-slate-900">{formatCurrency(item.total)}</td>
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+              <td colSpan={3} className="px-6 py-3 text-sm font-bold text-slate-700">
+                Services Subtotal
+              </td>
+              <td className="px-6 py-3 text-right text-base font-bold text-slate-900">
+                {formatCurrency(block.subtotal)}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       )}
 
@@ -680,18 +710,16 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
             <tbody className="divide-y divide-amber-200">
               {block.accessorial_charges.map((charge) => {
                 const isVariable = isVariableBillingUnit(charge.billing_unit)
-                const rateDisplay = isVariable
-                  ? `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
-                  : formatCurrency(charge.rate)
+                const rateDisplay = `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
                 return (
                   <tr key={charge.id}>
                     <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
-                    <td className="px-3 py-2 text-xs text-amber-700">{charge.billing_unit}</td>
+                    <td className="px-3 py-2 text-xs text-amber-700">{formatBillingUnitLabel(charge.billing_unit)}</td>
                     <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
-                    <td className="px-3 py-2 text-xs text-right text-amber-700">{rateDisplay}</td>
+                    <td className="px-3 py-2 text-xs text-right text-amber-700 font-medium">{rateDisplay}</td>
                     <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">
                       {isVariable ? (
-                        <span className="italic">As incurred</span>
+                        <span className="italic text-amber-600">Billed as used</span>
                       ) : (
                         formatCurrency(charge.total)
                       )}
@@ -736,45 +764,47 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
         <>
           {destinationBlocks!.map((dest, destIndex) => (
             <div key={dest.id} className="mb-6">
-              {/* Destination Header */}
-              <div className="px-8 pb-4">
-                <div className="p-4 rounded-lg border-2 border-slate-200" style={{ borderLeftColor: primaryColor, borderLeftWidth: '4px' }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                      style={{ backgroundColor: primaryColor }}
-                    >
-                      {dest.label}
-                    </span>
-                    <span className="text-lg font-bold text-slate-900">Destination {dest.label}</span>
+              {/* Destination Header - Skip for single destination in inland-only quotes */}
+              {!skipDestinationHeader && (
+                <div className="px-8 pb-4">
+                  <div className="p-4 rounded-lg border-2 border-slate-200" style={{ borderLeftColor: primaryColor, borderLeftWidth: '4px' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {dest.label}
+                      </span>
+                      <span className="text-lg font-bold text-slate-900">Destination {dest.label}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-slate-500 text-xs uppercase tracking-wide">Pickup</span>
+                        <p className="font-medium text-slate-900">{dest.pickup_address || '-'}</p>
+                        {(dest.pickup_city || dest.pickup_state) && (
+                          <p className="text-slate-500 text-xs">
+                            {[dest.pickup_city, dest.pickup_state, dest.pickup_zip].filter(Boolean).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-xs uppercase tracking-wide">Dropoff</span>
+                        <p className="font-medium text-slate-900">{dest.dropoff_address || '-'}</p>
+                        {(dest.dropoff_city || dest.dropoff_state) && (
+                          <p className="text-slate-500 text-xs">
+                            {[dest.dropoff_city, dest.dropoff_state, dest.dropoff_zip].filter(Boolean).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {dest.distance_miles && (
+                      <div className="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-500">
+                        Distance: {Math.round(dest.distance_miles).toLocaleString()} miles
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-slate-500 text-xs uppercase tracking-wide">Pickup</span>
-                      <p className="font-medium text-slate-900">{dest.pickup_address || '-'}</p>
-                      {(dest.pickup_city || dest.pickup_state) && (
-                        <p className="text-slate-500 text-xs">
-                          {[dest.pickup_city, dest.pickup_state, dest.pickup_zip].filter(Boolean).join(', ')}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-xs uppercase tracking-wide">Dropoff</span>
-                      <p className="font-medium text-slate-900">{dest.dropoff_address || '-'}</p>
-                      {(dest.dropoff_city || dest.dropoff_state) && (
-                        <p className="text-slate-500 text-xs">
-                          {[dest.dropoff_city, dest.dropoff_state, dest.dropoff_zip].filter(Boolean).join(', ')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {dest.distance_miles && (
-                    <div className="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-500">
-                      Distance: {Math.round(dest.distance_miles).toLocaleString()} miles
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
 
               {/* Load Blocks for this destination */}
               <div className="px-8">
