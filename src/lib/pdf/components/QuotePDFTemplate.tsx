@@ -728,16 +728,6 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                 )
               })}
             </tbody>
-            <tfoot>
-              <tr className="border-t border-amber-300">
-                <td colSpan={4} className="px-3 py-2 text-xs font-bold text-amber-800">
-                  Total Accessorial Fees (If Applicable)
-                </td>
-                <td className="px-3 py-2 text-sm font-bold text-right text-amber-900">
-                  {formatCurrency(block.accessorials_total || 0)}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       )}
@@ -853,14 +843,6 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                           {formatCurrency(dest.subtotal)}
                         </span>
                       </div>
-                      {(dest.accessorials_total ?? 0) > 0 && (
-                        <div className="flex justify-between text-xs text-amber-600 mt-1">
-                          <span>+ Accessorials (if applicable)</span>
-                          <span className="font-medium">
-                            {formatCurrency(dest.accessorials_total || 0)}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -896,14 +878,6 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                   {formatCurrency(inlandTransport.total)}
                 </span>
               </div>
-              {(inlandTransport.accessorials_total ?? 0) > 0 && (
-                <div className="flex justify-between text-sm text-amber-700 pt-2 border-t border-slate-200">
-                  <span>+ Accessorials (if applicable)</span>
-                  <span className="font-bold">
-                    {formatCurrency(inlandTransport.accessorials_total || 0)}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1308,22 +1282,6 @@ function PricingSummarySection({ data, lineItems }: {
             </span>
           </div>
 
-          {/* Accessorial Fees Note */}
-          {(data.inlandTransport?.accessorials_total ?? 0) > 0 && (
-            <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-200">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-amber-700 font-medium">
-                  * Accessorial fees (if applicable)
-                </span>
-                <span className="text-amber-900 font-bold">
-                  {formatCurrency(data.inlandTransport?.accessorials_total || 0)}
-                </span>
-              </div>
-              <p className="text-[10px] text-amber-600 mt-1">
-                These fees are charged only when the listed services are required.
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
