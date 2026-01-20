@@ -144,6 +144,16 @@ export const companiesRouter = router({
           role: 'general',
           is_primary: true,
         })
+
+        // Log company creation activity
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: data.id,
+          user_id: ctx.user.id,
+          activity_type: 'company_created',
+          subject: `Company "${data.name}" created`,
+          description: `Created new company: ${data.name}${data.industry ? ` (${data.industry})` : ''}`,
+          metadata: { status: data.status, city: data.city, state: data.state },
+        })
       }
 
       return data
@@ -185,6 +195,19 @@ export const companiesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Company')
+
+      // Log company update activity
+      if (data) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: data.id,
+          user_id: ctx.user.id,
+          activity_type: 'company_updated',
+          subject: `Company "${data.name}" updated`,
+          description: `Updated company information`,
+          metadata: { updated_fields: Object.keys(input.data) },
+        })
+      }
+
       return data
     }),
 
@@ -266,6 +289,20 @@ export const contactsRouter = router({
         .single()
 
       checkSupabaseError(error, 'Contact')
+
+      // Log contact creation activity
+      if (data) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: data.company_id,
+          contact_id: data.id,
+          user_id: ctx.user.id,
+          activity_type: 'contact_created',
+          subject: `Contact "${data.first_name} ${data.last_name}" created`,
+          description: `Added new contact: ${data.first_name} ${data.last_name}${data.title ? ` (${data.title})` : ''}`,
+          metadata: { role: data.role, email: data.email },
+        })
+      }
+
       return data
     }),
 
@@ -298,6 +335,20 @@ export const contactsRouter = router({
         .single()
 
       checkSupabaseError(error, 'Contact')
+
+      // Log contact update activity
+      if (data) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: data.company_id,
+          contact_id: data.id,
+          user_id: ctx.user.id,
+          activity_type: 'contact_updated',
+          subject: `Contact "${data.first_name} ${data.last_name}" updated`,
+          description: `Updated contact information`,
+          metadata: { updated_fields: Object.keys(input.data) },
+        })
+      }
+
       return data
     }),
 

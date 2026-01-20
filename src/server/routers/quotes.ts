@@ -251,17 +251,17 @@ export const quotesRouter = router({
 
       checkSupabaseError(error, 'Quote')
 
-      // Log activity if linked to a company
-      if (data && input.company_id) {
+      // Log quote creation activity
+      if (data) {
         await ctx.supabase.from('activity_logs').insert({
-          company_id: input.company_id,
+          company_id: input.company_id || null,
           contact_id: input.contact_id || null,
           user_id: ctx.user.id,
-          activity_type: 'note',
+          activity_type: 'quote_created',
           subject: `Quote ${data.quote_number} created`,
           description: `Created dismantle quote for ${input.make_name} ${input.model_name}`,
           related_quote_id: data.id,
-          metadata: { status: 'draft', total: input.total },
+          metadata: { status: 'draft', total: input.total, customer_name: input.customer_name },
         })
       }
 
@@ -277,6 +277,13 @@ export const quotesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Get the current quote for logging
+      const { data: currentQuote } = await ctx.supabase
+        .from('quote_history')
+        .select('quote_number, company_id, make_name, model_name')
+        .eq('id', input.id)
+        .single()
+
       const { data, error } = await ctx.supabase
         .from('quote_history')
         .update(input.data)
@@ -285,6 +292,20 @@ export const quotesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Quote')
+
+      // Log quote update activity
+      if (data) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: data.company_id || null,
+          user_id: ctx.user.id,
+          activity_type: 'quote_updated',
+          subject: `Quote ${data.quote_number} updated`,
+          description: `Updated dismantle quote for ${data.make_name || currentQuote?.make_name} ${data.model_name || currentQuote?.model_name}`,
+          related_quote_id: data.id,
+          metadata: { updated_fields: Object.keys(input.data) },
+        })
+      }
+
       return data
     }),
 
@@ -292,12 +313,32 @@ export const quotesRouter = router({
   delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get quote info before deletion for logging
+      const { data: quoteToDelete } = await ctx.supabase
+        .from('quote_history')
+        .select('quote_number, company_id, make_name, model_name, customer_name')
+        .eq('id', input.id)
+        .single()
+
       const { error } = await ctx.supabase
         .from('quote_history')
         .delete()
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Quote')
+
+      // Log quote deletion
+      if (quoteToDelete) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: quoteToDelete.company_id || null,
+          user_id: ctx.user.id,
+          activity_type: 'quote_deleted',
+          subject: `Quote ${quoteToDelete.quote_number} deleted`,
+          description: `Deleted dismantle quote for ${quoteToDelete.make_name} ${quoteToDelete.model_name}`,
+          metadata: { customer_name: quoteToDelete.customer_name },
+        })
+      }
+
       return { success: true }
     }),
 

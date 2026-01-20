@@ -41,18 +41,51 @@ import {
   AlertCircle,
   Loader2,
   ShieldAlert,
+  LogIn,
+  LogOut,
+  FilePlus,
+  FileEdit,
+  Trash2,
+  Truck,
+  UserPlus,
+  UserCog,
+  Settings,
+  Key,
 } from 'lucide-react'
 
 const ACTIVITY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Phone; color: string }> = {
-  call: { label: 'Call', icon: Phone, color: 'bg-blue-100 text-blue-800' },
-  email: { label: 'Email', icon: Mail, color: 'bg-purple-100 text-purple-800' },
-  meeting: { label: 'Meeting', icon: Users, color: 'bg-green-100 text-green-800' },
-  note: { label: 'Note', icon: FileText, color: 'bg-gray-100 text-gray-800' },
-  task: { label: 'Task', icon: CheckCircle2, color: 'bg-yellow-100 text-yellow-800' },
-  quote_sent: { label: 'Quote Sent', icon: Send, color: 'bg-indigo-100 text-indigo-800' },
-  quote_accepted: { label: 'Quote Accepted', icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-800' },
-  quote_rejected: { label: 'Quote Rejected', icon: XCircle, color: 'bg-red-100 text-red-800' },
-  follow_up: { label: 'Follow Up', icon: Calendar, color: 'bg-orange-100 text-orange-800' },
+  // CRM activities
+  call: { label: 'Call', icon: Phone, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  email: { label: 'Email', icon: Mail, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+  meeting: { label: 'Meeting', icon: Users, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  note: { label: 'Note', icon: FileText, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
+  task: { label: 'Task', icon: CheckCircle2, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
+  quote_sent: { label: 'Quote Sent', icon: Send, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' },
+  quote_accepted: { label: 'Quote Accepted', icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  quote_rejected: { label: 'Quote Rejected', icon: XCircle, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
+  follow_up: { label: 'Follow Up', icon: Calendar, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
+  // System events - User
+  login: { label: 'Login', icon: LogIn, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300' },
+  logout: { label: 'Logout', icon: LogOut, color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300' },
+  password_changed: { label: 'Password Changed', icon: Key, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
+  // System events - Quotes
+  quote_created: { label: 'Quote Created', icon: FilePlus, color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
+  quote_updated: { label: 'Quote Updated', icon: FileEdit, color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' },
+  quote_deleted: { label: 'Quote Deleted', icon: Trash2, color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300' },
+  // System events - Inland Quotes
+  inland_quote_created: { label: 'Inland Quote Created', icon: Truck, color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
+  inland_quote_updated: { label: 'Inland Quote Updated', icon: Truck, color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' },
+  inland_quote_deleted: { label: 'Inland Quote Deleted', icon: Trash2, color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300' },
+  // System events - Companies & Contacts
+  company_created: { label: 'Company Created', icon: Building2, color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300' },
+  company_updated: { label: 'Company Updated', icon: Building2, color: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300' },
+  contact_created: { label: 'Contact Created', icon: UserPlus, color: 'bg-lime-100 text-lime-800 dark:bg-lime-900/30 dark:text-lime-300' },
+  contact_updated: { label: 'Contact Updated', icon: User, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  // System events - User Management
+  user_created: { label: 'User Created', icon: UserPlus, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  user_updated: { label: 'User Updated', icon: UserCog, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' },
+  // System events - Settings
+  settings_updated: { label: 'Settings Updated', icon: Settings, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
 }
 
 export default function AdminActivityLogPage() {

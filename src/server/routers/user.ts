@@ -136,6 +136,18 @@ export const userRouter = router({
         .single()
 
       checkSupabaseError(error, 'User')
+
+      // Log user creation activity
+      if (data) {
+        await ctx.supabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'user_created',
+          subject: `Team member "${input.first_name} ${input.last_name}" created`,
+          description: `Added new team member: ${input.first_name} ${input.last_name} (${input.role})`,
+          metadata: { new_user_id: data.id, email: input.email, role: input.role },
+        })
+      }
+
       return data
     }),
 
@@ -187,8 +199,15 @@ export const userRouter = router({
         })
       }
 
-      // Use admin client to bypass RLS for team management operations
+      // Get current user info for logging
       const adminClient = createAdminClient()
+      const { data: currentUserData } = await adminClient
+        .from('users')
+        .select('first_name, last_name, role')
+        .eq('id', input.userId)
+        .single()
+
+      // Use admin client to bypass RLS for team management operations
       const { data, error } = await adminClient
         .from('users')
         .update({ role: input.role })
@@ -197,6 +216,18 @@ export const userRouter = router({
         .single()
 
       checkSupabaseError(error, 'User')
+
+      // Log role update activity
+      if (data && currentUserData) {
+        await ctx.supabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'user_updated',
+          subject: `Role changed for "${data.first_name} ${data.last_name}"`,
+          description: `Changed role from ${currentUserData.role} to ${input.role}`,
+          metadata: { target_user_id: data.id, old_role: currentUserData.role, new_role: input.role },
+        })
+      }
+
       return data
     }),
 
@@ -280,6 +311,15 @@ export const userRouter = router({
       if (updateError) {
         throw new Error(`Failed to update password: ${updateError.message}`)
       }
+
+      // Log password change activity
+      await ctx.supabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        activity_type: 'password_changed',
+        subject: 'Password changed',
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} changed their password`.trim(),
+        metadata: { email: ctx.user.email },
+      })
 
       return { success: true }
     }),

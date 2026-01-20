@@ -3,6 +3,7 @@ import { router, protectedProcedure, adminProcedure } from '../trpc/trpc'
 import { checkSupabaseError } from '@/lib/errors'
 
 const activityTypes = [
+  // CRM activities
   'call',
   'email',
   'meeting',
@@ -12,6 +13,23 @@ const activityTypes = [
   'quote_accepted',
   'quote_rejected',
   'follow_up',
+  // System events
+  'login',
+  'logout',
+  'quote_created',
+  'quote_updated',
+  'quote_deleted',
+  'inland_quote_created',
+  'inland_quote_updated',
+  'inland_quote_deleted',
+  'company_created',
+  'company_updated',
+  'contact_created',
+  'contact_updated',
+  'user_created',
+  'user_updated',
+  'settings_updated',
+  'password_changed',
 ] as const
 
 export const activityRouter = router({
@@ -295,4 +313,61 @@ export const activityRouter = router({
       checkSupabaseError(error, 'Activity')
       return { activities: data || [], total: count || 0 }
     }),
+
+  // Log a system event (for tracking user actions)
+  logSystemEvent: protectedProcedure
+    .input(
+      z.object({
+        activity_type: z.enum(activityTypes),
+        subject: z.string().min(1),
+        description: z.string().optional(),
+        company_id: z.string().uuid().optional(),
+        contact_id: z.string().uuid().optional(),
+        related_quote_id: z.string().uuid().optional(),
+        related_inland_quote_id: z.string().uuid().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('activity_logs')
+        .insert({
+          ...input,
+          user_id: ctx.user.id,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Activity')
+      return data
+    }),
+
+  // Record user login - updates last_login_at and logs activity
+  recordLogin: protectedProcedure.mutation(async ({ ctx }) => {
+    // Update last_login_at timestamp
+    await ctx.supabase
+      .from('users')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', ctx.user.id)
+
+    // Log the login event
+    const { data, error } = await ctx.supabase
+      .from('activity_logs')
+      .insert({
+        user_id: ctx.user.id,
+        activity_type: 'login',
+        subject: 'User logged in',
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} logged in`.trim(),
+        metadata: {
+          email: ctx.user.email,
+          ip_address: null, // Could be added via headers if needed
+          user_agent: null,
+        },
+      })
+      .select()
+      .single()
+
+    checkSupabaseError(error, 'Activity')
+    return { success: true, activity: data }
+  }),
 })

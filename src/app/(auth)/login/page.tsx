@@ -43,6 +43,14 @@ function LoginForm() {
         return
       }
 
+      // Record the login event for activity tracking
+      try {
+        await fetch('/api/auth/record-login', { method: 'POST' })
+      } catch {
+        // Don't block login if tracking fails
+        console.error('Failed to record login event')
+      }
+
       router.push(redirectTo)
       router.refresh()
     } catch {
