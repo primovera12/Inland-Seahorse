@@ -53,6 +53,7 @@ import {
   AlertTriangle,
   CheckSquare,
   X,
+  GitCompare,
 } from 'lucide-react'
 
 // Helper to check if quote is expiring soon (within 7 days)
