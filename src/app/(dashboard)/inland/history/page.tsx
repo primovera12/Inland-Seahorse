@@ -491,6 +491,10 @@ export default function InlandHistoryPage() {
                         <span className="text-muted-foreground">Created:</span>
                         <p className="font-medium">{formatDate(quote.created_at)}</p>
                       </div>
+                      <div>
+                        <span className="text-muted-foreground">Created By:</span>
+                        <p className="font-medium">{quote.created_by_name || 'System'}</p>
+                      </div>
                       {quote.expires_at && (
                         <div className="col-span-2">
                           <span className="text-muted-foreground">Expires:</span>
@@ -534,6 +538,7 @@ export default function InlandHistoryPage() {
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Created By</TableHead>
                       <TableHead>Expires</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -571,6 +576,9 @@ export default function InlandHistoryPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>{formatDate(quote.created_at)}</TableCell>
+                        <TableCell>
+                          <span className="text-muted-foreground text-sm">{quote.created_by_name || 'System'}</span>
+                        </TableCell>
                         <TableCell>
                           {quote.expires_at ? (
                             <div className="flex items-center gap-1">

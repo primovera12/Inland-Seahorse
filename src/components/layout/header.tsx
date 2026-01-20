@@ -47,14 +47,14 @@ export function Header({ user }: HeaderProps) {
       <div className="flex gap-2">
         <Link href="/quotes/new">
           <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Dismantle Quote
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">New Dismantle Quote</span>
           </Button>
         </Link>
         <Link href="/inland/new">
           <Button size="sm" variant="outline">
-            <Truck className="h-4 w-4 mr-2" />
-            Inland Quote
+            <Truck className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Inland Quote</span>
           </Button>
         </Link>
       </div>

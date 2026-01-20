@@ -482,6 +482,8 @@ export default function EditQuotePage() {
     }
   }, [buildPdfDataFromState])
 
+  const utils = trpc.useUtils()
+
   // Update quote mutation
   const updateQuote = trpc.quotes.update.useMutation({
     onSuccess: () => {
@@ -490,6 +492,21 @@ export default function EditQuotePage() {
     },
     onError: (error) => {
       toast.error(`Failed to update quote: ${error.message}`)
+    },
+  })
+
+  // Mark as sent mutation (triggered on PDF download)
+  const markAsSentOnDownload = trpc.quotes.markAsSent.useMutation({
+    onSuccess: () => {
+      utils.quotes.getHistory.invalidate()
+      utils.quotes.getById.invalidate({ id: quoteId })
+      toast.success('Quote marked as sent', {
+        description: 'PDF downloaded and quote saved to history.',
+      })
+    },
+    onError: (error) => {
+      console.error('Failed to mark as sent:', error)
+      // Don't show error toast - PDF download succeeded
     },
   })
 
@@ -596,7 +613,15 @@ export default function EditQuotePage() {
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-auto">
             {pdfData && (
-              <QuotePDFPreview data={pdfData} showControls />
+              <QuotePDFPreview
+                data={pdfData}
+                showControls
+                onDownload={() => {
+                  if (quote?.status === 'draft') {
+                    markAsSentOnDownload.mutate({ id: quoteId })
+                  }
+                }}
+              />
             )}
           </div>
         </DialogContent>
@@ -771,6 +796,11 @@ export default function EditQuotePage() {
                         },
                       })}
                       showControls
+                      onDownload={() => {
+                        if (quote?.status === 'draft') {
+                          markAsSentOnDownload.mutate({ id: quoteId })
+                        }
+                      }}
                     />
                   ) : (
                     <div className="flex items-center justify-center py-12">

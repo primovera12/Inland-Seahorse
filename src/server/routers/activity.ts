@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, adminProcedure } from '../trpc/trpc'
 import { checkSupabaseError } from '@/lib/errors'
 
 const activityTypes = [
@@ -238,4 +238,61 @@ export const activityRouter = router({
       monthlyTotal: monthlyActivities?.length || 0,
     }
   }),
+
+  // Admin-only: Get all activities with filtering
+  getAllActivities: adminProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+        activityType: z.enum(activityTypes).optional(),
+        userId: z.string().uuid().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        search: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      let query = ctx.supabase
+        .from('activity_logs')
+        .select(
+          `
+          *,
+          company:companies(id, name),
+          contact:contacts(id, first_name, last_name),
+          user:users(id, first_name, last_name, email)
+        `,
+          { count: 'exact' }
+        )
+        .order('created_at', { ascending: false })
+
+      // Apply filters
+      if (input.activityType) {
+        query = query.eq('activity_type', input.activityType)
+      }
+
+      if (input.userId) {
+        query = query.eq('user_id', input.userId)
+      }
+
+      if (input.startDate) {
+        query = query.gte('created_at', input.startDate)
+      }
+
+      if (input.endDate) {
+        query = query.lte('created_at', input.endDate)
+      }
+
+      if (input.search) {
+        query = query.or(`subject.ilike.%${input.search}%,description.ilike.%${input.search}%`)
+      }
+
+      // Apply pagination
+      query = query.range(input.offset, input.offset + input.limit - 1)
+
+      const { data, error, count } = await query
+
+      checkSupabaseError(error, 'Activity')
+      return { activities: data || [], total: count || 0 }
+    }),
 })

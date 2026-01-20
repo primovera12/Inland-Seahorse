@@ -463,6 +463,8 @@ export default function EditInlandQuotePage() {
     )
   }, [])
 
+  const utils = trpc.useUtils()
+
   // Update quote mutation
   const updateQuote = trpc.inland.update.useMutation({
     onSuccess: () => {
@@ -471,6 +473,21 @@ export default function EditInlandQuotePage() {
     },
     onError: (error) => {
       toast.error(`Failed to update quote: ${error.message}`)
+    },
+  })
+
+  // Mark as sent mutation (triggered on PDF download)
+  const markAsSentOnDownload = trpc.inland.markAsSent.useMutation({
+    onSuccess: () => {
+      utils.inland.getHistory.invalidate()
+      utils.inland.getById.invalidate({ id: quoteId })
+      toast.success('Quote marked as sent', {
+        description: 'PDF downloaded and quote saved to history.',
+      })
+    },
+    onError: (error) => {
+      console.error('Failed to mark as sent:', error)
+      // Don't show error toast - PDF download succeeded
     },
   })
 
@@ -665,6 +682,11 @@ export default function EditInlandQuotePage() {
                     <QuotePDFPreview
                       data={previewPdfData}
                       showControls
+                      onDownload={() => {
+                        if (quote?.status === 'draft') {
+                          markAsSentOnDownload.mutate({ id: quoteId })
+                        }
+                      }}
                     />
                   ) : (
                     <div className="flex items-center justify-center py-12">

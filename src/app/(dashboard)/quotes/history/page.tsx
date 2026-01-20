@@ -508,6 +508,10 @@ export default function QuoteHistoryPage() {
                         <span className="text-muted-foreground">Created:</span>
                         <p className="font-medium">{formatDate(quote.created_at)}</p>
                       </div>
+                      <div>
+                        <span className="text-muted-foreground">Created By:</span>
+                        <p className="font-medium">{quote.created_by_name || 'System'}</p>
+                      </div>
                       {quote.expires_at && (
                         <div className="col-span-2">
                           <span className="text-muted-foreground">Expires:</span>
@@ -553,6 +557,7 @@ export default function QuoteHistoryPage() {
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Created By</TableHead>
                       <TableHead>Expires</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -597,6 +602,9 @@ export default function QuoteHistoryPage() {
                         </TableCell>
                         <TableCell>
                           {formatDate(quote.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-muted-foreground text-sm">{quote.created_by_name || 'System'}</span>
                         </TableCell>
                         <TableCell>
                           {quote.expires_at ? (
@@ -786,6 +794,173 @@ function ShareLinkMenuItem({ quoteId }: { quoteId: string }) {
     <DropdownMenuItem onClick={copyShareLink} disabled={isLoading}>
       <Link2 className="h-4 w-4 mr-2" />
       {isLoading ? 'Loading...' : 'Copy Share Link'}
+    </DropdownMenuItem>
+  )
+}
+
+function DownloadQuoteMenuItem({ quoteId }: { quoteId: string }) {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const { refetch } = trpc.quotes.getForDownload.useQuery(
+    { id: quoteId },
+    { enabled: false }
+  )
+
+  const downloadQuote = async () => {
+    setIsDownloading(true)
+    try {
+      const { data: quote } = await refetch()
+      if (!quote || !quote.company_settings) {
+        toast.error('Failed to load quote data')
+        return
+      }
+
+      const settings = quote.company_settings
+      const quoteData = quote.quote_data as Record<string, unknown> | null
+
+      // Transform quote data to UnifiedPDFData
+      const equipmentBlocks = quoteData?.equipmentBlocks as Array<{
+        id: string
+        make_name: string
+        model_name: string
+        location?: string
+        quantity: number
+        length_inches?: number
+        width_inches?: number
+        height_inches?: number
+        weight_lbs?: number
+        front_image_url?: string
+        side_image_url?: string
+        costs: Record<string, number>
+        enabled_costs: Record<string, boolean>
+        cost_overrides: Record<string, number | null>
+        misc_fees?: Array<{ id: string; title: string; description?: string; amount: number; is_percentage: boolean }>
+        subtotal: number
+        misc_fees_total?: number
+        total_with_quantity: number
+      }> | undefined
+
+      const customerAddress = quote.customer_address
+        ? (() => {
+            const parts = (quote.customer_address as string).split(', ')
+            return {
+              address: parts[0] || undefined,
+              city: parts[1] || undefined,
+              state: parts[2] || undefined,
+              zip: parts[3] || undefined,
+            }
+          })()
+        : undefined
+
+      const { buildUnifiedPDFData } = await import('@/lib/pdf')
+
+      const pdfData = buildUnifiedPDFData({
+        quoteNumber: quote.quote_number || '',
+        quoteType: 'dismantle',
+        customerName: quote.customer_name || 'Customer',
+        customerEmail: quote.customer_email,
+        customerPhone: quote.customer_phone,
+        customerCompany: quote.customer_company,
+        customerAddress,
+        makeName: quote.make_name || 'Equipment',
+        modelName: quote.model_name || '',
+        location: quote.location,
+        dimensions: quoteData?.dimensions ? {
+          length_inches: (quoteData.dimensions as { length_inches?: number }).length_inches || 0,
+          width_inches: (quoteData.dimensions as { width_inches?: number }).width_inches || 0,
+          height_inches: (quoteData.dimensions as { height_inches?: number }).height_inches || 0,
+          weight_lbs: (quoteData.dimensions as { weight_lbs?: number }).weight_lbs || 0,
+        } : undefined,
+        frontImageUrl: quoteData?.frontImageUrl as string | undefined,
+        sideImageUrl: quoteData?.sideImageUrl as string | undefined,
+        costs: quoteData?.costs as Record<string, number> | undefined,
+        enabledCosts: quoteData?.enabledCosts as Record<string, boolean> | undefined,
+        costOverrides: quoteData?.costOverrides as Record<string, number | null> | undefined,
+        costDescriptions: quoteData?.costDescriptions as Record<string, string> | undefined,
+        miscFees: quoteData?.miscFees as Array<{ id: string; title: string; description?: string; amount: number; is_percentage: boolean }> | undefined,
+        isMultiEquipment: quoteData?.isMultiEquipment as boolean | undefined ?? (equipmentBlocks && equipmentBlocks.length > 0),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        equipmentBlocks: equipmentBlocks as any,
+        inlandTransport: quoteData?.inlandTransport as {
+          enabled: boolean
+          pickup_address?: string
+          pickup_city?: string
+          pickup_state?: string
+          pickup_zip?: string
+          dropoff_address?: string
+          dropoff_city?: string
+          dropoff_state?: string
+          dropoff_zip?: string
+          transport_cost?: number
+          distance_miles?: number
+          duration_minutes?: number
+          static_map_url?: string
+        } | undefined,
+        subtotal: quote.subtotal || 0,
+        total: quote.total || 0,
+        inlandTransportCost: quoteData?.inlandTransport ? (quoteData.inlandTransport as { transport_cost?: number }).transport_cost : undefined,
+        miscFeesTotal: quoteData?.miscFeesTotal as number | undefined,
+        notes: quoteData?.notes as string | undefined,
+        settings: {
+          company_name: settings.company_name || 'Company',
+          company_logo_url: settings.company_logo_url,
+          logo_size_percentage: settings.logo_size_percentage,
+          company_address: settings.company_address,
+          company_city: settings.company_city,
+          company_state: settings.company_state,
+          company_zip: settings.company_zip,
+          company_phone: settings.company_phone,
+          company_email: settings.company_email,
+          company_website: settings.company_website,
+          primary_color: settings.primary_color,
+          secondary_color: settings.secondary_color,
+          quote_validity_days: settings.quote_validity_days || 30,
+          terms_dismantle: (settings as { terms_dismantle?: string }).terms_dismantle,
+        },
+      })
+
+      // Override validUntil with actual expiration date
+      if (quote.expires_at) {
+        pdfData.validUntil = new Date(quote.expires_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      }
+
+      // Generate PDF via API
+      const response = await fetch('/api/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pdfData),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `quote-${quote.quote_number || quoteId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success('Quote downloaded!')
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error('Failed to download quote')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  return (
+    <DropdownMenuItem onClick={downloadQuote} disabled={isDownloading}>
+      <Download className="h-4 w-4 mr-2" />
+      {isDownloading ? 'Downloading...' : 'Download Quote'}
     </DropdownMenuItem>
   )
 }

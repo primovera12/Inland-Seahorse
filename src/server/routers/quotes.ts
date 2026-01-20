@@ -117,6 +117,30 @@ export const quotesRouter = router({
       return data
     }),
 
+  // Get quote with company settings for PDF download
+  getForDownload: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('quote_history')
+        .select('*')
+        .eq('id', input.id)
+        .single()
+
+      checkSupabaseError(error, 'Quote')
+
+      // Fetch company settings for PDF generation
+      const { data: settings } = await ctx.supabase
+        .from('company_settings')
+        .select('*')
+        .single()
+
+      return {
+        ...data,
+        company_settings: settings || null,
+      }
+    }),
+
   // Get quote by public token (public endpoint for customers) - rate limited
   getByPublicToken: rateLimitedProcedure.publicQuoteRead
     .input(z.object({ token: z.string().uuid() }))
