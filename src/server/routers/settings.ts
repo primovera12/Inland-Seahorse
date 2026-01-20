@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, adminProcedure } from '../trpc/trpc'
 import { checkSupabaseError } from '@/lib/errors'
 
 export const settingsRouter = router({
@@ -23,8 +23,8 @@ export const settingsRouter = router({
     return data
   }),
 
-  // Update company settings
-  update: protectedProcedure
+  // Update company settings (admin only)
+  update: adminProcedure
     .input(
       z.object({
         company_name: z.string().optional(),
@@ -135,8 +135,8 @@ export const settingsRouter = router({
       }
     }),
 
-  // Update terms & conditions
-  updateTerms: protectedProcedure
+  // Update terms & conditions (admin only)
+  updateTerms: adminProcedure
     .input(
       z.object({
         type: z.enum(['dismantle', 'inland']),
@@ -213,8 +213,8 @@ export const settingsRouter = router({
     return data?.popular_makes || defaultMakes
   }),
 
-  // Update popular makes list
-  updatePopularMakes: protectedProcedure
+  // Update popular makes list (admin only)
+  updatePopularMakes: adminProcedure
     .input(z.object({ makes: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
       const { data: existing } = await ctx.supabase

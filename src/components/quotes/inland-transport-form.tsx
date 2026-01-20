@@ -30,7 +30,7 @@ import {
   Scale,
 } from 'lucide-react'
 import { formatCurrency, parseWholeDollarsToCents, formatWholeDollars } from '@/lib/utils'
-import { formatDimension, formatWeight, parseDimensionFromUnit, type DimensionUnit } from '@/lib/dimensions'
+import { formatDimension, formatWeight, parseDimensionFromUnit, type DimensionUnit, type WeightUnit } from '@/lib/dimensions'
 import { trpc } from '@/lib/trpc/client'
 import { recommendTruckType, type TruckRecommendation } from '@/lib/truck-recommendation'
 import type { InlandEquipmentType } from '@/types/inland'
@@ -167,16 +167,18 @@ const BILLING_UNITS = [
 
 // Dimension unit options
 const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
-  { value: 'feet', label: 'ft.in' },
+  { value: 'ft-in', label: 'ft-in' },
   { value: 'inches', label: 'in' },
   { value: 'cm', label: 'cm' },
+  { value: 'mm', label: 'mm' },
   { value: 'meters', label: 'm' },
 ]
 
 // Weight unit options
-const WEIGHT_UNITS = [
+const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
   { value: 'lbs', label: 'lbs' },
   { value: 'kg', label: 'kg' },
+  { value: 'ton', label: 'ton' },
 ]
 
 export const initialInlandTransportData: InlandTransportData = {
@@ -198,8 +200,8 @@ export const initialInlandTransportData: InlandTransportData = {
 export function InlandTransportForm({ data, onChange, equipmentDimensions }: InlandTransportFormProps) {
   const [serviceTypes, setServiceTypes] = useState<SearchableSelectOption[]>(DEFAULT_SERVICE_TYPES)
   const [accessorialTypes, setAccessorialTypes] = useState<SearchableSelectOption[]>(DEFAULT_ACCESSORIAL_TYPES)
-  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('feet')
-  const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs')
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('ft-in')
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs')
 
   // Fetch truck types from API
   const { data: truckTypesData } = trpc.inland.getEquipmentTypes.useQuery(undefined, {
@@ -726,7 +728,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
             </div>
             <div className="flex items-center gap-2">
               <Scale className="h-4 w-4 text-muted-foreground" />
-              <Select value={weightUnit} onValueChange={(v) => setWeightUnit(v as 'lbs' | 'kg')}>
+              <Select value={weightUnit} onValueChange={(v) => setWeightUnit(v as WeightUnit)}>
                 <SelectTrigger className="w-16 h-8">
                   <SelectValue />
                 </SelectTrigger>
