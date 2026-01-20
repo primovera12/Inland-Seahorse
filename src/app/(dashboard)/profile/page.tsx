@@ -8,6 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { trpc } from '@/lib/trpc/client'
 import { toast } from 'sonner'
 import {
@@ -20,7 +28,8 @@ import {
   AlertCircle,
   Save,
   KeyRound,
-  Smartphone,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
@@ -41,6 +50,15 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('')
   const [isEditing, setIsEditing] = useState(false)
 
+  // Password change state
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
   // Initialize form values when user data loads
   const initEditMode = () => {
     if (user) {
@@ -60,6 +78,41 @@ export default function ProfilePage() {
       toast.error(`Failed to update profile: ${error.message}`)
     },
   })
+
+  const changePassword = trpc.user.changePassword.useMutation({
+    onSuccess: () => {
+      toast.success('Password changed successfully')
+      setIsPasswordDialogOpen(false)
+      resetPasswordForm()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const resetPasswordForm = () => {
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setShowCurrentPassword(false)
+    setShowNewPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  const handlePasswordChange = () => {
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match')
+      return
+    }
+    if (newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+    changePassword.mutate({
+      currentPassword,
+      newPassword,
+    })
+  }
 
   const handleSave = () => {
     updateProfile.mutate({
@@ -223,29 +276,6 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Two-Factor Authentication */}
-              <div className="flex items-center justify-between p-4 rounded-lg border">
-                <div className="flex items-center gap-3">
-                  <Smartphone className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">Two-Factor Authentication</p>
-                    <p className="text-sm text-muted-foreground">
-                      Add an extra layer of security to your account
-                    </p>
-                  </div>
-                </div>
-                {user.two_factor_enabled ? (
-                  <Badge className="bg-green-100 text-green-800">
-                    <Check className="h-3 w-3 mr-1" />
-                    Enabled
-                  </Badge>
-                ) : (
-                  <Button variant="outline" size="sm" disabled>
-                    Enable
-                  </Button>
-                )}
-              </div>
-
               {/* Change Password */}
               <div className="flex items-center justify-between p-4 rounded-lg border">
                 <div className="flex items-center gap-3">
@@ -257,7 +287,7 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" disabled>
+                <Button variant="outline" size="sm" onClick={() => setIsPasswordDialogOpen(true)}>
                   Change
                 </Button>
               </div>
@@ -323,6 +353,109 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
+
+      {/* Password Change Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={(open) => {
+        setIsPasswordDialogOpen(open)
+        if (!open) resetPasswordForm()
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                >
+                  {showCurrentPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min. 8 characters)"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePasswordChange}
+              disabled={changePassword.isPending || !currentPassword || !newPassword || !confirmPassword}
+            >
+              {changePassword.isPending ? 'Changing...' : 'Change Password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

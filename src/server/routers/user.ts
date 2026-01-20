@@ -92,18 +92,35 @@ export const userRouter = router({
         first_name: z.string().min(1),
         last_name: z.string().min(1),
         role: roleSchema,
+        password: z.string().min(8, 'Password must be at least 8 characters'),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Create auth user with password using admin API
+      const { data: authData, error: authError } = await ctx.supabase.auth.admin.createUser({
+        email: input.email,
+        password: input.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: input.first_name,
+          last_name: input.last_name,
+        },
+      })
+
+      if (authError) {
+        throw new Error(`Failed to create user: ${authError.message}`)
+      }
+
+      // Update the user record with additional fields
       const { data, error } = await ctx.supabase
         .from('users')
-        .insert({
-          email: input.email,
+        .update({
           first_name: input.first_name,
           last_name: input.last_name,
           role: input.role,
-          status: 'active',
+          is_active: true,
         })
+        .eq('id', authData.user.id)
         .select()
         .single()
 
@@ -190,6 +207,37 @@ export const userRouter = router({
         .eq('id', input.userId)
 
       checkSupabaseError(error, 'User')
+      return { success: true }
+    }),
+
+  // Change password
+  changePassword: protectedProcedure
+    .input(
+      z.object({
+        currentPassword: z.string().min(1, 'Current password is required'),
+        newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // First verify the current password by attempting to sign in
+      const { error: signInError } = await ctx.supabase.auth.signInWithPassword({
+        email: ctx.user.email,
+        password: input.currentPassword,
+      })
+
+      if (signInError) {
+        throw new Error('Current password is incorrect')
+      }
+
+      // Update to the new password
+      const { error: updateError } = await ctx.supabase.auth.updateUser({
+        password: input.newPassword,
+      })
+
+      if (updateError) {
+        throw new Error(`Failed to update password: ${updateError.message}`)
+      }
+
       return { success: true }
     }),
 })

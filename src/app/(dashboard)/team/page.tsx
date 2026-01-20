@@ -58,6 +58,8 @@ import {
   Check,
   X,
   KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 
 type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
@@ -230,7 +232,9 @@ export default function TeamPage() {
     first_name: '',
     last_name: '',
     role: 'member' as UserRole,
+    password: '',
   })
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [editForm, setEditForm] = useState({
     email: '',
     first_name: '',
@@ -285,7 +289,8 @@ export default function TeamPage() {
       toast.success('Team member created successfully')
       refetch()
       setShowCreateDialog(false)
-      setCreateForm({ email: '', first_name: '', last_name: '', role: 'member' })
+      setCreateForm({ email: '', first_name: '', last_name: '', role: 'member', password: '' })
+      setShowCreatePassword(false)
     },
     onError: (error) => {
       toast.error(`Failed to create member: ${error.message}`)
@@ -343,8 +348,12 @@ export default function TeamPage() {
   }
 
   const handleCreate = () => {
-    if (!createForm.email || !createForm.first_name || !createForm.last_name) {
+    if (!createForm.email || !createForm.first_name || !createForm.last_name || !createForm.password) {
       toast.error('Please fill in all required fields')
+      return
+    }
+    if (createForm.password.length < 8) {
+      toast.error('Password must be at least 8 characters')
       return
     }
     createMember.mutate(createForm)
@@ -996,6 +1005,33 @@ export default function TeamPage() {
                   setCreateForm({ ...createForm, email: e.target.value })
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="createPassword">Password *</Label>
+              <div className="relative">
+                <Input
+                  id="createPassword"
+                  type={showCreatePassword ? 'text' : 'password'}
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, password: e.target.value })
+                  }
+                  placeholder="Min. 8 characters"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowCreatePassword(!showCreatePassword)}
+                >
+                  {showCreatePassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="createRole">Role</Label>
