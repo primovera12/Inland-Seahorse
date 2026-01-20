@@ -122,7 +122,7 @@ export function EquipmentBlockCard({
   )
 
   // Fetch dimensions when model changes
-  const { data: dimensions } = trpc.equipment.getDimensions.useQuery(
+  const { data: dimensions, isLoading: dimensionsLoading } = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId },
     { enabled: !!selectedModelId }
   )
@@ -283,31 +283,33 @@ export function EquipmentBlockCard({
   }, [rates, selectedModelId, block.location])
 
   // Update dimensions when model changes - uses refs to avoid stale closure
+  // Also clears dimensions when switching to a model without dimensions
   useEffect(() => {
-    if (dimensions && selectedModelId) {
+    if (selectedModelId && !dimensionsLoading) {
       onUpdateRef.current({
         ...blockRef.current,
-        length_inches: dimensions.length_inches,
-        width_inches: dimensions.width_inches,
-        height_inches: dimensions.height_inches,
-        weight_lbs: dimensions.weight_lbs,
+        length_inches: dimensions?.length_inches ?? 0,
+        width_inches: dimensions?.width_inches ?? 0,
+        height_inches: dimensions?.height_inches ?? 0,
+        weight_lbs: dimensions?.weight_lbs ?? 0,
       })
     }
-  }, [dimensions, selectedModelId])
+  }, [dimensions, selectedModelId, dimensionsLoading])
 
   // Sync images from dimensions when model changes
+  // Also clears images when switching to a model without dimensions
   useEffect(() => {
-    if (dimensions && selectedModelId) {
-      setFrontImageUrl(dimensions.front_image_url || null)
-      setSideImageUrl(dimensions.side_image_url || null)
+    if (selectedModelId && !dimensionsLoading) {
+      setFrontImageUrl(dimensions?.front_image_url || null)
+      setSideImageUrl(dimensions?.side_image_url || null)
       // Also update block with image URLs
       onUpdateRef.current({
         ...blockRef.current,
-        front_image_url: dimensions.front_image_url || undefined,
-        side_image_url: dimensions.side_image_url || undefined,
+        front_image_url: dimensions?.front_image_url || undefined,
+        side_image_url: dimensions?.side_image_url || undefined,
       })
     }
-  }, [dimensions, selectedModelId])
+  }, [dimensions, selectedModelId, dimensionsLoading])
 
   // Handle front image change
   const handleFrontImageChange = async (url: string | null) => {
