@@ -81,7 +81,7 @@ interface NewServiceType {
   name: string
   description: string
   default_rate_cents: number
-  billing_unit: string
+  billing_unit: 'flat' | 'hour' | 'day' | 'mile' | 'load' | 'way'
 }
 
 const SERVICE_BILLING_UNITS = [
@@ -610,7 +610,7 @@ export default function InlandSettingsPage() {
                     <Label className="text-xs">Billing Unit</Label>
                     <select
                       value={newService.billing_unit}
-                      onChange={(e) => setNewService({ ...newService, billing_unit: e.target.value })}
+                      onChange={(e) => setNewService({ ...newService, billing_unit: e.target.value as 'flat' | 'hour' | 'day' | 'mile' | 'load' | 'way' })}
                       className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       {SERVICE_BILLING_UNITS.map((unit) => (
