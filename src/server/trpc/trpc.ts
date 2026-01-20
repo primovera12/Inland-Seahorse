@@ -172,6 +172,12 @@ export const rateLimitedProcedure = {
 
   // For feedback/ticket submissions (protected + rate limited)
   feedback: t.procedure.use(createAuthedRateLimiter(RATE_LIMITS.feedback)),
+
+  // For public quote read operations (no auth, rate limited)
+  publicQuoteRead: t.procedure.use(createPublicRateLimiter(RATE_LIMITS.publicQuoteRead)),
+
+  // For public quote actions (accept/reject - no auth, strictly rate limited)
+  publicQuoteAction: t.procedure.use(createPublicRateLimiter(RATE_LIMITS.publicQuoteAction)),
 }
 
 // Export rate limit configs for custom usage

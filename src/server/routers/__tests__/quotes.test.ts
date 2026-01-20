@@ -360,8 +360,21 @@ describe('Quotes Router', () => {
   })
 
   describe('delete', () => {
-    it('allows authenticated users to delete quotes', async () => {
+    it('throws FORBIDDEN when member tries to delete', async () => {
       const memberUser = createMockUser({ id: TEST_UUID.member, role: 'member' })
+
+      const ctx = createTestContext(memberUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.delete({ id: TEST_UUID.quote })
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    })
+
+    it('allows manager to delete quotes', async () => {
+      const managerUser = createMockUser({ id: TEST_UUID.manager, role: 'manager' })
 
       const mockFrom = vi.fn().mockReturnValue({
         delete: vi.fn().mockReturnValue({
@@ -370,7 +383,7 @@ describe('Quotes Router', () => {
       })
 
       const ctx = {
-        user: memberUser,
+        user: managerUser,
         supabase: { from: mockFrom },
       }
 

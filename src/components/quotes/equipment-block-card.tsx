@@ -122,11 +122,19 @@ export function EquipmentBlockCard({
   )
 
   // Fetch dimensions when model changes
-  // Use isFetching instead of isLoading because isLoading is only true when there's no cached data
-  const { data: dimensions, isFetching: dimensionsFetching } = trpc.equipment.getDimensions.useQuery(
+  // Use isFetching to know when a fetch is in progress
+  // Use dataUpdatedAt to know when we got fresh data
+  const {
+    data: dimensions,
+    isFetching: dimensionsFetching,
+    dataUpdatedAt: dimensionsUpdatedAt,
+  } = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId },
     { enabled: !!selectedModelId }
   )
+
+  // Track the last model ID we updated dimensions for to prevent stale updates
+  const lastDimensionsModelIdRef = useRef<string | null>(null)
 
   // State for equipment images (local state for optimistic UI)
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(
@@ -262,14 +270,21 @@ export function EquipmentBlockCard({
     }, 1000)
   }, [localDimensions, block, onUpdate, saveDimensionsToDatabase])
 
-  // Cleanup timer on unmount
+  // Cleanup timer on unmount AND when model changes
+  // CRITICAL: Clear pending saves when switching models to prevent
+  // old dimensions from being saved to the new model
   useEffect(() => {
+    // Clear any pending save when model changes
+    if (dimensionSaveTimerRef.current) {
+      clearTimeout(dimensionSaveTimerRef.current)
+      dimensionSaveTimerRef.current = null
+    }
     return () => {
       if (dimensionSaveTimerRef.current) {
         clearTimeout(dimensionSaveTimerRef.current)
       }
     }
-  }, [])
+  }, [selectedModelId])
 
   // Update costs when rates change - uses refs to avoid stale closure
   // Also depends on selectedModelId and location to handle cached data scenarios
@@ -286,21 +301,32 @@ export function EquipmentBlockCard({
   // Update dimensions when model changes - uses refs to avoid stale closure
   // Also clears dimensions when switching to a model without dimensions
   useEffect(() => {
-    if (selectedModelId && !dimensionsFetching) {
-      onUpdateRef.current({
-        ...blockRef.current,
-        length_inches: dimensions?.length_inches ?? 0,
-        width_inches: dimensions?.width_inches ?? 0,
-        height_inches: dimensions?.height_inches ?? 0,
-        weight_lbs: dimensions?.weight_lbs ?? 0,
-      })
+    // Only update when:
+    // 1. We have a model selected
+    // 2. We're not currently fetching (fetch completed)
+    // 3. Either this is fresh data for a new model, or dimensions changed for current model
+    if (selectedModelId && !dimensionsFetching && dimensionsUpdatedAt > 0) {
+      // Check if this is fresh data (either new model or data updated)
+      const shouldUpdate = lastDimensionsModelIdRef.current !== selectedModelId || dimensions !== undefined
+
+      if (shouldUpdate) {
+        lastDimensionsModelIdRef.current = selectedModelId
+        onUpdateRef.current({
+          ...blockRef.current,
+          length_inches: dimensions?.length_inches ?? 0,
+          width_inches: dimensions?.width_inches ?? 0,
+          height_inches: dimensions?.height_inches ?? 0,
+          weight_lbs: dimensions?.weight_lbs ?? 0,
+        })
+      }
     }
-  }, [dimensions, selectedModelId, dimensionsFetching])
+  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsUpdatedAt])
 
   // Sync images from dimensions when model changes
   // Also clears images when switching to a model without dimensions
   useEffect(() => {
-    if (selectedModelId && !dimensionsFetching) {
+    // Only update when fetch has completed (dimensionsUpdatedAt > 0 means query ran)
+    if (selectedModelId && !dimensionsFetching && dimensionsUpdatedAt > 0) {
       setFrontImageUrl(dimensions?.front_image_url || null)
       setSideImageUrl(dimensions?.side_image_url || null)
       // Also update block with image URLs
@@ -310,7 +336,7 @@ export function EquipmentBlockCard({
         side_image_url: dimensions?.side_image_url || undefined,
       })
     }
-  }, [dimensions, selectedModelId, dimensionsFetching])
+  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsUpdatedAt])
 
   // Handle front image change
   const handleFrontImageChange = async (url: string | null) => {

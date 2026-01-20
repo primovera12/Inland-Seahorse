@@ -92,8 +92,8 @@ export const inlandRouter = router({
       return data
     }),
 
-  // Delete equipment type (soft delete by setting is_active to false)
-  deleteEquipmentType: protectedProcedure
+  // Delete equipment type (soft delete by setting is_active to false) - Admin only
+  deleteEquipmentType: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase
@@ -363,8 +363,8 @@ export const inlandRouter = router({
       return data
     }),
 
-  // Delete quote
-  delete: protectedProcedure
+  // Delete quote - Manager or Admin only
+  delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase
@@ -1130,8 +1130,8 @@ export const inlandRouter = router({
       return { success: true, updated: input.ids.length }
     }),
 
-  // Batch delete quotes
-  batchDelete: protectedProcedure
+  // Batch delete quotes - Manager or Admin only
+  batchDelete: managerProcedure
     .input(
       z.object({
         ids: z.array(z.string().uuid()).min(1).max(100),

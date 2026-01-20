@@ -78,4 +78,39 @@ test.describe('Protected Routes', () => {
     await page.goto('/customers')
     await expect(page).toHaveURL(/\/login/)
   })
+
+  test('team page requires authentication', async ({ page }) => {
+    await page.goto('/team')
+    await expect(page).toHaveURL(/\/login/)
+  })
+
+  test('inland quotes page requires authentication', async ({ page }) => {
+    await page.goto('/inland')
+    await expect(page).toHaveURL(/\/login/)
+  })
+})
+
+test.describe('Session Management', () => {
+  test('login form validates email format', async ({ page }) => {
+    await page.goto('/login')
+
+    await page.fill('input[name="email"]', 'not-an-email')
+    await page.fill('input[name="password"]', 'password123')
+    await page.click('button[type="submit"]')
+
+    // Should show validation error or not submit
+    // Check that we're still on the login page
+    await expect(page).toHaveURL(/\/login/)
+  })
+
+  test('login form requires password', async ({ page }) => {
+    await page.goto('/login')
+
+    await page.fill('input[name="email"]', 'test@example.com')
+    // Leave password empty
+    await page.click('button[type="submit"]')
+
+    // Should show validation error or not submit
+    await expect(page).toHaveURL(/\/login/)
+  })
 })

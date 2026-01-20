@@ -115,4 +115,8 @@ export const RATE_LIMITS = {
 
   // Feedback/ticket submission
   feedback: { limit: 5, windowSeconds: 300 },    // 5 submissions per 5 minutes
+
+  // Public quote endpoints (no auth required, stricter limits)
+  publicQuoteRead: { limit: 30, windowSeconds: 60 },  // 30 reads per minute
+  publicQuoteAction: { limit: 5, windowSeconds: 60 }, // 5 accept/reject per minute
 } as const
