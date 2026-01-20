@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
 import { checkSupabaseError } from '@/lib/errors'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const roleSchema = z.enum(['admin', 'manager', 'member', 'viewer'])
 
@@ -96,8 +97,11 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Create admin client with service role key for user creation
+      const adminClient = createAdminClient()
+
       // Create auth user with password using admin API
-      const { data: authData, error: authError } = await ctx.supabase.auth.admin.createUser({
+      const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
         email: input.email,
         password: input.password,
         email_confirm: true,
@@ -111,8 +115,8 @@ export const userRouter = router({
         throw new Error(`Failed to create user: ${authError.message}`)
       }
 
-      // Update the user record with additional fields
-      const { data, error } = await ctx.supabase
+      // Update the user record with additional fields using admin client to bypass RLS
+      const { data, error } = await adminClient
         .from('users')
         .update({
           first_name: input.first_name,
