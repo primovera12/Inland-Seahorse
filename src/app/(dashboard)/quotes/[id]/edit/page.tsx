@@ -232,18 +232,37 @@ export default function EditQuotePage() {
           return result
         }
 
-        // Load equipment blocks - convert legacy single-equipment quotes to multi-equipment format
-        if (quoteData.equipmentBlocks && quoteData.equipmentBlocks.length > 0) {
-          // Sanitize costs and cost_overrides in equipment blocks
-          const sanitizedBlocks = quoteData.equipmentBlocks.map(block => ({
-            ...block,
-            costs: sanitizeCosts(block.costs || {}),
-            cost_overrides: sanitizeOverrides(block.cost_overrides || {}),
+        // Normalize equipment block to ensure all required fields exist (for migrated quotes)
+        const normalizeEquipmentBlock = (block: Partial<EquipmentBlock>): EquipmentBlock => {
+          return {
+            id: block.id || crypto.randomUUID(),
+            make_id: block.make_id,
+            model_id: block.model_id,
+            make_name: block.make_name || '',
+            model_name: block.model_name || '',
+            location: block.location || 'New Jersey',
+            quantity: block.quantity || 1,
+            length_inches: block.length_inches,
+            width_inches: block.width_inches,
+            height_inches: block.height_inches,
+            weight_lbs: block.weight_lbs,
+            front_image_url: block.front_image_url,
+            side_image_url: block.side_image_url,
+            costs: sanitizeCosts(block.costs || {}) as CostState,
+            enabled_costs: block.enabled_costs || initialEnabled,
+            cost_overrides: sanitizeOverrides(block.cost_overrides || {}) as OverrideState,
+            misc_fees: block.misc_fees || [],
             subtotal: sanitizeCost(block.subtotal),
             misc_fees_total: sanitizeCost(block.misc_fees_total),
             total_with_quantity: sanitizeCost(block.total_with_quantity),
-          }))
-          setEquipmentBlocks(sanitizedBlocks as EquipmentBlock[])
+          }
+        }
+
+        // Load equipment blocks - convert legacy single-equipment quotes to multi-equipment format
+        if (quoteData.equipmentBlocks && quoteData.equipmentBlocks.length > 0) {
+          // Normalize equipment blocks to ensure all required fields exist
+          const normalizedBlocks = (quoteData.equipmentBlocks as Partial<EquipmentBlock>[]).map(normalizeEquipmentBlock)
+          setEquipmentBlocks(normalizedBlocks)
         } else if (quote.make_name || quote.model_name) {
           // Convert legacy single-equipment data to equipment block format
           const legacyBlock: EquipmentBlock = {
