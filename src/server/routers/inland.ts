@@ -160,6 +160,60 @@ export const inlandRouter = router({
     return data
   }),
 
+  // Get load types (cargo types)
+  getLoadTypes: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('inland_load_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order')
+
+    // If table doesn't exist or no data, return empty array (not an error)
+    if (error && error.code === '42P01') {
+      return []
+    }
+    if (error) {
+      checkSupabaseError(error, 'Load types')
+    }
+    return data || []
+  }),
+
+  // Create load type
+  createLoadType: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        default_length_inches: z.number().min(0).optional(),
+        default_width_inches: z.number().min(0).optional(),
+        default_height_inches: z.number().min(0).optional(),
+        default_weight_lbs: z.number().min(0).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get the max sort_order to add at end
+      const { data: existing } = await ctx.supabase
+        .from('inland_load_types')
+        .select('sort_order')
+        .order('sort_order', { ascending: false })
+        .limit(1)
+
+      const nextSortOrder = (existing?.[0]?.sort_order || 0) + 1
+
+      const { data, error } = await ctx.supabase
+        .from('inland_load_types')
+        .insert({
+          ...input,
+          sort_order: nextSortOrder,
+          is_active: true,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Load type')
+      return data
+    }),
+
   // Get rate tiers
   getRateTiers: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase

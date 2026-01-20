@@ -113,7 +113,19 @@ export function DestinationBlock({
       id: crypto.randomUUID(),
       truck_type_id: truckTypes[0]?.id || '',
       truck_type_name: truckTypes[0]?.name || 'Flatbed',
-      cargo_items: [],
+      cargo_items: [
+        {
+          id: crypto.randomUUID(),
+          description: '',
+          quantity: 1,
+          length_inches: 0,
+          width_inches: 0,
+          height_inches: 0,
+          weight_lbs: 0,
+          is_oversize: false,
+          is_overweight: false,
+        },
+      ],
       service_items: [
         {
           id: crypto.randomUUID(),

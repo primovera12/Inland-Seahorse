@@ -218,33 +218,47 @@ export default function NewQuotePage() {
     }
   }, [existingDraft, draftLoaded])
 
+  // Reset form to initial state (can be used after download or discard)
+  const resetForm = useCallback(() => {
+    setQuoteNumber(generateQuoteNumber())
+    setIsMultiEquipment(true)
+    setEquipmentBlocks([createEmptyEquipmentBlock()])
+    setSelectedMakeId('')
+    setSelectedModelId('')
+    setSelectedLocation('New Jersey')
+    setMakeName('')
+    setModelName('')
+    setDimensions({ length_inches: 0, width_inches: 0, height_inches: 0, weight_lbs: 0 })
+    setEquipmentImages({})
+    setCosts(initialCosts)
+    setEnabledCosts(initialEnabled)
+    setCostOverrides(initialOverrides)
+    setDescriptionOverrides(COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>))
+    setCustomerName('')
+    setCustomerEmail('')
+    setCustomerPhone('')
+    setCustomerCompany('')
+    setCustomerAddress({ address: '', city: '', state: '', zip: '' })
+    setSelectedCompanyId(null)
+    setNotes('')
+    setMiscFees([])
+    setInlandTransport(initialInlandTransportData)
+    setSavedQuoteId(null)
+    setHasDraft(false)
+    deleteDraftMutation.mutate()
+  }, [deleteDraftMutation])
+
+  // Handle download complete - reset form for new quote
+  const handleDownloadComplete = useCallback(() => {
+    resetForm()
+    setShowPdfPreview(false)
+    toast.success('Quote downloaded', { description: 'Form has been reset for a new quote.' })
+  }, [resetForm])
+
   // Handle discard draft
   const handleDiscardDraft = () => {
     if (confirm('Are you sure you want to discard this draft? All changes will be lost.')) {
-      // Reset all state to defaults
-      setQuoteNumber(generateQuoteNumber())
-      setIsMultiEquipment(true)
-      setEquipmentBlocks([createEmptyEquipmentBlock()])
-      setSelectedMakeId('')
-      setSelectedModelId('')
-      setSelectedLocation('New Jersey')
-      setMakeName('')
-      setModelName('')
-      setDimensions({ length_inches: 0, width_inches: 0, height_inches: 0, weight_lbs: 0 })
-      setCosts(initialCosts)
-      setEnabledCosts(initialEnabled)
-      setCostOverrides(initialOverrides)
-      setDescriptionOverrides(COST_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CostField, string | null>))
-      setCustomerName('')
-      setCustomerEmail('')
-      setCustomerPhone('')
-      setCustomerCompany('')
-      setCustomerAddress({ address: '', city: '', state: '', zip: '' })
-      setNotes('')
-      setMiscFees([])
-      setInlandTransport(initialInlandTransportData)
-
-      deleteDraftMutation.mutate()
+      resetForm()
     }
   }
 
@@ -603,7 +617,7 @@ export default function NewQuotePage() {
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-auto">
             {pdfData && (
-              <QuotePDFPreview data={pdfData} showControls />
+              <QuotePDFPreview data={pdfData} showControls onDownload={handleDownloadComplete} />
             )}
           </div>
         </DialogContent>
@@ -801,6 +815,7 @@ export default function NewQuotePage() {
                         },
                       })}
                       showControls
+                      onDownload={handleDownloadComplete}
                     />
                   ) : (
                     <div className="flex items-center justify-center py-12">

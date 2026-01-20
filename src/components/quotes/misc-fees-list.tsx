@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Trash2, DollarSign, Percent } from 'lucide-react'
 import type { MiscellaneousFee } from '@/types/quotes'
-import { formatCurrency, parseCurrencyToCents } from '@/lib/utils'
+import { formatWholeDollars } from '@/lib/utils'
 
 interface MiscFeesListProps {
   fees: MiscellaneousFee[]
@@ -125,7 +125,7 @@ export function MiscFeesList({
         {fees.length > 0 && (
           <div className="flex justify-between text-sm font-medium pt-2 border-t">
             <span>Misc Fees Total</span>
-            <span className="font-mono">{formatCurrency(totalMiscFees)}</span>
+            <span className="font-mono">${formatWholeDollars(totalMiscFees)}</span>
           </div>
         )}
       </div>
@@ -247,9 +247,9 @@ export function MiscFeesList({
                 {/* Fee preview */}
                 {fee.is_percentage && subtotal > 0 && (
                   <div className="text-sm text-muted-foreground bg-muted/50 rounded p-2">
-                    {fee.amount / 100}% of {formatCurrency(subtotal)} ={' '}
+                    {fee.amount / 100}% of ${formatWholeDollars(subtotal)} ={' '}
                     <span className="font-mono font-medium text-foreground">
-                      {formatCurrency(calculateFeeAmount(fee))}
+                      ${formatWholeDollars(calculateFeeAmount(fee))}
                     </span>
                   </div>
                 )}
@@ -263,7 +263,7 @@ export function MiscFeesList({
           <div className="flex justify-between items-center pt-4 border-t">
             <span className="font-medium">Total Miscellaneous Fees</span>
             <span className="text-lg font-bold font-mono">
-              {formatCurrency(totalMiscFees)}
+              ${formatWholeDollars(totalMiscFees)}
             </span>
           </div>
         )}

@@ -123,6 +123,25 @@ export default function NewInlandQuotePage() {
   const accessorialsTotal = destinationBlocks.reduce((sum, block) => sum + (block.accessorials_total || 0), 0)
   const total = subtotal
 
+  // Reset form to initial state (called after download)
+  const resetForm = useCallback(() => {
+    setQuoteNumber(generateInlandQuoteNumber())
+    setCustomerName('')
+    setCustomerEmail('')
+    setCustomerPhone('')
+    setCustomerCompany('')
+    setCustomerAddress({ address: '', city: '', state: '', zip: '' })
+    setSelectedCompanyId(null)
+    setInternalNotes('')
+    setQuoteNotes('')
+    setDestinationBlocks([createEmptyDestination('A')])
+    setDraftRestored(false)
+    setSavedQuoteId(null)
+    // Delete the draft from the database
+    deleteDraftMutation.mutate()
+    toast.success('Quote downloaded', { description: 'Form has been reset for a new quote.' })
+  }, [deleteDraftMutation])
+
   // Build preview PDF data for the Preview tab
   const previewPdfData: UnifiedPDFData | null = useMemo(() => {
     if (!settings) return null
@@ -192,6 +211,7 @@ export default function NewInlandQuotePage() {
               custom_make_name: cargo.custom_make_name,
               custom_model_name: cargo.custom_model_name,
               image_url: cargo.image_url,
+              image_url_2: cargo.image_url_2,
               front_image_url: cargo.front_image_url,
               side_image_url: cargo.side_image_url,
             })),
@@ -658,7 +678,7 @@ export default function NewInlandQuotePage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {settings && previewPdfData ? (
-                    <QuotePDFPreview data={previewPdfData} showControls />
+                    <QuotePDFPreview data={previewPdfData} showControls onDownload={resetForm} />
                   ) : (
                     <div className="p-8 text-center text-muted-foreground">
                       Loading preview...

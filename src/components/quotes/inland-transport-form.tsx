@@ -27,7 +27,7 @@ import {
   Lightbulb,
   AlertTriangle,
 } from 'lucide-react'
-import { formatCurrency, parseWholeDollarsToCents, formatWholeDollars } from '@/lib/utils'
+import { parseWholeDollarsToCents, formatWholeDollars } from '@/lib/utils'
 import { trpc } from '@/lib/trpc/client'
 import { recommendTruckType, type TruckRecommendation } from '@/lib/truck-recommendation'
 import type { InlandEquipmentType } from '@/types/inland'
@@ -825,7 +825,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium">
-                          {formatCurrency(block.subtotal)}
+                          ${formatWholeDollars(block.subtotal)}
                         </span>
                         {data.load_blocks.length > 1 && (
                           <Button
@@ -1126,7 +1126,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                               <div className="flex-1">
                                 <Label className="text-xs">Total</Label>
                                 <div className="h-8 flex items-center font-mono text-sm">
-                                  {formatCurrency(item.total)}
+                                  ${formatWholeDollars(item.total)}
                                 </div>
                               </div>
                               <Button
@@ -1260,7 +1260,7 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                               <div className="flex-1">
                                 <Label className="text-xs">Total</Label>
                                 <div className="h-8 flex items-center font-mono text-sm">
-                                  {formatCurrency(charge.total)}
+                                  ${formatWholeDollars(charge.total)}
                                 </div>
                               </div>
                               <Button
@@ -1310,14 +1310,14 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
               <div className="flex items-center justify-between">
                 <span className="font-medium">Inland Transportation Total</span>
                 <span className="text-lg font-bold font-mono text-primary">
-                  {formatCurrency(totalCost)}
+                  ${formatWholeDollars(totalCost)}
                 </span>
               </div>
               {totalAccessorials > 0 && (
                 <div className="flex items-center justify-between text-sm border-t pt-2 mt-2">
                   <span className="text-muted-foreground">Accessorial Fees (if applicable)</span>
                   <span className="font-mono text-muted-foreground">
-                    {formatCurrency(totalAccessorials)}
+                    ${formatWholeDollars(totalAccessorials)}
                   </span>
                 </div>
               )}

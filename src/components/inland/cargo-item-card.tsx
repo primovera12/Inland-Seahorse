@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -12,11 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { ImageUpload } from '@/components/ui/image-upload'
-import { Trash2, Package, Ruler, Scale, AlertTriangle, ImageIcon } from 'lucide-react'
+import { Trash2, Package, Ruler, Scale, AlertTriangle, ImageIcon, Box } from 'lucide-react'
 import Image from 'next/image'
 import type { CargoItem } from '@/types/inland'
 import { trpc } from '@/lib/trpc/client'
+import { toast } from 'sonner'
 import {
   inchesToFtInInput,
   ftInInputToInches,
@@ -27,6 +29,22 @@ import {
   type DimensionUnit,
   type WeightUnit,
 } from '@/lib/dimensions'
+
+// Default common load types (used when database table doesn't exist yet)
+const DEFAULT_LOAD_TYPES = [
+  { id: 'crate', name: 'Crate', default_length_inches: 48, default_width_inches: 40, default_height_inches: 36, default_weight_lbs: 500 },
+  { id: 'pallet', name: 'Pallet', default_length_inches: 48, default_width_inches: 40, default_height_inches: 48, default_weight_lbs: 2500 },
+  { id: '20ft-container', name: '20ft Container', default_length_inches: 240, default_width_inches: 96, default_height_inches: 102, default_weight_lbs: 47900 },
+  { id: '40ft-container', name: '40ft Container', default_length_inches: 480, default_width_inches: 96, default_height_inches: 102, default_weight_lbs: 58000 },
+  { id: '40ft-high-cube', name: '40ft High Cube', default_length_inches: 480, default_width_inches: 96, default_height_inches: 114, default_weight_lbs: 58000 },
+  { id: 'machinery', name: 'Machinery', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+  { id: 'vehicle', name: 'Vehicle', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+  { id: 'pipe-bundle', name: 'Pipe Bundle', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+  { id: 'steel-coil', name: 'Steel Coil', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+  { id: 'construction-equipment', name: 'Construction Equipment', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+  { id: 'generator', name: 'Generator', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+  { id: 'other', name: 'Other', default_length_inches: 0, default_width_inches: 0, default_height_inches: 0, default_weight_lbs: 0 },
+]
 
 interface CargoItemCardProps {
   item: CargoItem
@@ -67,6 +85,7 @@ export function CargoItemCard({
   const [isEquipmentMode, setIsEquipmentMode] = useState(item.is_equipment || false)
   const [isCustomEquipment, setIsCustomEquipment] = useState(item.is_custom_equipment || false)
   const [selectedMakeId, setSelectedMakeId] = useState(item.equipment_make_id || '')
+  const [selectedLoadTypeId, setSelectedLoadTypeId] = useState<string>('')
 
   // Unit selection state
   const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('ft-in')
@@ -79,6 +98,97 @@ export function CargoItemCard({
     height: inchesToFtInInput(item.height_inches),
   })
   const [weightInput, setWeightInput] = useState(String(item.weight_lbs || ''))
+
+  const utils = trpc.useUtils()
+
+  // Get load types from database
+  const { data: dbLoadTypes } = trpc.inland.getLoadTypes.useQuery()
+
+  // Merge database load types with defaults
+  const loadTypes = useMemo(() => {
+    if (dbLoadTypes && dbLoadTypes.length > 0) {
+      return dbLoadTypes.map(lt => ({
+        id: lt.id,
+        name: lt.name,
+        default_length_inches: Number(lt.default_length_inches) || 0,
+        default_width_inches: Number(lt.default_width_inches) || 0,
+        default_height_inches: Number(lt.default_height_inches) || 0,
+        default_weight_lbs: Number(lt.default_weight_lbs) || 0,
+      }))
+    }
+    return DEFAULT_LOAD_TYPES
+  }, [dbLoadTypes])
+
+  // Load type options for searchable select
+  const loadTypeOptions = useMemo((): SearchableSelectOption[] => {
+    return loadTypes.map(lt => ({
+      value: lt.id,
+      label: lt.name,
+      description: lt.default_length_inches > 0
+        ? `${Math.round(lt.default_length_inches / 12)}'L × ${Math.round(lt.default_width_inches / 12)}'W × ${Math.round(lt.default_height_inches / 12)}'H`
+        : undefined,
+    }))
+  }, [loadTypes])
+
+  // Mutation to create custom load type
+  const createLoadTypeMutation = trpc.inland.createLoadType.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Load type "${data.name}" added`)
+      utils.inland.getLoadTypes.invalidate()
+      // Apply the new load type
+      if (data) {
+        setSelectedLoadTypeId(data.id)
+        onUpdate({
+          ...item,
+          description: data.name,
+        })
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to add load type: ${error.message}`)
+    },
+  })
+
+  // Handle load type selection
+  const handleLoadTypeChange = (loadTypeId: string) => {
+    setSelectedLoadTypeId(loadTypeId)
+    const selectedType = loadTypes.find(lt => lt.id === loadTypeId)
+    if (selectedType) {
+      const newLength = selectedType.default_length_inches || item.length_inches
+      const newWidth = selectedType.default_width_inches || item.width_inches
+      const newHeight = selectedType.default_height_inches || item.height_inches
+      const newWeight = selectedType.default_weight_lbs || item.weight_lbs
+
+      // Check limits with new dimensions
+      const { isOversize, isOverweight } = checkLimits(newLength, newWidth, newHeight, newWeight)
+
+      onUpdate({
+        ...item,
+        description: selectedType.name,
+        length_inches: newLength,
+        width_inches: newWidth,
+        height_inches: newHeight,
+        weight_lbs: newWeight,
+        is_oversize: isOversize,
+        is_overweight: isOverweight,
+      })
+
+      // Update dimension inputs to reflect new values
+      if (dimensionUnit === 'ft-in') {
+        setDimensionInputs({
+          length: inchesToFtInInput(newLength),
+          width: inchesToFtInInput(newWidth),
+          height: inchesToFtInInput(newHeight),
+        })
+      }
+      setWeightInput(String(newWeight || ''))
+    }
+  }
+
+  // Handle adding custom load type
+  const handleAddCustomLoadType = (name: string) => {
+    createLoadTypeMutation.mutate({ name })
+  }
 
   // Fetch makes
   const { data: makes } = trpc.equipment.getMakes.useQuery()
@@ -446,6 +556,28 @@ export function CargoItemCard({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Load Type Selector (when not in equipment mode) */}
+      {!isEquipmentMode && (
+        <div className="mb-4">
+          <Label className="text-xs flex items-center gap-1 mb-1">
+            <Box className="h-3 w-3" />
+            Load Type
+          </Label>
+          <SearchableSelect
+            value={selectedLoadTypeId}
+            onChange={handleLoadTypeChange}
+            options={loadTypeOptions}
+            placeholder="Select load type..."
+            searchPlaceholder="Search load types..."
+            className="w-full sm:w-[300px]"
+            allowCustom
+            customPlaceholder="Enter new load type name..."
+            onCustomAdd={handleAddCustomLoadType}
+            emptyMessage="No load types found"
+          />
         </div>
       )}
 

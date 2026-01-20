@@ -20,7 +20,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { trpc } from '@/lib/trpc/client'
-import { formatCurrency, parseCurrencyToCents } from '@/lib/utils'
+import { formatWholeDollars, parseWholeDollarsToCents } from '@/lib/utils'
 import { formatDimension, formatWeight, inchesToFtInInput, ftInInputToInches } from '@/lib/dimensions'
 import { LOCATIONS, COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
@@ -485,7 +485,7 @@ export function EquipmentBlockCard({
             </CollapsibleTrigger>
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold font-mono text-primary">
-                {formatCurrency(totalWithQuantity)}
+                ${formatWholeDollars(totalWithQuantity)}
               </span>
               <Button
                 variant="ghost"
@@ -695,16 +695,19 @@ export function EquipmentBlockCard({
                         className="scale-90"
                       />
                       <span className="flex-1 text-sm">{COST_LABELS[field]}</span>
-                      <Input
-                        type="text"
-                        value={formatCurrency(displayValue).replace('$', '')}
-                        onChange={(e) => {
-                          const cents = parseCurrencyToCents(e.target.value)
-                          handleOverrideCost(field, cents === baseCost ? null : cents)
-                        }}
-                        disabled={!isEnabled}
-                        className="w-28 text-right font-mono text-sm h-8"
-                      />
+                      <div className="relative w-28">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                        <Input
+                          type="text"
+                          value={formatWholeDollars(displayValue)}
+                          onChange={(e) => {
+                            const cents = parseWholeDollarsToCents(e.target.value)
+                            handleOverrideCost(field, cents === baseCost ? null : cents)
+                          }}
+                          disabled={!isEnabled}
+                          className="pl-5 text-right font-mono text-sm h-8"
+                        />
+                      </div>
                     </div>
                   )
                 })}
@@ -725,22 +728,22 @@ export function EquipmentBlockCard({
             <div className="space-y-2 pt-2 border-t text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Costs subtotal:</span>
-                <span className="font-mono">{formatCurrency(costsSubtotal)}</span>
+                <span className="font-mono">${formatWholeDollars(costsSubtotal)}</span>
               </div>
               {miscFeesTotal > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Fees:</span>
-                  <span className="font-mono">{formatCurrency(miscFeesTotal)}</span>
+                  <span className="font-mono">${formatWholeDollars(miscFeesTotal)}</span>
                 </div>
               )}
               <div className="flex justify-between font-medium">
                 <span>Unit total:</span>
-                <span className="font-mono">{formatCurrency(subtotal)}</span>
+                <span className="font-mono">${formatWholeDollars(subtotal)}</span>
               </div>
               {block.quantity > 1 && (
                 <div className="flex justify-between font-medium text-primary">
                   <span>× {block.quantity} units:</span>
-                  <span className="font-mono">{formatCurrency(totalWithQuantity)}</span>
+                  <span className="font-mono">${formatWholeDollars(totalWithQuantity)}</span>
                 </div>
               )}
             </div>

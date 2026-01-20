@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
-import { Upload, X, Loader2, ImageIcon, AlertCircle } from 'lucide-react'
+import { Upload, X, Loader2, ImageIcon, AlertCircle, ClipboardPaste } from 'lucide-react'
 
 interface ImageUploadProps {
   value?: string | null
@@ -31,18 +31,18 @@ export function ImageUpload({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   // Reset imageError when value changes
   useEffect(() => {
     setImageError(false)
   }, [value])
 
-  const handleUpload = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) return
-
+  // Core file upload function - reusable for file input, drag-drop, and paste
+  const uploadFile = useCallback(
+    async (file: File) => {
       // Validate file size
       const maxSize = maxSizeMB * 1024 * 1024
       if (file.size > maxSize) {
@@ -63,7 +63,7 @@ export function ImageUpload({
         const supabase = createClient()
 
         // Generate unique filename
-        const fileExt = file.name.split('.').pop()
+        const fileExt = file.name.split('.').pop() || 'png'
         const fileName = `${crypto.randomUUID()}.${fileExt}`
         const filePath = folder ? `${folder}/${fileName}` : fileName
 
@@ -91,14 +91,108 @@ export function ImageUpload({
         setError('Failed to upload image. Please try again.')
       } finally {
         setUploading(false)
-        // Reset input
-        if (inputRef.current) {
-          inputRef.current.value = ''
-        }
       }
     },
     [bucket, folder, maxSizeMB, onChange]
   )
+
+  const handleUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+      await uploadFile(file)
+      // Reset input
+      if (inputRef.current) {
+        inputRef.current.value = ''
+      }
+    },
+    [uploadFile]
+  )
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!disabled && !uploading) {
+      setIsDragging(true)
+    }
+  }, [disabled, uploading])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only set dragging to false if we're leaving the drop zone entirely
+    const rect = dropZoneRef.current?.getBoundingClientRect()
+    if (rect) {
+      const { clientX, clientY } = e
+      if (
+        clientX < rect.left ||
+        clientX > rect.right ||
+        clientY < rect.top ||
+        clientY > rect.bottom
+      ) {
+        setIsDragging(false)
+      }
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    if (disabled || uploading) return
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      if (file.type.startsWith('image/')) {
+        await uploadFile(file)
+      } else {
+        setError('Please drop an image file')
+      }
+    }
+  }, [disabled, uploading, uploadFile])
+
+  // Paste handler
+  const handlePaste = useCallback(async (e: ClipboardEvent) => {
+    if (disabled || uploading) return
+
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          await uploadFile(file)
+        }
+        return
+      }
+    }
+  }, [disabled, uploading, uploadFile])
+
+  // Add paste event listener when dropzone is focused/hovered
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      // Only handle paste if this component's drop zone is focused or document has no other focus
+      const activeElement = document.activeElement
+      const isInputFocused = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA'
+
+      if (!isInputFocused && !value) {
+        handlePaste(e)
+      }
+    }
+
+    // We don't add global paste listener by default - only when hovering over drop zone
+    return () => {}
+  }, [handlePaste, value])
 
   const handleRemove = useCallback(async () => {
     if (!value) return
@@ -205,14 +299,29 @@ export function ImageUpload({
           )}
         </div>
       ) : (
-        <button
-          type="button"
+        <div
+          ref={dropZoneRef}
           onClick={() => inputRef.current?.click()}
-          disabled={disabled || uploading}
-          className="flex flex-col items-center justify-center w-full aspect-video rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors bg-muted/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onPaste={(e) => handlePaste(e.nativeEvent)}
+          tabIndex={0}
+          role="button"
+          className={`flex flex-col items-center justify-center w-full aspect-video rounded-lg border-2 border-dashed transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+            isDragging
+              ? 'border-primary bg-primary/10'
+              : 'border-muted-foreground/25 hover:border-muted-foreground/50 bg-muted/30'
+          } ${disabled || uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {uploading ? (
             <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+          ) : isDragging ? (
+            <>
+              <Upload className="h-8 w-8 text-primary mb-2" />
+              <span className="text-sm text-primary font-medium">Drop image here</span>
+            </>
           ) : (
             <>
               <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
@@ -220,9 +329,13 @@ export function ImageUpload({
                 <Upload className="h-3 w-3" />
                 {label}
               </span>
+              <span className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
+                <ClipboardPaste className="h-3 w-3" />
+                Drop, paste, or click
+              </span>
             </>
           )}
-        </button>
+        </div>
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}

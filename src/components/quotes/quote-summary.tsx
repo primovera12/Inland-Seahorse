@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { formatCurrency } from '@/lib/utils'
+import { formatWholeDollars } from '@/lib/utils'
 import type { LocationName } from '@/types/equipment'
 import type { EquipmentBlock } from '@/types/quotes'
 
@@ -55,7 +55,7 @@ export function QuoteSummary({
                     </p>
                   </div>
                   <span className="font-mono text-sm">
-                    {formatCurrency(block.total_with_quantity)}
+                    ${formatWholeDollars(block.total_with_quantity)}
                   </span>
                 </div>
               </div>
@@ -85,24 +85,24 @@ export function QuoteSummary({
           {costsSubtotal !== undefined && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Equipment Costs</span>
-              <span className="font-mono">{formatCurrency(costsSubtotal)}</span>
+              <span className="font-mono">${formatWholeDollars(costsSubtotal)}</span>
             </div>
           )}
           {miscFeesTotal !== undefined && miscFeesTotal > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Fees</span>
-              <span className="font-mono">{formatCurrency(miscFeesTotal)}</span>
+              <span className="font-mono">${formatWholeDollars(miscFeesTotal)}</span>
             </div>
           )}
           {inlandTransportCost !== undefined && inlandTransportCost > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Inland Transport</span>
-              <span className="font-mono">{formatCurrency(inlandTransportCost)}</span>
+              <span className="font-mono">${formatWholeDollars(inlandTransportCost)}</span>
             </div>
           )}
           <div className="flex justify-between text-sm font-medium pt-1 border-t">
             <span className="text-muted-foreground">Subtotal</span>
-            <span className="font-mono">{formatCurrency(subtotal)}</span>
+            <span className="font-mono">${formatWholeDollars(subtotal)}</span>
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export function QuoteSummary({
         <div className="flex justify-between items-center">
           <span className="font-medium">Total</span>
           <span className="text-2xl font-bold font-mono text-primary">
-            {formatCurrency(total)}
+            ${formatWholeDollars(total)}
           </span>
         </div>
       </CardContent>

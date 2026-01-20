@@ -23,9 +23,11 @@ import type {
   AccessorialBillingUnit,
   InlandEquipmentType,
 } from '@/types/inland'
-import { formatCurrency, parseCurrencyToCents } from '@/lib/utils'
+import { formatCurrency, parseCurrencyToCents, formatWholeDollars, parseWholeDollarsToCents } from '@/lib/utils'
 import { CargoItemCard } from './cargo-item-card'
 import { recommendTruckType, type TruckRecommendation } from '@/lib/truck-recommendation'
+import { trpc } from '@/lib/trpc/client'
+import { toast } from 'sonner'
 
 const BILLING_UNIT_LABELS: Record<AccessorialBillingUnit, string> = {
   flat: 'Flat',
@@ -91,6 +93,41 @@ export function LoadBlockCard({
   equipmentTypes,
   distanceMiles,
 }: LoadBlockCardProps) {
+  const utils = trpc.useUtils()
+
+  // Mutation to create new truck type
+  const createTruckTypeMutation = trpc.inland.createEquipmentType.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Truck type "${data.name}" added`)
+      // Invalidate truck types cache to refetch
+      utils.inland.getEquipmentTypes.invalidate()
+      // Select the newly created truck type
+      if (data) {
+        onUpdate({
+          ...loadBlock,
+          truck_type_id: data.id,
+          truck_type_name: data.name,
+        })
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to add truck type: ${error.message}`)
+    },
+  })
+
+  // Handle adding custom truck type
+  const handleAddCustomTruckType = (name: string) => {
+    createTruckTypeMutation.mutate({
+      name,
+      // Default dimensions for a standard flatbed
+      max_length_inches: 53 * 12, // 53 feet
+      max_width_inches: 102, // 8.5 feet
+      max_height_inches: 13.5 * 12, // 13.5 feet
+      max_weight_lbs: 48000, // Standard flatbed weight capacity
+      base_rate_cents: 0,
+    })
+  }
+
   // Calculate truck recommendation based on cargo
   const recommendation = useMemo((): TruckRecommendation | null => {
     if (loadBlock.cargo_items.length === 0) return null
@@ -445,6 +482,9 @@ export function LoadBlockCard({
             placeholder="Select truck type"
             searchPlaceholder="Search trucks..."
             className="w-full sm:w-[250px]"
+            allowCustom
+            customPlaceholder="Enter new truck type name..."
+            onCustomAdd={handleAddCustomTruckType}
           />
         </div>
 
@@ -503,14 +543,17 @@ export function LoadBlockCard({
                   onChange={(e) => updateServiceItem(index, 'quantity', e.target.value)}
                   placeholder="Qty"
                 />
-                <Input
-                  className="w-24 sm:w-28 text-right font-mono"
-                  placeholder="$0.00"
-                  value={formatCurrency(service.rate).replace('$', '')}
-                  onChange={(e) => updateServiceItem(index, 'rate', e.target.value)}
-                />
+                <div className="relative w-24 sm:w-28">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    className="pl-5 text-right font-mono"
+                    placeholder="0"
+                    value={formatWholeDollars(service.rate)}
+                    onChange={(e) => updateServiceItem(index, 'rate', parseWholeDollarsToCents(e.target.value))}
+                  />
+                </div>
                 <span className="w-20 sm:w-24 text-right font-mono text-sm">
-                  {formatCurrency(service.total)}
+                  ${formatWholeDollars(service.total)}
                 </span>
                 <Button
                   variant="ghost"
@@ -577,13 +620,16 @@ export function LoadBlockCard({
                       <SelectItem value="stop">/stop</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    className="w-20 sm:w-24 text-right font-mono"
-                    value={formatCurrency(charge.rate).replace('$', '')}
-                    onChange={(e) => updateAccessorial(index, 'rate', e.target.value)}
-                  />
+                  <div className="relative w-20 sm:w-24">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input
+                      className="pl-5 text-right font-mono"
+                      value={formatWholeDollars(charge.rate)}
+                      onChange={(e) => updateAccessorial(index, 'rate', parseWholeDollarsToCents(e.target.value))}
+                    />
+                  </div>
                   <span className="w-16 sm:w-20 text-right font-mono text-sm">
-                    {formatCurrency(charge.total)}
+                    ${formatWholeDollars(charge.total)}
                   </span>
                   <Button
                     variant="ghost"
