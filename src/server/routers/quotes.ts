@@ -300,7 +300,7 @@ export const quotesRouter = router({
 
       // Record status change in history
       if (currentQuote?.status !== input.status) {
-        await ctx.supabase.from('quote_status_history').insert({
+        const { error: historyError } = await ctx.supabase.from('quote_status_history').insert({
           quote_id: input.id,
           quote_type: 'dismantle',
           previous_status: currentQuote?.status || null,
@@ -309,6 +309,11 @@ export const quotesRouter = router({
           changed_by_name: changedByName,
           notes: input.notes,
         })
+
+        // Log but don't fail the request if history insert fails
+        if (historyError) {
+          console.error('Failed to record status history:', historyError)
+        }
 
         // Send email notification for important status changes
         if (['accepted', 'rejected'].includes(input.status) && currentQuote?.customer_email) {

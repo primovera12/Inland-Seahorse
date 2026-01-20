@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, Plus, Truck, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -43,6 +44,20 @@ export function Header({ user }: HeaderProps) {
     <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background px-4">
       <SidebarTrigger />
       <div className="flex-1" />
+      <div className="flex gap-2">
+        <Link href="/quotes/new">
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            New Dismantle Quote
+          </Button>
+        </Link>
+        <Link href="/inland/new">
+          <Button size="sm" variant="outline">
+            <Truck className="h-4 w-4 mr-2" />
+            Inland Quote
+          </Button>
+        </Link>
+      </div>
       <ThemeToggle />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

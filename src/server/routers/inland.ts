@@ -431,7 +431,7 @@ export const inlandRouter = router({
 
       // Record status change in history
       if (currentQuote?.status !== input.status) {
-        await ctx.supabase.from('quote_status_history').insert({
+        const { error: historyError } = await ctx.supabase.from('quote_status_history').insert({
           quote_id: input.id,
           quote_type: 'inland',
           previous_status: currentQuote?.status || null,
@@ -440,6 +440,11 @@ export const inlandRouter = router({
           changed_by_name: changedByName,
           notes: input.notes,
         })
+
+        // Log but don't fail the request if history insert fails
+        if (historyError) {
+          console.error('Failed to record status history:', historyError)
+        }
       }
 
       return data

@@ -101,6 +101,14 @@ export function checkSupabaseError(
     return false
   }
 
+  // Log full error details in development for debugging
+  console.error(`[Supabase Error] ${context || 'Unknown context'}:`, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  })
+
   handleSupabaseError(error, context)
 }
 
