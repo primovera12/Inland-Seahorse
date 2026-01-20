@@ -412,7 +412,7 @@ export const inlandRouter = router({
           user_id: ctx.user.id,
           activity_type: 'inland_quote_created',
           subject: `Inland Quote ${data.quote_number} created`,
-          description: `Created inland transport quote: ${input.origin_city}, ${input.origin_state} → ${input.destination_city}, ${input.destination_state}`,
+          description: `Created inland transport quote for ${input.customer_name}`,
           related_inland_quote_id: data.id,
           metadata: { status: 'draft', total: input.total, customer_name: input.customer_name },
         })
@@ -430,13 +430,6 @@ export const inlandRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Get the current quote for logging
-      const { data: currentQuote } = await ctx.supabase
-        .from('inland_quotes')
-        .select('quote_number, company_id, origin_city, origin_state, destination_city, destination_state')
-        .eq('id', input.id)
-        .single()
-
       const { data, error } = await ctx.supabase
         .from('inland_quotes')
         .update(input.data)
@@ -453,7 +446,7 @@ export const inlandRouter = router({
           user_id: ctx.user.id,
           activity_type: 'inland_quote_updated',
           subject: `Inland Quote ${data.quote_number} updated`,
-          description: `Updated inland transport quote: ${data.origin_city || currentQuote?.origin_city}, ${data.origin_state || currentQuote?.origin_state} → ${data.destination_city || currentQuote?.destination_city}, ${data.destination_state || currentQuote?.destination_state}`,
+          description: `Updated inland transport quote for ${data.customer_name}`,
           related_inland_quote_id: data.id,
           metadata: { updated_fields: Object.keys(input.data) },
         })
@@ -469,7 +462,7 @@ export const inlandRouter = router({
       // Get quote info before deletion for logging
       const { data: quoteToDelete } = await ctx.supabase
         .from('inland_quotes')
-        .select('quote_number, company_id, origin_city, origin_state, destination_city, destination_state, customer_name')
+        .select('quote_number, company_id, customer_name')
         .eq('id', input.id)
         .single()
 
@@ -487,7 +480,7 @@ export const inlandRouter = router({
           user_id: ctx.user.id,
           activity_type: 'inland_quote_deleted',
           subject: `Inland Quote ${quoteToDelete.quote_number} deleted`,
-          description: `Deleted inland transport quote: ${quoteToDelete.origin_city}, ${quoteToDelete.origin_state} → ${quoteToDelete.destination_city}, ${quoteToDelete.destination_state}`,
+          description: `Deleted inland transport quote for ${quoteToDelete.customer_name}`,
           metadata: { customer_name: quoteToDelete.customer_name },
         })
       }
