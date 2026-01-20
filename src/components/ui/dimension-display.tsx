@@ -27,19 +27,20 @@ interface DimensionDisplayProps {
 
 const UNIT_LABELS: Record<DimensionUnit, string> = {
   inches: 'in',
-  feet: 'ft',
+  'ft-in': 'ft-in',
   cm: 'cm',
+  mm: 'mm',
   meters: 'm',
 }
 
-const UNIT_CYCLE: DimensionUnit[] = ['feet', 'inches', 'cm', 'meters']
+const UNIT_CYCLE: DimensionUnit[] = ['ft-in', 'inches', 'cm', 'mm', 'meters']
 
 export function DimensionDisplay({
   inches,
   className = '',
   showDual = true,
   showToggle = false,
-  defaultUnit = 'feet',
+  defaultUnit = 'ft-in',
   size = 'md',
 }: DimensionDisplayProps) {
   const [unit, setUnit] = useState<DimensionUnit>(defaultUnit)
