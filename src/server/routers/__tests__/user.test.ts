@@ -324,6 +324,24 @@ describe('User Router', () => {
   })
 
   describe('inviteTeamMember', () => {
+    it('throws FORBIDDEN when member tries to invite', async () => {
+      const memberUser = createMockUser({ id: TEST_UUID.member, role: 'member' })
+
+      const ctx = createTestContext(memberUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.inviteTeamMember({
+          email: 'newuser@example.com',
+          first_name: 'New',
+          last_name: 'User',
+          role: 'member',
+        })
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    })
+
     it('creates a new user with invited status', async () => {
       const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
 
@@ -395,6 +413,39 @@ describe('User Router', () => {
   })
 
   describe('updateRole', () => {
+    it('throws FORBIDDEN when member tries to update role', async () => {
+      const memberUser = createMockUser({ id: TEST_UUID.member, role: 'member' })
+
+      const ctx = createTestContext(memberUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.updateRole({
+          userId: TEST_UUID.otherUser,
+          role: 'admin',
+        })
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    })
+
+    it('throws BAD_REQUEST when admin tries to change own role', async () => {
+      const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
+
+      const ctx = createTestContext(adminUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.updateRole({
+          userId: TEST_UUID.admin, // Same as current user
+          role: 'member',
+        })
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'Cannot change your own role',
+      })
+    })
+
     it('updates user role', async () => {
       const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
 
@@ -427,6 +478,39 @@ describe('User Router', () => {
   })
 
   describe('updateStatus', () => {
+    it('throws FORBIDDEN when member tries to update status', async () => {
+      const memberUser = createMockUser({ id: TEST_UUID.member, role: 'member' })
+
+      const ctx = createTestContext(memberUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.updateStatus({
+          userId: TEST_UUID.otherUser,
+          status: 'inactive',
+        })
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    })
+
+    it('throws BAD_REQUEST when admin tries to deactivate self', async () => {
+      const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
+
+      const ctx = createTestContext(adminUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.updateStatus({
+          userId: TEST_UUID.admin, // Same as current user
+          status: 'inactive',
+        })
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'Cannot deactivate your own account',
+      })
+    })
+
     it('updates user status', async () => {
       const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
 
@@ -458,6 +542,33 @@ describe('User Router', () => {
   })
 
   describe('removeTeamMember', () => {
+    it('throws FORBIDDEN when member tries to remove team member', async () => {
+      const memberUser = createMockUser({ id: TEST_UUID.member, role: 'member' })
+
+      const ctx = createTestContext(memberUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.removeTeamMember({ userId: TEST_UUID.otherUser })
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    })
+
+    it('throws BAD_REQUEST when admin tries to delete self', async () => {
+      const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
+
+      const ctx = createTestContext(adminUser)
+      const caller = createCaller(ctx)
+
+      await expect(
+        caller.removeTeamMember({ userId: TEST_UUID.admin }) // Same as current user
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'Cannot delete your own account',
+      })
+    })
+
     it('removes a team member', async () => {
       const adminUser = createMockUser({ id: TEST_UUID.admin, role: 'admin' })
 

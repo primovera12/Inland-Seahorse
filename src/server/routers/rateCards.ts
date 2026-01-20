@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, managerProcedure } from '../trpc/trpc'
 import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 const rateDataSchema = z.object({
@@ -80,8 +80,8 @@ export const rateCardsRouter = router({
       return data || null
     }),
 
-  // Create a rate card
-  create: protectedProcedure
+  // Create a rate card - Manager or Admin only
+  create: managerProcedure
     .input(z.object({
       company_id: z.string().uuid(),
       rate_type: z.enum(['dismantle', 'inland']),
@@ -115,8 +115,8 @@ export const rateCardsRouter = router({
       return data
     }),
 
-  // Update a rate card
-  update: protectedProcedure
+  // Update a rate card - Manager or Admin only
+  update: managerProcedure
     .input(z.object({
       id: z.string().uuid(),
       name: z.string().min(1).optional(),
@@ -160,8 +160,8 @@ export const rateCardsRouter = router({
       return data
     }),
 
-  // Delete a rate card
-  delete: protectedProcedure
+  // Delete a rate card - Manager or Admin only
+  delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase
@@ -173,8 +173,8 @@ export const rateCardsRouter = router({
       return { success: true }
     }),
 
-  // Duplicate a rate card
-  duplicate: protectedProcedure
+  // Duplicate a rate card - Manager or Admin only
+  duplicate: managerProcedure
     .input(z.object({
       id: z.string().uuid(),
       newCompanyId: z.string().uuid().optional(),

@@ -122,7 +122,8 @@ export function EquipmentBlockCard({
   )
 
   // Fetch dimensions when model changes
-  const { data: dimensions, isLoading: dimensionsLoading } = trpc.equipment.getDimensions.useQuery(
+  // Use isFetching instead of isLoading because isLoading is only true when there's no cached data
+  const { data: dimensions, isFetching: dimensionsFetching } = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId },
     { enabled: !!selectedModelId }
   )
@@ -285,7 +286,7 @@ export function EquipmentBlockCard({
   // Update dimensions when model changes - uses refs to avoid stale closure
   // Also clears dimensions when switching to a model without dimensions
   useEffect(() => {
-    if (selectedModelId && !dimensionsLoading) {
+    if (selectedModelId && !dimensionsFetching) {
       onUpdateRef.current({
         ...blockRef.current,
         length_inches: dimensions?.length_inches ?? 0,
@@ -294,12 +295,12 @@ export function EquipmentBlockCard({
         weight_lbs: dimensions?.weight_lbs ?? 0,
       })
     }
-  }, [dimensions, selectedModelId, dimensionsLoading])
+  }, [dimensions, selectedModelId, dimensionsFetching])
 
   // Sync images from dimensions when model changes
   // Also clears images when switching to a model without dimensions
   useEffect(() => {
-    if (selectedModelId && !dimensionsLoading) {
+    if (selectedModelId && !dimensionsFetching) {
       setFrontImageUrl(dimensions?.front_image_url || null)
       setSideImageUrl(dimensions?.side_image_url || null)
       // Also update block with image URLs
@@ -309,7 +310,7 @@ export function EquipmentBlockCard({
         side_image_url: dimensions?.side_image_url || undefined,
       })
     }
-  }, [dimensions, selectedModelId, dimensionsLoading])
+  }, [dimensions, selectedModelId, dimensionsFetching])
 
   // Handle front image change
   const handleFrontImageChange = async (url: string | null) => {

@@ -95,6 +95,30 @@ const isAdmin = middleware(async ({ ctx, next }) => {
 
 export const adminProcedure = t.procedure.use(isAdmin)
 
+// Middleware to require manager role or higher (manager, admin, super_admin, owner)
+const isManager = middleware(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' })
+  }
+
+  const managerRoles = ['manager', 'admin', 'super_admin', 'owner']
+  if (!managerRoles.includes(ctx.user.role)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Manager access required',
+    })
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+    },
+  })
+})
+
+export const managerProcedure = t.procedure.use(isManager)
+
 // Rate limiting middleware factory for public procedures
 const createPublicRateLimiter = (config: RateLimitConfig) =>
   middleware(async ({ ctx, next }) => {

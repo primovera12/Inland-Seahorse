@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure, publicProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, publicProcedure, managerProcedure } from '../trpc/trpc'
 import { generateQuoteNumber } from '@/lib/utils'
 import { Resend } from 'resend'
 import { checkSupabaseError, assertDataExists } from '@/lib/errors'
@@ -225,8 +225,8 @@ export const quotesRouter = router({
       return data
     }),
 
-  // Delete quote
-  delete: protectedProcedure
+  // Delete quote - Manager or Admin only
+  delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase
@@ -1068,8 +1068,8 @@ export const quotesRouter = router({
       return { success: true, updated: input.ids.length }
     }),
 
-  // Batch delete quotes
-  batchDelete: protectedProcedure
+  // Batch delete quotes - Manager or Admin only
+  batchDelete: managerProcedure
     .input(
       z.object({
         ids: z.array(z.string().uuid()).min(1).max(100),

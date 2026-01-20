@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, managerProcedure } from '../trpc/trpc'
 import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
 export const companiesRouter = router({
@@ -188,8 +188,8 @@ export const companiesRouter = router({
       return data
     }),
 
-  // Delete company (cascades to contacts)
-  delete: protectedProcedure
+  // Delete company (cascades to contacts) - Manager or Admin only
+  delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase
@@ -301,8 +301,8 @@ export const contactsRouter = router({
       return data
     }),
 
-  // Delete contact
-  delete: protectedProcedure
+  // Delete contact - Manager or Admin only
+  delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase

@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { router, protectedProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, adminProcedure } from '../trpc/trpc'
 import { checkSupabaseError } from '@/lib/errors'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TRPCError } from '@trpc/server'
 
 const roleSchema = z.enum(['admin', 'manager', 'member', 'viewer'])
 
@@ -57,8 +58,8 @@ export const userRouter = router({
       return { users: data, total: count }
     }),
 
-  // Invite new team member (creates with 'invited' status)
-  inviteTeamMember: protectedProcedure
+  // Invite new team member (creates with 'invited' status) - Admin only
+  inviteTeamMember: adminProcedure
     .input(
       z.object({
         email: z.string().email(),
@@ -85,8 +86,8 @@ export const userRouter = router({
       return data
     }),
 
-  // Create new team member directly (with 'active' status, no email invite)
-  createTeamMember: protectedProcedure
+  // Create new team member directly (with 'active' status, no email invite) - Admin only
+  createTeamMember: adminProcedure
     .input(
       z.object({
         email: z.string().email(),
@@ -138,8 +139,8 @@ export const userRouter = router({
       return data
     }),
 
-  // Update team member details
-  updateTeamMember: protectedProcedure
+  // Update team member details - Admin only
+  updateTeamMember: adminProcedure
     .input(
       z.object({
         userId: z.string().uuid(),
@@ -169,8 +170,8 @@ export const userRouter = router({
       return data
     }),
 
-  // Update team member role
-  updateRole: protectedProcedure
+  // Update team member role - Admin only
+  updateRole: adminProcedure
     .input(
       z.object({
         userId: z.string().uuid(),
@@ -178,6 +179,14 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Prevent admins from changing their own role
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Cannot change your own role',
+        })
+      }
+
       // Use admin client to bypass RLS for team management operations
       const adminClient = createAdminClient()
       const { data, error } = await adminClient
@@ -191,8 +200,8 @@ export const userRouter = router({
       return data
     }),
 
-  // Update team member status
-  updateStatus: protectedProcedure
+  // Update team member status - Admin only
+  updateStatus: adminProcedure
     .input(
       z.object({
         userId: z.string().uuid(),
@@ -200,6 +209,14 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Prevent admins from deactivating themselves
+      if (input.userId === ctx.user.id && input.status === 'inactive') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Cannot deactivate your own account',
+        })
+      }
+
       // Use admin client to bypass RLS for team management operations
       const adminClient = createAdminClient()
       const { data, error } = await adminClient
@@ -213,10 +230,18 @@ export const userRouter = router({
       return data
     }),
 
-  // Remove team member
-  removeTeamMember: protectedProcedure
+  // Remove team member - Admin only
+  removeTeamMember: adminProcedure
     .input(z.object({ userId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Prevent admins from deleting themselves
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Cannot delete your own account',
+        })
+      }
+
       // Use admin client to bypass RLS for team management operations
       const adminClient = createAdminClient()
       const { error } = await adminClient
