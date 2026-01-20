@@ -26,11 +26,8 @@ import {
   Receipt,
   Lightbulb,
   AlertTriangle,
-  Ruler,
-  Scale,
 } from 'lucide-react'
 import { formatCurrency, parseWholeDollarsToCents, formatWholeDollars } from '@/lib/utils'
-import { formatDimension, formatWeight, parseDimensionFromUnit, type DimensionUnit, type WeightUnit } from '@/lib/dimensions'
 import { trpc } from '@/lib/trpc/client'
 import { recommendTruckType, type TruckRecommendation } from '@/lib/truck-recommendation'
 import type { InlandEquipmentType } from '@/types/inland'
@@ -165,22 +162,6 @@ const BILLING_UNITS = [
   { value: 'stop', label: '/Stop' },
 ]
 
-// Dimension unit options
-const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
-  { value: 'ft-in', label: 'ft-in' },
-  { value: 'inches', label: 'in' },
-  { value: 'cm', label: 'cm' },
-  { value: 'mm', label: 'mm' },
-  { value: 'meters', label: 'm' },
-]
-
-// Weight unit options
-const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
-  { value: 'lbs', label: 'lbs' },
-  { value: 'kg', label: 'kg' },
-  { value: 'ton', label: 'ton' },
-]
-
 export const initialInlandTransportData: InlandTransportData = {
   enabled: false,
   pickup_address: '',
@@ -200,8 +181,6 @@ export const initialInlandTransportData: InlandTransportData = {
 export function InlandTransportForm({ data, onChange, equipmentDimensions }: InlandTransportFormProps) {
   const [serviceTypes, setServiceTypes] = useState<SearchableSelectOption[]>(DEFAULT_SERVICE_TYPES)
   const [accessorialTypes, setAccessorialTypes] = useState<SearchableSelectOption[]>(DEFAULT_ACCESSORIAL_TYPES)
-  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('ft-in')
-  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs')
 
   // Fetch truck types from API
   const { data: truckTypesData } = trpc.inland.getEquipmentTypes.useQuery(undefined, {
@@ -708,40 +687,6 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
           </div>
 
           <Separator />
-
-          {/* Unit Selectors */}
-          <div className="flex items-center justify-end gap-3">
-            <div className="flex items-center gap-2">
-              <Ruler className="h-4 w-4 text-muted-foreground" />
-              <Select value={dimensionUnit} onValueChange={(v) => setDimensionUnit(v as DimensionUnit)}>
-                <SelectTrigger className="w-20 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DIMENSION_UNITS.map((unit) => (
-                    <SelectItem key={unit.value} value={unit.value}>
-                      {unit.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Scale className="h-4 w-4 text-muted-foreground" />
-              <Select value={weightUnit} onValueChange={(v) => setWeightUnit(v as WeightUnit)}>
-                <SelectTrigger className="w-16 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEIGHT_UNITS.map((unit) => (
-                    <SelectItem key={unit.value} value={unit.value}>
-                      {unit.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
           {/* Truck Type Recommendation Banner - Always show when there's equipment dimensions */}
           {truckRecommendation && data.load_blocks.length > 0 && (
