@@ -29,6 +29,7 @@ export const settingsRouter = router({
       z.object({
         company_name: z.string().optional(),
         company_logo_url: z.string().url().nullable().or(z.literal('')).transform(val => val === '' ? null : val).optional(),
+        favicon_url: z.string().url().nullable().or(z.literal('')).transform(val => val === '' ? null : val).optional(),
         logo_size_percentage: z.number().min(10).max(100).optional(),
         company_address: z.string().optional(),
         company_city: z.string().optional(),

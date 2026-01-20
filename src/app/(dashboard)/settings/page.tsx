@@ -26,6 +26,7 @@ type SettingsState = {
   company_email: string
   company_website: string
   company_logo_url: string | null
+  favicon_url: string | null
   logo_size_percentage: number
   primary_color: string
   secondary_color: string | null
@@ -47,6 +48,7 @@ const defaultSettings: SettingsState = {
   company_email: '',
   company_website: '',
   company_logo_url: null,
+  favicon_url: null,
   logo_size_percentage: 100,
   primary_color: '#6366F1',
   secondary_color: null,
@@ -77,6 +79,7 @@ export default function SettingsPage() {
     company_email: savedSettings.company_email || defaultSettings.company_email,
     company_website: savedSettings.company_website || defaultSettings.company_website,
     company_logo_url: savedSettings.company_logo_url || defaultSettings.company_logo_url,
+    favicon_url: savedSettings.favicon_url || defaultSettings.favicon_url,
     logo_size_percentage: savedSettings.logo_size_percentage || defaultSettings.logo_size_percentage,
     primary_color: savedSettings.primary_color || defaultSettings.primary_color,
     secondary_color: savedSettings.secondary_color || defaultSettings.secondary_color,
@@ -123,6 +126,7 @@ export default function SettingsPage() {
       company_email: settings.company_email || undefined,
       company_website: settings.company_website,
       company_logo_url: settings.company_logo_url,
+      favicon_url: settings.favicon_url,
       logo_size_percentage: settings.logo_size_percentage,
       primary_color: settings.primary_color,
       secondary_color: settings.secondary_color,
@@ -278,6 +282,36 @@ export default function SettingsPage() {
                 </p>
               </div>
             )}
+
+            <Separator />
+
+            {/* Favicon */}
+            <div className="space-y-2">
+              <Label>Favicon (Browser Tab Icon)</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Upload a custom icon to display in browser tabs. Recommended: square image, 32x32px or larger.
+              </p>
+              <ImageUpload
+                value={settings.favicon_url}
+                onChange={(url) => setSettings({ ...settings, favicon_url: url })}
+                bucket="company-assets"
+                folder="favicons"
+                label="Upload Favicon"
+                maxSizeMB={1}
+              />
+              {settings.favicon_url && (
+                <div className="flex items-center gap-2 mt-2 p-2 rounded border bg-muted/50">
+                  <Image
+                    src={settings.favicon_url}
+                    alt="Favicon preview"
+                    width={32}
+                    height={32}
+                    className="rounded"
+                  />
+                  <span className="text-xs text-muted-foreground">Preview at actual size (32x32)</span>
+                </div>
+              )}
+            </div>
 
             <Separator />
 

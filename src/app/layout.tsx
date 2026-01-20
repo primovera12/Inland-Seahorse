@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { TRPCProvider } from "@/lib/trpc/provider"
+import { DynamicFavicon } from "@/components/dynamic-favicon"
 import "./globals.css"
 
 const inter = Inter({
@@ -37,6 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TRPCProvider>
+            <DynamicFavicon />
             {children}
             <Toaster />
           </TRPCProvider>
