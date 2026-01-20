@@ -438,6 +438,7 @@ export default function InlandHistoryPage() {
                             {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
                           </DropdownMenuItem>
                           <ShareLinkMenuItem quoteId={quote.id} />
+                          <DownloadQuoteMenuItem quoteId={quote.id} />
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                           {quote.status === 'draft' && (
@@ -626,6 +627,7 @@ export default function InlandHistoryPage() {
                                 {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
                               </DropdownMenuItem>
                               <ShareLinkMenuItem quoteId={quote.id} />
+                              <DownloadQuoteMenuItem quoteId={quote.id} />
                               <DropdownMenuItem asChild>
                                 <Link href={`/inland/${quote.id}/versions`}>
                                   <GitCompare className="h-4 w-4 mr-2" />
@@ -767,6 +769,288 @@ function ShareLinkMenuItem({ quoteId }: { quoteId: string }) {
     <DropdownMenuItem onClick={copyShareLink} disabled={isLoading}>
       <Link2 className="h-4 w-4 mr-2" />
       {isLoading ? 'Loading...' : 'Copy Share Link'}
+    </DropdownMenuItem>
+  )
+}
+
+function DownloadQuoteMenuItem({ quoteId }: { quoteId: string }) {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const { refetch } = trpc.inland.getForDownload.useQuery(
+    { id: quoteId },
+    { enabled: false }
+  )
+
+  const downloadQuote = async () => {
+    setIsDownloading(true)
+    try {
+      const { data: quote } = await refetch()
+      if (!quote || !quote.company_settings) {
+        toast.error('Failed to load quote data')
+        return
+      }
+
+      const settings = quote.company_settings
+      const quoteData = quote.quote_data as Record<string, unknown> | null
+
+      // Import PDF utilities
+      const { settingsToCompanyInfo } = await import('@/lib/pdf')
+      type InlandTransportInfo = {
+        enabled: boolean
+        pickup?: { address: string; city: string; state: string; zip: string }
+        dropoff?: { address: string; city: string; state: string; zip: string }
+        distance_miles?: number
+        static_map_url?: string
+        total?: number
+        accessorials_total?: number
+        destinationBlocks?: Array<{
+          id: string
+          label: string
+          pickup_address: string
+          pickup_city: string
+          pickup_state: string
+          pickup_zip: string
+          dropoff_address: string
+          dropoff_city: string
+          dropoff_state: string
+          dropoff_zip: string
+          distance_miles?: number
+          static_map_url?: string
+          load_blocks: Array<{
+            id: string
+            truck_type_id: string
+            truck_type_name: string
+            cargo_items: Array<{
+              id: string
+              description: string
+              quantity: number
+              length_inches: number
+              width_inches: number
+              height_inches: number
+              weight_lbs: number
+              is_oversize?: boolean
+              is_overweight?: boolean
+              is_equipment?: boolean
+              equipment_make_name?: string
+              equipment_model_name?: string
+              custom_make_name?: string
+              custom_model_name?: string
+              image_url?: string
+              front_image_url?: string
+              side_image_url?: string
+            }>
+            service_items: Array<{
+              id: string
+              name: string
+              rate: number
+              quantity: number
+              total: number
+            }>
+            accessorial_charges: Array<{
+              id: string
+              name: string
+              billing_unit: string
+              rate: number
+              quantity: number
+              total: number
+            }>
+            subtotal: number
+            accessorials_total: number
+          }>
+          subtotal: number
+          accessorials_total?: number
+        }>
+      }
+
+      // Build company info from settings
+      const companyInfo = settingsToCompanyInfo({
+        company_name: settings.company_name || 'Company',
+        company_logo_url: settings.company_logo_url,
+        logo_size_percentage: settings.logo_size_percentage,
+        company_address: settings.company_address,
+        company_city: settings.company_city,
+        company_state: settings.company_state,
+        company_zip: settings.company_zip,
+        company_phone: settings.company_phone,
+        company_email: settings.company_email,
+        company_website: settings.company_website,
+        primary_color: settings.primary_color,
+        secondary_color: settings.secondary_color,
+      })
+
+      // Parse destination blocks from quote_data
+      const destinationBlocks = quoteData?.destinationBlocks as Array<{
+        id: string
+        label: string
+        pickup_address: string
+        pickup_city: string
+        pickup_state: string
+        pickup_zip: string
+        dropoff_address: string
+        dropoff_city: string
+        dropoff_state: string
+        dropoff_zip: string
+        distance_miles?: number
+        static_map_url?: string
+        load_blocks: Array<{
+          id: string
+          truck_type_id: string
+          truck_type_name: string
+          cargo_items?: Array<{
+            id: string
+            description: string
+            quantity: number
+            length_inches: number
+            width_inches: number
+            height_inches: number
+            weight_lbs: number
+            is_oversize?: boolean
+            is_overweight?: boolean
+            is_equipment?: boolean
+            equipment_make_name?: string
+            equipment_model_name?: string
+            custom_make_name?: string
+            custom_model_name?: string
+            image_url?: string
+            front_image_url?: string
+            side_image_url?: string
+          }>
+          service_items: Array<{
+            id: string
+            name: string
+            rate: number
+            quantity: number
+            total: number
+          }>
+          accessorial_charges: Array<{
+            id: string
+            name: string
+            billing_unit: string
+            rate: number
+            quantity: number
+            total: number
+          }>
+          subtotal: number
+          accessorials_total?: number
+        }>
+        subtotal: number
+        accessorials_total?: number
+      }> | undefined
+
+      // Build inland transport info
+      const inlandTransport: InlandTransportInfo = {
+        enabled: true,
+        pickup: {
+          address: (quote as { origin_address?: string }).origin_address || '',
+          city: (quote as { origin_city?: string }).origin_city || '',
+          state: (quote as { origin_state?: string }).origin_state || '',
+          zip: (quote as { origin_zip?: string }).origin_zip || '',
+        },
+        dropoff: {
+          address: (quote as { destination_address?: string }).destination_address || '',
+          city: (quote as { destination_city?: string }).destination_city || '',
+          state: (quote as { destination_state?: string }).destination_state || '',
+          zip: (quote as { destination_zip?: string }).destination_zip || '',
+        },
+        distance_miles: (quote as { distance_miles?: number }).distance_miles,
+        static_map_url: quoteData?.static_map_url as string | undefined,
+        total: quote.total || 0,
+        accessorials_total: quoteData?.accessorials_total as number | undefined,
+        destinationBlocks: destinationBlocks?.map(dest => ({
+          id: dest.id,
+          label: dest.label,
+          pickup_address: dest.pickup_address,
+          pickup_city: dest.pickup_city,
+          pickup_state: dest.pickup_state,
+          pickup_zip: dest.pickup_zip,
+          dropoff_address: dest.dropoff_address,
+          dropoff_city: dest.dropoff_city,
+          dropoff_state: dest.dropoff_state,
+          dropoff_zip: dest.dropoff_zip,
+          distance_miles: dest.distance_miles,
+          static_map_url: dest.static_map_url,
+          load_blocks: dest.load_blocks.map(lb => ({
+            id: lb.id,
+            truck_type_id: lb.truck_type_id,
+            truck_type_name: lb.truck_type_name,
+            cargo_items: lb.cargo_items || [],
+            service_items: lb.service_items,
+            accessorial_charges: lb.accessorial_charges,
+            subtotal: lb.subtotal,
+            accessorials_total: lb.accessorials_total || 0,
+          })),
+          subtotal: dest.subtotal,
+          accessorials_total: dest.accessorials_total,
+        })) as InlandTransportInfo['destinationBlocks'],
+      }
+
+      // Build UnifiedPDFData for inland quote
+      const pdfData = {
+        quoteType: 'inland' as const,
+        quoteNumber: quote.quote_number || '',
+        issueDate: new Date(quote.created_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        validUntil: quote.expires_at
+          ? new Date(quote.expires_at).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : undefined,
+        company: companyInfo,
+        customer: {
+          name: quote.customer_name || 'Customer',
+          company: quote.customer_company,
+          email: quote.customer_email,
+          phone: quote.customer_phone,
+        },
+        equipment: [],
+        isMultiEquipment: false,
+        inlandTransport,
+        equipmentSubtotal: 0,
+        miscFeesTotal: 0,
+        inlandTotal: quote.total || 0,
+        grandTotal: quote.total || 0,
+        customerNotes: quoteData?.notes as string | undefined,
+        termsAndConditions: (settings as { quote_terms?: string }).quote_terms,
+      }
+
+      // Generate PDF via API
+      const response = await fetch('/api/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pdfData),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `inland-quote-${quote.quote_number || quoteId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success('Quote downloaded!')
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error('Failed to download quote')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  return (
+    <DropdownMenuItem onClick={downloadQuote} disabled={isDownloading}>
+      <Download className="h-4 w-4 mr-2" />
+      {isDownloading ? 'Downloading...' : 'Download Quote'}
     </DropdownMenuItem>
   )
 }

@@ -427,6 +427,7 @@ export default function QuoteHistoryPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <ViewQuoteMenuItem quoteId={quote.id} />
+                          <DownloadQuoteMenuItem quoteId={quote.id} />
                           <DropdownMenuItem asChild>
                             <Link href={`/quotes/${quote.id}/edit`}>
                               <Pencil className="h-4 w-4 mr-2" />
@@ -639,6 +640,7 @@ export default function QuoteHistoryPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <ViewQuoteMenuItem quoteId={quote.id} />
+                              <DownloadQuoteMenuItem quoteId={quote.id} />
                               <DropdownMenuItem asChild>
                                 <Link href={`/quotes/${quote.id}/edit`}>
                                   <Pencil className="h-4 w-4 mr-2" />
