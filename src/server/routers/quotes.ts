@@ -71,7 +71,9 @@ export const quotesRouter = router({
           expires_at,
           created_at,
           updated_at,
-          is_latest_version
+          is_latest_version,
+          created_by,
+          creator:users!created_by(id, first_name, last_name)
         `,
           { count: 'exact' }
         )
@@ -85,7 +87,20 @@ export const quotesRouter = router({
       const { data, error, count } = await query
 
       checkSupabaseError(error, 'Quote')
-      return { quotes: data, total: count }
+
+      // Transform to include created_by_name for display
+      // Note: creator is a single object from the foreign key join
+      const quotesWithCreator = data?.map((q) => {
+        const creator = Array.isArray(q.creator) ? q.creator[0] : q.creator
+        return {
+          ...q,
+          created_by_name: creator
+            ? `${creator.first_name || ''} ${creator.last_name || ''}`.trim() || 'Unknown'
+            : 'System',
+        }
+      }) || []
+
+      return { quotes: quotesWithCreator, total: count }
     }),
 
   // Get single quote
@@ -141,7 +156,16 @@ export const quotesRouter = router({
         data.status = 'viewed'
       }
 
-      return data
+      // Fetch company settings for displaying full quote
+      const { data: settings } = await ctx.supabase
+        .from('company_settings')
+        .select('*')
+        .single()
+
+      return {
+        ...data,
+        company_settings: settings || null,
+      }
     }),
 
   // Get public link for a quote
@@ -202,6 +226,21 @@ export const quotesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Quote')
+
+      // Log activity if linked to a company
+      if (data && input.company_id) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: input.company_id,
+          contact_id: input.contact_id || null,
+          user_id: ctx.user.id,
+          activity_type: 'note',
+          subject: `Quote ${data.quote_number} created`,
+          description: `Created dismantle quote for ${input.make_name} ${input.model_name}`,
+          related_quote_id: data.id,
+          metadata: { status: 'draft', total: input.total },
+        })
+      }
+
       return data
     }),
 
@@ -373,10 +412,10 @@ export const quotesRouter = router({
   markAsSent: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      // Get current quote for history
+      // Get current quote for history and company_id for activity logging
       const { data: currentQuote } = await ctx.supabase
         .from('quote_history')
-        .select('status')
+        .select('status, company_id, quote_number')
         .eq('id', input.id)
         .single()
 
@@ -413,6 +452,19 @@ export const quotesRouter = router({
           new_status: 'sent',
           changed_by: ctx.user.id,
         })
+
+        // Log activity if linked to a company
+        if (currentQuote?.company_id) {
+          await ctx.supabase.from('activity_logs').insert({
+            company_id: currentQuote.company_id,
+            user_id: ctx.user.id,
+            activity_type: 'quote_sent',
+            subject: `Quote ${currentQuote.quote_number} sent`,
+            description: 'Quote marked as sent (PDF downloaded)',
+            related_quote_id: input.id,
+            metadata: { previous_status: currentQuote.status, new_status: 'sent' },
+          })
+        }
       }
 
       return data

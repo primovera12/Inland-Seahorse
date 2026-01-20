@@ -4,7 +4,6 @@ import { useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,33 +23,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { trpc } from '@/lib/trpc/client'
-import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
-  FileText,
-  Building2,
-  MapPin,
-  Calendar,
   CheckCircle2,
   XCircle,
-  Clock,
   AlertCircle,
-  Truck,
-  PenLine,
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { SignaturePad, SignatureDisplay } from '@/components/ui/signature-pad'
+import { useState, useEffect, useMemo } from 'react'
+import { SignaturePad } from '@/components/ui/signature-pad'
+import { QuotePDFTemplate, settingsToCompanyInfo, buildUnifiedPDFData } from '@/lib/pdf'
+import type { UnifiedPDFData, InlandTransportInfo } from '@/lib/pdf'
 
 type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired'
-
-const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string; icon: React.ComponentType<{className?: string}> }> = {
-  draft: { label: 'Draft', color: 'bg-gray-100 text-gray-800', icon: FileText },
-  sent: { label: 'Sent', color: 'bg-blue-100 text-blue-800', icon: Clock },
-  viewed: { label: 'Viewed', color: 'bg-purple-100 text-purple-800', icon: FileText },
-  accepted: { label: 'Accepted', color: 'bg-green-100 text-green-800', icon: CheckCircle2 },
-  rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800', icon: XCircle },
-  expired: { label: 'Expired', color: 'bg-yellow-100 text-yellow-800', icon: AlertCircle },
-}
 
 const REJECTION_REASONS = [
   'Price too high',
@@ -100,10 +84,285 @@ export default function PublicQuotePage() {
     }
   }
 
+  // Transform quote data to UnifiedPDFData for rendering
+  const pdfData = useMemo((): UnifiedPDFData | null => {
+    if (!quote || !quote.company_settings) return null
+
+    const settings = quote.company_settings
+    const quoteData = quote.quote_data as Record<string, unknown> | null
+
+    // Build company info from settings
+    const companyInfo = settingsToCompanyInfo({
+      company_name: settings.company_name || 'Company',
+      company_logo_url: settings.company_logo_url,
+      logo_size_percentage: settings.logo_size_percentage,
+      company_address: settings.company_address,
+      company_city: settings.company_city,
+      company_state: settings.company_state,
+      company_zip: settings.company_zip,
+      company_phone: settings.company_phone,
+      company_email: settings.company_email,
+      company_website: settings.company_website,
+      primary_color: settings.primary_color,
+      secondary_color: settings.secondary_color,
+    })
+
+    if (quoteType === 'inland') {
+      // Inland quote transformation
+      const destinationBlocks = quoteData?.destinationBlocks as Array<{
+        id: string
+        label: string
+        pickup_address: string
+        pickup_city: string
+        pickup_state: string
+        pickup_zip: string
+        dropoff_address: string
+        dropoff_city: string
+        dropoff_state: string
+        dropoff_zip: string
+        distance_miles?: number
+        static_map_url?: string
+        load_blocks: Array<{
+          id: string
+          truck_type_id: string
+          truck_type_name: string
+          cargo_items?: Array<{
+            id: string
+            description: string
+            quantity: number
+            length_inches: number
+            width_inches: number
+            height_inches: number
+            weight_lbs: number
+            is_oversize?: boolean
+            is_overweight?: boolean
+            is_equipment?: boolean
+            equipment_make_name?: string
+            equipment_model_name?: string
+            custom_make_name?: string
+            custom_model_name?: string
+            image_url?: string
+            front_image_url?: string
+            side_image_url?: string
+          }>
+          service_items: Array<{
+            id: string
+            name: string
+            rate: number
+            quantity: number
+            total: number
+          }>
+          accessorial_charges: Array<{
+            id: string
+            name: string
+            billing_unit: string
+            rate: number
+            quantity: number
+            total: number
+          }>
+          subtotal: number
+          accessorials_total?: number
+        }>
+        subtotal: number
+        accessorials_total?: number
+      }> | undefined
+
+      // Build inland transport info
+      const inlandTransport: InlandTransportInfo = {
+        enabled: true,
+        pickup: {
+          address: (quote as { origin_address?: string }).origin_address || '',
+          city: (quote as { origin_city?: string }).origin_city || '',
+          state: (quote as { origin_state?: string }).origin_state || '',
+          zip: (quote as { origin_zip?: string }).origin_zip || '',
+        },
+        dropoff: {
+          address: (quote as { destination_address?: string }).destination_address || '',
+          city: (quote as { destination_city?: string }).destination_city || '',
+          state: (quote as { destination_state?: string }).destination_state || '',
+          zip: (quote as { destination_zip?: string }).destination_zip || '',
+        },
+        distance_miles: (quote as { distance_miles?: number }).distance_miles,
+        static_map_url: quoteData?.static_map_url as string | undefined,
+        total: quote.total || 0,
+        accessorials_total: quoteData?.accessorials_total as number | undefined,
+        destinationBlocks: destinationBlocks?.map(dest => ({
+          id: dest.id,
+          label: dest.label,
+          pickup_address: dest.pickup_address,
+          pickup_city: dest.pickup_city,
+          pickup_state: dest.pickup_state,
+          pickup_zip: dest.pickup_zip,
+          dropoff_address: dest.dropoff_address,
+          dropoff_city: dest.dropoff_city,
+          dropoff_state: dest.dropoff_state,
+          dropoff_zip: dest.dropoff_zip,
+          distance_miles: dest.distance_miles,
+          static_map_url: dest.static_map_url,
+          load_blocks: dest.load_blocks.map(lb => ({
+            id: lb.id,
+            truck_type_id: lb.truck_type_id,
+            truck_type_name: lb.truck_type_name,
+            cargo_items: lb.cargo_items || [],
+            service_items: lb.service_items,
+            accessorial_charges: lb.accessorial_charges,
+            subtotal: lb.subtotal,
+            accessorials_total: lb.accessorials_total || 0,
+          })),
+          subtotal: dest.subtotal,
+          accessorials_total: dest.accessorials_total,
+        })) as InlandTransportInfo['destinationBlocks'],
+      }
+
+      return {
+        quoteType: 'inland',
+        quoteNumber: quote.quote_number || '',
+        issueDate: new Date(quote.created_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        validUntil: quote.expires_at
+          ? new Date(quote.expires_at).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : undefined,
+        company: companyInfo,
+        customer: {
+          name: quote.customer_name || 'Customer',
+          company: quote.customer_company,
+          email: quote.customer_email,
+          phone: quote.customer_phone,
+        },
+        equipment: [],
+        isMultiEquipment: false,
+        inlandTransport,
+        equipmentSubtotal: 0,
+        miscFeesTotal: 0,
+        inlandTotal: quote.total || 0,
+        grandTotal: quote.total || 0,
+        customerNotes: quoteData?.notes as string | undefined,
+        termsAndConditions: (settings as { quote_terms?: string }).quote_terms,
+      }
+    } else {
+      // Dismantle quote transformation
+      const equipmentBlocks = quoteData?.equipmentBlocks as Array<{
+        id: string
+        make_name: string
+        model_name: string
+        location?: string
+        quantity: number
+        length_inches?: number
+        width_inches?: number
+        height_inches?: number
+        weight_lbs?: number
+        front_image_url?: string
+        side_image_url?: string
+        costs: Record<string, number>
+        enabled_costs: Record<string, boolean>
+        cost_overrides: Record<string, number | null>
+        cost_descriptions?: Record<string, string>
+        misc_fees?: Array<{
+          id: string
+          title: string
+          description?: string
+          amount: number
+          is_percentage: boolean
+        }>
+        subtotal: number
+        misc_fees_total?: number
+        total_with_quantity: number
+      }> | undefined
+
+      // Parse customer address if available
+      const customerAddress = quote.customer_address
+        ? parseAddress(quote.customer_address as string)
+        : undefined
+
+      const pdfResult = buildUnifiedPDFData({
+        quoteNumber: quote.quote_number || '',
+        quoteType: 'dismantle',
+        customerName: quote.customer_name || 'Customer',
+        customerEmail: quote.customer_email,
+        customerPhone: quote.customer_phone,
+        customerCompany: quote.customer_company,
+        customerAddress,
+        makeName: quote.make_name || 'Equipment',
+        modelName: quote.model_name || '',
+        location: quote.location,
+        dimensions: quoteData?.dimensions ? {
+          length_inches: (quoteData.dimensions as { length_inches?: number }).length_inches || 0,
+          width_inches: (quoteData.dimensions as { width_inches?: number }).width_inches || 0,
+          height_inches: (quoteData.dimensions as { height_inches?: number }).height_inches || 0,
+          weight_lbs: (quoteData.dimensions as { weight_lbs?: number }).weight_lbs || 0,
+        } : undefined,
+        frontImageUrl: quoteData?.frontImageUrl as string | undefined,
+        sideImageUrl: quoteData?.sideImageUrl as string | undefined,
+        costs: quoteData?.costs as Record<string, number> | undefined,
+        enabledCosts: quoteData?.enabledCosts as Record<string, boolean> | undefined,
+        costOverrides: quoteData?.costOverrides as Record<string, number | null> | undefined,
+        costDescriptions: quoteData?.costDescriptions as Record<string, string> | undefined,
+        miscFees: quoteData?.miscFees as Array<{ id: string; title: string; description?: string; amount: number; is_percentage: boolean }> | undefined,
+        isMultiEquipment: quoteData?.isMultiEquipment as boolean | undefined ?? (equipmentBlocks && equipmentBlocks.length > 0),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        equipmentBlocks: equipmentBlocks as any,
+        inlandTransport: quoteData?.inlandTransport as {
+          enabled: boolean
+          pickup_address?: string
+          pickup_city?: string
+          pickup_state?: string
+          pickup_zip?: string
+          dropoff_address?: string
+          dropoff_city?: string
+          dropoff_state?: string
+          dropoff_zip?: string
+          transport_cost?: number
+          distance_miles?: number
+          duration_minutes?: number
+          static_map_url?: string
+        } | undefined,
+        subtotal: quote.subtotal || 0,
+        total: quote.total || 0,
+        inlandTransportCost: quoteData?.inlandTransport ? (quoteData.inlandTransport as { transport_cost?: number }).transport_cost : undefined,
+        miscFeesTotal: quoteData?.miscFeesTotal as number | undefined,
+        notes: quoteData?.notes as string | undefined,
+        settings: {
+          company_name: settings.company_name || 'Company',
+          company_logo_url: settings.company_logo_url,
+          logo_size_percentage: settings.logo_size_percentage,
+          company_address: settings.company_address,
+          company_city: settings.company_city,
+          company_state: settings.company_state,
+          company_zip: settings.company_zip,
+          company_phone: settings.company_phone,
+          company_email: settings.company_email,
+          company_website: settings.company_website,
+          primary_color: settings.primary_color,
+          secondary_color: settings.secondary_color,
+          quote_validity_days: settings.quote_validity_days || 30,
+          terms_dismantle: (settings as { terms_dismantle?: string }).terms_dismantle,
+        },
+      })
+
+      // Override validUntil with the actual stored expiration date
+      if (quote.expires_at) {
+        pdfResult.validUntil = new Date(quote.expires_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      }
+
+      return pdfResult
+    }
+  }, [quote, quoteType])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="container max-w-4xl mx-auto py-12 px-4">
+        <div className="container max-w-5xl mx-auto py-12 px-4">
           <Card>
             <CardHeader>
               <Skeleton className="h-8 w-64" />
@@ -139,32 +398,13 @@ export default function PublicQuotePage() {
   }
 
   const status = quote.status as QuoteStatus
-  const statusConfig = STATUS_CONFIG[status]
-  const StatusIcon = statusConfig.icon
   const isExpired = status === 'expired' || (quote.expires_at && new Date(quote.expires_at) < new Date())
   const canRespond = status === 'sent' || status === 'viewed'
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container max-w-4xl mx-auto py-12 px-4">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            {quoteType === 'inland' ? (
-              <Truck className="h-8 w-8 text-primary" />
-            ) : (
-              <FileText className="h-8 w-8 text-primary" />
-            )}
-            <h1 className="text-3xl font-bold">
-              {quoteType === 'inland' ? 'Inland Transportation Quote' : 'Equipment Quote'}
-            </h1>
-          </div>
-          <p className="text-muted-foreground">
-            Quote #{quote.quote_number}
-          </p>
-        </div>
-
-        {/* Status Banner */}
+      {/* Status Banners */}
+      <div className="container max-w-5xl mx-auto pt-8 px-4">
         {isExpired && status !== 'expired' && (
           <Card className="mb-6 border-yellow-300 bg-yellow-50">
             <CardContent className="py-4">
@@ -212,148 +452,24 @@ export default function PublicQuotePage() {
             </CardContent>
           </Card>
         )}
+      </div>
 
-        {/* Main Quote Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">Quote Details</CardTitle>
-                <CardDescription>
-                  Created on {formatDate(quote.created_at)}
-                </CardDescription>
-              </div>
-              <Badge className={statusConfig.color}>
-                <StatusIcon className="h-3 w-3 mr-1" />
-                {statusConfig.label}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Customer Info */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Customer</p>
-                <p className="font-medium">{quote.customer_name}</p>
-                {quote.customer_company && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Building2 className="h-3 w-3" />
-                    {quote.customer_company}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Valid Until</p>
-                <p className="font-medium flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {quote.expires_at ? formatDate(quote.expires_at) : 'Not specified'}
-                </p>
-              </div>
-            </div>
+      {/* Full Quote Template */}
+      {pdfData ? (
+        <QuotePDFTemplate data={pdfData} />
+      ) : (
+        <div className="container max-w-4xl mx-auto py-8 px-4">
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">Unable to load quote details.</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-            <Separator />
-
-            {/* Equipment/Service Info */}
-            {quoteType === 'dismantle' ? (
-              <div className="space-y-4">
-                <h3 className="font-semibold">Equipment</h3>
-                <div className="rounded-lg border p-4 bg-muted/30">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium">
-                        {quote.make_name} {quote.model_name}
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <MapPin className="h-3 w-3" />
-                        {quote.location}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <h3 className="font-semibold">Transportation Details</h3>
-                <div className="rounded-lg border p-4 bg-muted/30 space-y-3">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Origin</p>
-                      <p className="font-medium flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-green-600" />
-                        {quote.origin_city}, {quote.origin_state}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Destination</p>
-                      <p className="font-medium flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-red-600" />
-                        {quote.destination_city}, {quote.destination_state}
-                      </p>
-                    </div>
-                  </div>
-                  {quote.distance_miles && (
-                    <p className="text-sm text-muted-foreground">
-                      Distance: {quote.distance_miles.toFixed(1)} miles
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <Separator />
-
-            {/* Pricing */}
-            <div className="space-y-4">
-              <h3 className="font-semibold">Pricing</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-mono">{formatCurrency(quote.subtotal)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between items-center pt-2">
-                  <span className="font-semibold text-lg">Total</span>
-                  <span className="text-2xl font-bold font-mono text-primary">
-                    {formatCurrency(quote.total)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {quote.notes && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <h3 className="font-semibold">Notes</h3>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {quote.notes}
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* Show signature if accepted */}
-            {status === 'accepted' && quote.signature_data && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <PenLine className="h-4 w-4" />
-                    Signature
-                  </h3>
-                  <SignatureDisplay
-                    signatureData={quote.signature_data}
-                    signedBy={quote.signed_by}
-                    signedAt={quote.signed_at}
-                  />
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons */}
-        {canRespond && !isExpired && (
+      {/* Action Buttons */}
+      {canRespond && !isExpired && (
+        <div className="container max-w-5xl mx-auto pb-12 px-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Respond to Quote</CardTitle>
@@ -365,16 +481,27 @@ export default function PublicQuotePage() {
               <AcceptRejectSection token={token} quoteType={quoteType!} onSuccess={refetch} />
             </CardContent>
           </Card>
-        )}
-
-        {/* Footer */}
-        <div className="text-center mt-8 text-sm text-muted-foreground">
-          <p>Questions about this quote?</p>
-          <p>Please contact us for assistance.</p>
         </div>
+      )}
+
+      {/* Footer */}
+      <div className="text-center pb-8 text-sm text-muted-foreground">
+        <p>Questions about this quote?</p>
+        <p>Please contact us for assistance.</p>
       </div>
     </div>
   )
+}
+
+// Helper function to parse address string
+function parseAddress(address: string): { address?: string; city?: string; state?: string; zip?: string } {
+  const parts = address.split(', ')
+  return {
+    address: parts[0] || undefined,
+    city: parts[1] || undefined,
+    state: parts[2] || undefined,
+    zip: parts[3] || undefined,
+  }
 }
 
 function AcceptRejectSection({
