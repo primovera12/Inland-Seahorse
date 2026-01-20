@@ -123,12 +123,7 @@ export function EquipmentBlockCard({
 
   // Fetch dimensions when model changes
   // Use refetchOnMount to ensure fresh data when model changes
-  const {
-    data: dimensions,
-    isFetching: dimensionsFetching,
-    isSuccess: dimensionsSuccess,
-    refetch: refetchDimensions,
-  } = trpc.equipment.getDimensions.useQuery(
+  const dimensionsQuery = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId },
     {
       enabled: !!selectedModelId,
@@ -137,18 +132,8 @@ export function EquipmentBlockCard({
     }
   )
 
-  // Track the last model ID we updated dimensions for to prevent stale updates
-  const lastDimensionsModelIdRef = useRef<string | null>(null)
-
-  // Force refetch when model changes to ensure we get fresh data
-  useEffect(() => {
-    if (selectedModelId && selectedModelId !== lastDimensionsModelIdRef.current) {
-      // Reset the ref immediately to prevent re-triggering
-      lastDimensionsModelIdRef.current = selectedModelId
-      // Force a refetch to get fresh data for this model
-      refetchDimensions()
-    }
-  }, [selectedModelId, refetchDimensions])
+  // Track the last model ID we applied dimensions for
+  const lastAppliedModelIdRef = useRef<string | null>(null)
 
   // State for equipment images (local state for optimistic UI)
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(
@@ -260,39 +245,41 @@ export function EquipmentBlockCard({
     }
   }, [rates, selectedModelId, block.location])
 
-  // Update dimensions when model changes - uses refs to avoid stale closure
-  // Also clears dimensions when switching to a model without dimensions
+  // Update dimensions and images when model changes - uses refs to avoid stale closure
+  // Combined into single effect to prevent race condition where separate effects
+  // would overwrite each other's updates using stale blockRef.current
   useEffect(() => {
+    const { data: dimensions, isSuccess, isFetching } = dimensionsQuery
+
     // Only update when:
     // 1. We have a model selected
-    // 2. Query has completed successfully (not fetching anymore)
-    // 3. The query was successful (isSuccess)
-    if (selectedModelId && !dimensionsFetching && dimensionsSuccess) {
+    // 2. Query has completed successfully (isSuccess and not fetching)
+    // 3. We haven't already applied dimensions for this model
+    if (
+      selectedModelId &&
+      isSuccess &&
+      !isFetching &&
+      lastAppliedModelIdRef.current !== selectedModelId
+    ) {
+      // Mark this model as having dimensions applied
+      lastAppliedModelIdRef.current = selectedModelId
+
+      // Update local image state
+      setFrontImageUrl(dimensions?.front_image_url || null)
+      setSideImageUrl(dimensions?.side_image_url || null)
+
+      // Update block with both dimensions AND images in a single update
       onUpdateRef.current({
         ...blockRef.current,
         length_inches: dimensions?.length_inches ?? 0,
         width_inches: dimensions?.width_inches ?? 0,
         height_inches: dimensions?.height_inches ?? 0,
         weight_lbs: dimensions?.weight_lbs ?? 0,
-      })
-    }
-  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsSuccess])
-
-  // Sync images from dimensions when model changes
-  // Also clears images when switching to a model without dimensions
-  useEffect(() => {
-    // Only update when query has successfully completed
-    if (selectedModelId && !dimensionsFetching && dimensionsSuccess) {
-      setFrontImageUrl(dimensions?.front_image_url || null)
-      setSideImageUrl(dimensions?.side_image_url || null)
-      // Also update block with image URLs
-      onUpdateRef.current({
-        ...blockRef.current,
         front_image_url: dimensions?.front_image_url || undefined,
         side_image_url: dimensions?.side_image_url || undefined,
       })
     }
-  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsSuccess])
+  }, [dimensionsQuery, selectedModelId])
 
   // Handle front image change
   const handleFrontImageChange = async (url: string | null) => {
@@ -374,6 +361,8 @@ export function EquipmentBlockCard({
   const handleModelChange = (modelId: string) => {
     const model = models?.find((m) => m.id === modelId)
     setSelectedModelId(modelId)
+    // Reset the applied ref so dimensions will be loaded for the new model
+    lastAppliedModelIdRef.current = null
     // Immediately clear dimensions when switching models
     // The new dimensions will be loaded from the query when it completes
     setLocalDimensions({
