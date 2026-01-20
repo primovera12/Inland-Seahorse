@@ -127,7 +127,7 @@ export const activityRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await ctx.adminSupabase
         .from('activity_logs')
         .insert({
           ...input,
@@ -350,7 +350,7 @@ export const activityRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await ctx.adminSupabase
         .from('activity_logs')
         .insert({
           ...input,
@@ -366,13 +366,13 @@ export const activityRouter = router({
   // Record user login - updates last_login_at and logs activity
   recordLogin: protectedProcedure.mutation(async ({ ctx }) => {
     // Update last_login_at timestamp
-    await ctx.supabase
+    await ctx.adminSupabase
       .from('users')
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', ctx.user.id)
 
     // Log the login event
-    const { data, error } = await ctx.supabase
+    const { data, error } = await ctx.adminSupabase
       .from('activity_logs')
       .insert({
         user_id: ctx.user.id,
@@ -394,7 +394,7 @@ export const activityRouter = router({
 
   // Record user logout
   recordLogout: protectedProcedure.mutation(async ({ ctx }) => {
-    const { data, error } = await ctx.supabase
+    const { data, error } = await ctx.adminSupabase
       .from('activity_logs')
       .insert({
         user_id: ctx.user.id,
@@ -423,7 +423,7 @@ export const activityRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await ctx.adminSupabase
         .from('activity_logs')
         .insert({
           user_id: ctx.user.id,
@@ -456,7 +456,7 @@ export const activityRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const activityType = input.export_type === 'csv' ? 'csv_exported' : 'pdf_exported'
-      const { data, error } = await ctx.supabase
+      const { data, error } = await ctx.adminSupabase
         .from('activity_logs')
         .insert({
           user_id: ctx.user.id,

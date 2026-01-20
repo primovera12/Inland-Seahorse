@@ -146,7 +146,7 @@ export const companiesRouter = router({
         })
 
         // Log company creation activity
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: data.id,
           user_id: ctx.user.id,
           activity_type: 'company_created',
@@ -198,7 +198,7 @@ export const companiesRouter = router({
 
       // Log company update activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: data.id,
           user_id: ctx.user.id,
           activity_type: 'company_updated',
@@ -292,7 +292,7 @@ export const contactsRouter = router({
 
       // Log contact creation activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: data.company_id,
           contact_id: data.id,
           user_id: ctx.user.id,
@@ -338,7 +338,7 @@ export const contactsRouter = router({
 
       // Log contact update activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: data.company_id,
           contact_id: data.id,
           user_id: ctx.user.id,

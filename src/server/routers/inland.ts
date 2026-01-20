@@ -406,7 +406,7 @@ export const inlandRouter = router({
 
       // Log inland quote creation activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: input.company_id || null,
           contact_id: input.contact_id || null,
           user_id: ctx.user.id,
@@ -441,7 +441,7 @@ export const inlandRouter = router({
 
       // Log quote update activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: data.company_id || null,
           user_id: ctx.user.id,
           activity_type: 'inland_quote_updated',
@@ -475,7 +475,7 @@ export const inlandRouter = router({
 
       // Log quote deletion
       if (quoteToDelete) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: quoteToDelete.company_id || null,
           user_id: ctx.user.id,
           activity_type: 'inland_quote_deleted',
@@ -609,7 +609,7 @@ export const inlandRouter = router({
 
         // Log activity if linked to a company
         if (currentQuote?.company_id) {
-          await ctx.supabase.from('activity_logs').insert({
+          await ctx.adminSupabase.from('activity_logs').insert({
             company_id: currentQuote.company_id,
             user_id: ctx.user.id,
             activity_type: 'quote_sent',

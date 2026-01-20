@@ -139,7 +139,7 @@ export const userRouter = router({
 
       // Log user creation activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           user_id: ctx.user.id,
           activity_type: 'user_created',
           subject: `Team member "${input.first_name} ${input.last_name}" created`,
@@ -219,7 +219,7 @@ export const userRouter = router({
 
       // Log role update activity
       if (data && currentUserData) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           user_id: ctx.user.id,
           activity_type: 'user_updated',
           subject: `Role changed for "${data.first_name} ${data.last_name}"`,
@@ -270,7 +270,7 @@ export const userRouter = router({
       // Log the status change activity
       if (data && currentUserData && currentUserData.status !== input.status) {
         const activityType = input.status === 'inactive' ? 'user_deactivated' : 'user_reactivated'
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           user_id: ctx.user.id,
           activity_type: activityType,
           subject: `User "${data.first_name} ${data.last_name}" ${input.status === 'inactive' ? 'deactivated' : 'reactivated'}`,
@@ -318,7 +318,7 @@ export const userRouter = router({
 
       // Log the user deletion activity
       if (userData) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           user_id: ctx.user.id,
           activity_type: 'user_deleted',
           subject: `User "${userData.first_name} ${userData.last_name}" deleted`,
@@ -362,7 +362,7 @@ export const userRouter = router({
       }
 
       // Log password change activity
-      await ctx.supabase.from('activity_logs').insert({
+      await ctx.adminSupabase.from('activity_logs').insert({
         user_id: ctx.user.id,
         activity_type: 'password_changed',
         subject: 'Password changed',

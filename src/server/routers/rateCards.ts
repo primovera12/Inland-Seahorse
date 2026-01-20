@@ -114,7 +114,7 @@ export const rateCardsRouter = router({
       checkSupabaseError(error, 'Rate Card')
 
       // Log the rate card creation activity
-      await ctx.supabase.from('activity_logs').insert({
+      await ctx.adminSupabase.from('activity_logs').insert({
         company_id: input.company_id,
         user_id: ctx.user.id,
         activity_type: 'rate_card_updated',
@@ -175,7 +175,7 @@ export const rateCardsRouter = router({
 
       // Log the rate card update activity
       if (data) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: current.company_id,
           user_id: ctx.user.id,
           activity_type: 'rate_card_updated',
@@ -212,7 +212,7 @@ export const rateCardsRouter = router({
 
       // Log the rate card deletion activity
       if (rateCard) {
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           company_id: rateCard.company_id,
           user_id: ctx.user.id,
           activity_type: 'rate_card_updated',

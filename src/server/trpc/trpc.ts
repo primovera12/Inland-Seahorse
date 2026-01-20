@@ -2,16 +2,19 @@ import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { ZodError } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { User } from '@/types/auth'
 import { checkRateLimit, RATE_LIMITS, type RateLimitConfig } from '@/lib/rate-limiter'
 
 export type Context = {
   user: User | null
   supabase: Awaited<ReturnType<typeof createClient>>
+  adminSupabase: ReturnType<typeof createAdminClient>
 }
 
 export async function createContext(): Promise<Context> {
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
 
   const {
     data: { user: authUser },
@@ -35,6 +38,7 @@ export async function createContext(): Promise<Context> {
   return {
     user,
     supabase,
+    adminSupabase,
   }
 }
 

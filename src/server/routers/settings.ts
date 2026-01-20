@@ -94,7 +94,7 @@ export const settingsRouter = router({
         checkSupabaseError(error, 'Settings')
 
         // Log the settings update activity
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           user_id: ctx.user.id,
           activity_type: 'company_settings_updated',
           subject: 'Company settings updated',
@@ -182,7 +182,7 @@ export const settingsRouter = router({
         checkSupabaseError(error, 'Settings')
 
         // Log the terms update activity
-        await ctx.supabase.from('activity_logs').insert({
+        await ctx.adminSupabase.from('activity_logs').insert({
           user_id: ctx.user.id,
           activity_type: input.type === 'dismantle' ? 'dismantle_settings_updated' : 'inland_settings_updated',
           subject: `${input.type === 'dismantle' ? 'Dismantle' : 'Inland'} terms & conditions updated`,
@@ -281,7 +281,7 @@ export const settingsRouter = router({
       }
 
       // Log the popular makes update activity
-      await ctx.supabase.from('activity_logs').insert({
+      await ctx.adminSupabase.from('activity_logs').insert({
         user_id: ctx.user.id,
         activity_type: 'rate_card_updated',
         subject: 'Popular makes list updated',
