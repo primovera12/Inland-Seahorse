@@ -8,7 +8,6 @@ import { useEffect, useState } from 'react'
 import {
   Calculator,
   History,
-  Home,
   Settings,
   Truck,
   Wrench,
@@ -33,11 +32,6 @@ import {
 import { cn } from '@/lib/utils'
 
 const equipmentItems = [
-  {
-    title: 'Dashboard',
-    url: '/dashboard',
-    icon: Home,
-  },
   {
     title: 'Dismantle Quote',
     url: '/quotes/new',
@@ -124,7 +118,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
-        <Link href="/dashboard" className="flex items-center">
+        <Link href="/quotes/new" className="flex items-center">
           <Image
             src={logoSrc}
             alt="Seahorse Express"
