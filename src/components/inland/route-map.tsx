@@ -7,6 +7,7 @@ import {
   Marker,
   DirectionsRenderer,
 } from '@react-google-maps/api'
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_API_KEY } from '@/lib/google-maps'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin, Route, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
@@ -70,8 +71,8 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
   const isCalculatingRef = useRef(false)
 
   const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: ['places'],
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   })
 
   // Filter destinations with valid addresses

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useJsApiLoader } from '@react-google-maps/api'
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_API_KEY } from '@/lib/google-maps'
 import { Input } from '@/components/ui/input'
 import { MapPin, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,9 +28,6 @@ interface AddressAutocompleteProps {
   id?: string
 }
 
-// Libraries needed for Places
-const libraries: ('places')[] = ['places']
-
 export function AddressAutocomplete({
   value,
   onChange,
@@ -49,8 +47,8 @@ export function AddressAutocomplete({
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries,
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   })
 
   // Create a new session token (should be done at start of each new search session)
