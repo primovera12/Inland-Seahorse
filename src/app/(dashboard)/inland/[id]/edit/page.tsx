@@ -741,6 +741,46 @@ export default function EditInlandQuotePage() {
                   <span>{formatCurrency(total)}</span>
                 </div>
               </div>
+
+              {/* Accessorial Fees (If Applicable) - Itemized */}
+              {(() => {
+                // Collect all accessorial charges from all load blocks
+                const allAccessorials = destinationBlocks.flatMap(dest =>
+                  dest.load_blocks.flatMap(lb => lb.accessorial_charges)
+                )
+                if (allAccessorials.length === 0) return null
+
+                const billingUnitLabels: Record<string, string> = {
+                  flat: 'Flat',
+                  hour: '/hr',
+                  day: '/day',
+                  way: '/way',
+                  week: '/wk',
+                  month: '/mo',
+                  stop: '/stop',
+                }
+
+                return (
+                  <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">
+                      Accessorial Fees (If Applicable)
+                    </p>
+                    <div className="space-y-1">
+                      {allAccessorials.map((charge) => (
+                        <div key={charge.id} className="flex justify-between text-xs">
+                          <span className="text-amber-800 dark:text-amber-300">{charge.name}</span>
+                          <span className="text-amber-900 dark:text-amber-200 font-mono">
+                            {formatCurrency(charge.rate)}{billingUnitLabels[charge.billing_unit] || ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-2">
+                      Billed as used when services are required.
+                    </p>
+                  </div>
+                )
+              })()}
             </CardContent>
           </Card>
         </div>
