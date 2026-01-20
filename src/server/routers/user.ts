@@ -101,6 +101,7 @@ export const userRouter = router({
       const adminClient = createAdminClient()
 
       // Create auth user with password using admin API
+      // Include role in metadata so the database trigger can read it
       const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
         email: input.email,
         password: input.password,
@@ -108,6 +109,7 @@ export const userRouter = router({
         user_metadata: {
           first_name: input.first_name,
           last_name: input.last_name,
+          role: input.role,
         },
       })
 
@@ -115,16 +117,20 @@ export const userRouter = router({
         throw new Error(`Failed to create user: ${authError.message}`)
       }
 
-      // Update the user record with additional fields using admin client to bypass RLS
+      // Use upsert to handle race condition with database trigger
+      // The trigger may or may not have created the user record yet
       const { data, error } = await adminClient
         .from('users')
-        .update({
+        .upsert({
+          id: authData.user.id,
+          email: input.email,
           first_name: input.first_name,
           last_name: input.last_name,
           role: input.role,
           is_active: true,
+        }, {
+          onConflict: 'id',
         })
-        .eq('id', authData.user.id)
         .select()
         .single()
 
