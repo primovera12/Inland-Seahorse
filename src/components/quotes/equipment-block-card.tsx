@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -138,6 +138,88 @@ export function EquipmentBlockCard({
   // Mutation to update equipment images in database
   const updateImagesMutation = trpc.equipment.updateImages.useMutation()
 
+  // Mutation to update equipment dimensions in database
+  const upsertDimensionsMutation = trpc.equipment.upsertDimensions.useMutation()
+
+  // Mutations for creating new makes and models on the fly
+  const utils = trpc.useUtils()
+  const createMakeMutation = trpc.equipment.createMake.useMutation({
+    onSuccess: () => {
+      utils.equipment.getMakes.invalidate()
+    },
+  })
+  const createModelMutation = trpc.equipment.createModel.useMutation({
+    onSuccess: () => {
+      if (selectedMakeId) {
+        utils.equipment.getModels.invalidate({ makeId: selectedMakeId })
+      }
+    },
+  })
+
+  // Local state for editable dimensions
+  const [localDimensions, setLocalDimensions] = useState({
+    length_inches: block.length_inches || 0,
+    width_inches: block.width_inches || 0,
+    height_inches: block.height_inches || 0,
+    weight_lbs: block.weight_lbs || 0,
+  })
+
+  // Debounce timer ref for dimension auto-save
+  const dimensionSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Sync local dimensions when block dimensions change (e.g., from database load)
+  useEffect(() => {
+    setLocalDimensions({
+      length_inches: block.length_inches || 0,
+      width_inches: block.width_inches || 0,
+      height_inches: block.height_inches || 0,
+      weight_lbs: block.weight_lbs || 0,
+    })
+  }, [block.length_inches, block.width_inches, block.height_inches, block.weight_lbs])
+
+  // Auto-save dimensions to database with debounce
+  const saveDimensionsToDatabase = useCallback(async (dims: typeof localDimensions) => {
+    if (!selectedModelId) return
+
+    try {
+      await upsertDimensionsMutation.mutateAsync({
+        modelId: selectedModelId,
+        length_inches: dims.length_inches,
+        width_inches: dims.width_inches,
+        height_inches: dims.height_inches,
+        weight_lbs: dims.weight_lbs,
+      })
+    } catch (error) {
+      console.error('Failed to save dimensions:', error)
+    }
+  }, [selectedModelId, upsertDimensionsMutation])
+
+  // Handle dimension change with auto-save
+  const handleDimensionChange = useCallback((field: keyof typeof localDimensions, value: number) => {
+    const newDimensions = { ...localDimensions, [field]: value }
+    setLocalDimensions(newDimensions)
+
+    // Update block immediately for UI
+    onUpdate({ ...block, [field]: value })
+
+    // Debounce database save
+    if (dimensionSaveTimerRef.current) {
+      clearTimeout(dimensionSaveTimerRef.current)
+    }
+    dimensionSaveTimerRef.current = setTimeout(() => {
+      saveDimensionsToDatabase(newDimensions)
+    }, 1000) // Save after 1 second of no changes
+  }, [localDimensions, block, onUpdate, saveDimensionsToDatabase])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (dimensionSaveTimerRef.current) {
+        clearTimeout(dimensionSaveTimerRef.current)
+      }
+    }
+  }, [])
+
   // Update costs when rates change - uses refs to avoid stale closure
   // Also depends on selectedModelId and location to handle cached data scenarios
   useEffect(() => {
@@ -264,6 +346,45 @@ export function EquipmentBlockCard({
     })
   }
 
+  // Create a new make on the fly
+  const handleCreateMake = async (makeName: string) => {
+    try {
+      const newMake = await createMakeMutation.mutateAsync({ name: makeName })
+      // Select the newly created make
+      setSelectedMakeId(newMake.id)
+      setSelectedModelId('')
+      onUpdate({
+        ...block,
+        make_id: newMake.id,
+        make_name: newMake.name,
+        model_id: undefined,
+        model_name: '',
+      })
+    } catch (error) {
+      console.error('Failed to create make:', error)
+    }
+  }
+
+  // Create a new model on the fly
+  const handleCreateModel = async (modelName: string) => {
+    if (!selectedMakeId) return
+    try {
+      const newModel = await createModelMutation.mutateAsync({
+        makeId: selectedMakeId,
+        name: modelName,
+      })
+      // Select the newly created model
+      setSelectedModelId(newModel.id)
+      onUpdate({
+        ...block,
+        model_id: newModel.id,
+        model_name: newModel.name,
+      })
+    } catch (error) {
+      console.error('Failed to create model:', error)
+    }
+  }
+
   const handleLocationChange = (location: LocationName) => {
     onUpdate({ ...block, location })
   }
@@ -356,6 +477,9 @@ export function EquipmentBlockCard({
                   placeholder="Select make"
                   searchPlaceholder="Search makes..."
                   emptyMessage="No makes found"
+                  allowCustom
+                  customPlaceholder="Enter new make name..."
+                  onCustomAdd={handleCreateMake}
                 />
               </div>
 
@@ -372,6 +496,9 @@ export function EquipmentBlockCard({
                   searchPlaceholder="Search models..."
                   emptyMessage="No models found"
                   disabled={!selectedMakeId}
+                  allowCustom
+                  customPlaceholder="Enter new model name..."
+                  onCustomAdd={handleCreateModel}
                 />
               </div>
 
@@ -404,25 +531,70 @@ export function EquipmentBlockCard({
             </div>
 
             {/* Dimensions */}
-            {selectedModelId && block.length_inches && (
+            {selectedModelId && (
               <div className="rounded-lg border p-4 bg-muted/30">
-                <h4 className="font-medium mb-3">Dimensions</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Dimensions</h4>
+                  {upsertDimensionsMutation.isPending && (
+                    <span className="text-xs text-muted-foreground">Saving...</span>
+                  )}
+                </div>
                 <div className="grid gap-4 md:grid-cols-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Length</p>
-                    <p className="font-mono">{formatDimension(block.length_inches || 0)}</p>
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Length (inches)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={localDimensions.length_inches || ''}
+                      onChange={(e) => handleDimensionChange('length_inches', parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="font-mono"
+                    />
+                    {localDimensions.length_inches > 0 && (
+                      <p className="text-xs text-muted-foreground">{formatDimension(localDimensions.length_inches)}</p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Width</p>
-                    <p className="font-mono">{formatDimension(block.width_inches || 0)}</p>
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Width (inches)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={localDimensions.width_inches || ''}
+                      onChange={(e) => handleDimensionChange('width_inches', parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="font-mono"
+                    />
+                    {localDimensions.width_inches > 0 && (
+                      <p className="text-xs text-muted-foreground">{formatDimension(localDimensions.width_inches)}</p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Height</p>
-                    <p className="font-mono">{formatDimension(block.height_inches || 0)}</p>
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Height (inches)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={localDimensions.height_inches || ''}
+                      onChange={(e) => handleDimensionChange('height_inches', parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="font-mono"
+                    />
+                    {localDimensions.height_inches > 0 && (
+                      <p className="text-xs text-muted-foreground">{formatDimension(localDimensions.height_inches)}</p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Weight</p>
-                    <p className="font-mono">{formatWeight(block.weight_lbs || 0)}</p>
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Weight (lbs)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={localDimensions.weight_lbs || ''}
+                      onChange={(e) => handleDimensionChange('weight_lbs', parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="font-mono"
+                    />
+                    {localDimensions.weight_lbs > 0 && (
+                      <p className="text-xs text-muted-foreground">{formatWeight(localDimensions.weight_lbs)}</p>
+                    )}
                   </div>
                 </div>
               </div>
