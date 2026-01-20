@@ -122,19 +122,33 @@ export function EquipmentBlockCard({
   )
 
   // Fetch dimensions when model changes
-  // Use isFetching to know when a fetch is in progress
-  // Use dataUpdatedAt to know when we got fresh data
+  // Use refetchOnMount to ensure fresh data when model changes
   const {
     data: dimensions,
     isFetching: dimensionsFetching,
-    dataUpdatedAt: dimensionsUpdatedAt,
+    isSuccess: dimensionsSuccess,
+    refetch: refetchDimensions,
   } = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId },
-    { enabled: !!selectedModelId }
+    {
+      enabled: !!selectedModelId,
+      refetchOnMount: 'always',
+      staleTime: 0, // Always consider data stale to force refetch
+    }
   )
 
   // Track the last model ID we updated dimensions for to prevent stale updates
   const lastDimensionsModelIdRef = useRef<string | null>(null)
+
+  // Force refetch when model changes to ensure we get fresh data
+  useEffect(() => {
+    if (selectedModelId && selectedModelId !== lastDimensionsModelIdRef.current) {
+      // Reset the ref immediately to prevent re-triggering
+      lastDimensionsModelIdRef.current = selectedModelId
+      // Force a refetch to get fresh data for this model
+      refetchDimensions()
+    }
+  }, [selectedModelId, refetchDimensions])
 
   // State for equipment images (local state for optimistic UI)
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(
@@ -303,30 +317,24 @@ export function EquipmentBlockCard({
   useEffect(() => {
     // Only update when:
     // 1. We have a model selected
-    // 2. We're not currently fetching (fetch completed)
-    // 3. Either this is fresh data for a new model, or dimensions changed for current model
-    if (selectedModelId && !dimensionsFetching && dimensionsUpdatedAt > 0) {
-      // Check if this is fresh data (either new model or data updated)
-      const shouldUpdate = lastDimensionsModelIdRef.current !== selectedModelId || dimensions !== undefined
-
-      if (shouldUpdate) {
-        lastDimensionsModelIdRef.current = selectedModelId
-        onUpdateRef.current({
-          ...blockRef.current,
-          length_inches: dimensions?.length_inches ?? 0,
-          width_inches: dimensions?.width_inches ?? 0,
-          height_inches: dimensions?.height_inches ?? 0,
-          weight_lbs: dimensions?.weight_lbs ?? 0,
-        })
-      }
+    // 2. Query has completed successfully (not fetching anymore)
+    // 3. The query was successful (isSuccess)
+    if (selectedModelId && !dimensionsFetching && dimensionsSuccess) {
+      onUpdateRef.current({
+        ...blockRef.current,
+        length_inches: dimensions?.length_inches ?? 0,
+        width_inches: dimensions?.width_inches ?? 0,
+        height_inches: dimensions?.height_inches ?? 0,
+        weight_lbs: dimensions?.weight_lbs ?? 0,
+      })
     }
-  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsUpdatedAt])
+  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsSuccess])
 
   // Sync images from dimensions when model changes
   // Also clears images when switching to a model without dimensions
   useEffect(() => {
-    // Only update when fetch has completed (dimensionsUpdatedAt > 0 means query ran)
-    if (selectedModelId && !dimensionsFetching && dimensionsUpdatedAt > 0) {
+    // Only update when query has successfully completed
+    if (selectedModelId && !dimensionsFetching && dimensionsSuccess) {
       setFrontImageUrl(dimensions?.front_image_url || null)
       setSideImageUrl(dimensions?.side_image_url || null)
       // Also update block with image URLs
@@ -336,7 +344,7 @@ export function EquipmentBlockCard({
         side_image_url: dimensions?.side_image_url || undefined,
       })
     }
-  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsUpdatedAt])
+  }, [dimensions, selectedModelId, dimensionsFetching, dimensionsSuccess])
 
   // Handle front image change
   const handleFrontImageChange = async (url: string | null) => {
