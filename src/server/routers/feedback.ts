@@ -93,7 +93,7 @@ export const feedbackRouter = router({
       if (process.env.RESEND_API_KEY) {
         try {
           await getResend().emails.send({
-            from: 'Dismantle Pro <noreply@lkwjd.com>',
+            from: 'Dismantle Pro <noreply@send.lkwjd.com>',
             to: adminEmail,
             subject: `[${ticketNumber}] New ${input.type}: ${input.title}`,
             html: `

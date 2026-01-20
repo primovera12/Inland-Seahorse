@@ -21,6 +21,7 @@ import {
   Edit,
   X,
   Check,
+  DollarSign,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { inchesToFtInInput, ftInInputToInches, formatDimension } from '@/lib/dimensions'
@@ -68,6 +69,30 @@ interface NewEquipmentType {
   base_rate_cents: number
 }
 
+interface ServiceType {
+  id: string
+  name: string
+  description: string | null
+  default_rate_cents: number
+  billing_unit: string
+}
+
+interface NewServiceType {
+  name: string
+  description: string
+  default_rate_cents: number
+  billing_unit: string
+}
+
+const SERVICE_BILLING_UNITS = [
+  { value: 'flat', label: 'Flat Rate' },
+  { value: 'hour', label: 'Per Hour' },
+  { value: 'day', label: 'Per Day' },
+  { value: 'mile', label: 'Per Mile' },
+  { value: 'load', label: 'Per Load' },
+  { value: 'way', label: 'Per Way' },
+]
+
 export default function InlandSettingsPage() {
   // Features
   const [useGoogleMaps, setUseGoogleMaps] = useState(true)
@@ -87,6 +112,16 @@ export default function InlandSettingsPage() {
     max_height_inches: 0,
     max_weight_lbs: 0,
     base_rate_cents: 0,
+  })
+
+  // Service type editing
+  const [editingService, setEditingService] = useState<ServiceType | null>(null)
+  const [showAddService, setShowAddService] = useState(false)
+  const [newService, setNewService] = useState<NewServiceType>({
+    name: '',
+    description: '',
+    default_rate_cents: 0,
+    billing_unit: 'flat',
   })
 
   const utils = trpc.useUtils()
@@ -135,6 +170,48 @@ export default function InlandSettingsPage() {
     },
   })
 
+  // Fetch service types
+  const { data: serviceTypes } = trpc.inland.getServiceTypes.useQuery()
+
+  // Service type mutations
+  const createServiceType = trpc.inland.createServiceType.useMutation({
+    onSuccess: () => {
+      toast.success('Service type added')
+      setShowAddService(false)
+      setNewService({
+        name: '',
+        description: '',
+        default_rate_cents: 0,
+        billing_unit: 'flat',
+      })
+      utils.inland.getServiceTypes.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to add service type: ${error.message}`)
+    },
+  })
+
+  const updateServiceType = trpc.inland.updateServiceType.useMutation({
+    onSuccess: () => {
+      toast.success('Service type updated')
+      setEditingService(null)
+      utils.inland.getServiceTypes.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to update service type: ${error.message}`)
+    },
+  })
+
+  const deleteServiceType = trpc.inland.deleteServiceType.useMutation({
+    onSuccess: () => {
+      toast.success('Service type removed')
+      utils.inland.getServiceTypes.invalidate()
+    },
+    onError: (error) => {
+      toast.error(`Failed to remove service type: ${error.message}`)
+    },
+  })
+
   const handleSave = () => {
     toast.success('Inland settings saved successfully')
   }
@@ -163,6 +240,31 @@ export default function InlandSettingsPage() {
   const handleDeleteEquipment = (id: string) => {
     if (confirm('Are you sure you want to remove this equipment type?')) {
       deleteEquipmentType.mutate({ id })
+    }
+  }
+
+  const handleAddService = () => {
+    if (!newService.name) {
+      toast.error('Service name is required')
+      return
+    }
+    createServiceType.mutate(newService)
+  }
+
+  const handleUpdateService = () => {
+    if (!editingService) return
+    updateServiceType.mutate({
+      id: editingService.id,
+      name: editingService.name,
+      description: editingService.description,
+      default_rate_cents: editingService.default_rate_cents,
+      billing_unit: editingService.billing_unit as 'flat' | 'hour' | 'day' | 'mile' | 'load' | 'way',
+    })
+  }
+
+  const handleDeleteService = (id: string) => {
+    if (confirm('Are you sure you want to remove this service type?')) {
+      deleteServiceType.mutate({ id })
     }
   }
 
@@ -457,6 +559,180 @@ export default function InlandSettingsPage() {
             ) : (
               <div className="text-center py-6 text-muted-foreground">
                 No equipment types configured. Click &quot;Add Type&quot; to add one.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Service Types */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Service Types
+                </CardTitle>
+                <CardDescription>Manage service types for quotes</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddService(!showAddService)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Service
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add New Service Form */}
+            {showAddService && (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 sm:col-span-1 space-y-1">
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      placeholder="e.g., Line Haul"
+                      value={newService.name}
+                      onChange={(e) => setNewService({ ...newService, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 space-y-1">
+                    <Label className="text-xs">Description</Label>
+                    <Input
+                      placeholder="Brief description..."
+                      value={newService.description}
+                      onChange={(e) => setNewService({ ...newService, description: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Billing Unit</Label>
+                    <select
+                      value={newService.billing_unit}
+                      onChange={(e) => setNewService({ ...newService, billing_unit: e.target.value })}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {SERVICE_BILLING_UNITS.map((unit) => (
+                        <option key={unit.value} value={unit.value}>
+                          {unit.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Default Rate ($)</Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={newService.default_rate_cents / 100}
+                      onChange={(e) => setNewService({ ...newService, default_rate_cents: Math.round(Number(e.target.value) * 100) })}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowAddService(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleAddService} disabled={createServiceType.isPending}>
+                    {createServiceType.isPending ? 'Adding...' : 'Add Service Type'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Service List */}
+            {serviceTypes && serviceTypes.length > 0 ? (
+              <div className="space-y-3">
+                {serviceTypes.map((service) => (
+                  <div key={service.id}>
+                    {editingService && editingService.id === service.id ? (
+                      <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="col-span-2 sm:col-span-1 space-y-1">
+                            <Label className="text-xs">Name</Label>
+                            <Input
+                              value={editingService.name}
+                              onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
+                            />
+                          </div>
+                          <div className="col-span-2 sm:col-span-1 space-y-1">
+                            <Label className="text-xs">Description</Label>
+                            <Input
+                              value={editingService.description || ''}
+                              onChange={(e) => setEditingService({ ...editingService, description: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Billing Unit</Label>
+                            <select
+                              value={editingService.billing_unit}
+                              onChange={(e) => setEditingService({ ...editingService, billing_unit: e.target.value })}
+                              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              {SERVICE_BILLING_UNITS.map((unit) => (
+                                <option key={unit.value} value={unit.value}>
+                                  {unit.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Default Rate ($)</Label>
+                            <Input
+                              type="number"
+                              value={editingService.default_rate_cents / 100}
+                              onChange={(e) => setEditingService({ ...editingService, default_rate_cents: Math.round(Number(e.target.value) * 100) })}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingService(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" className="h-8 w-8" onClick={handleUpdateService} disabled={updateServiceType.isPending}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">{service.name}</p>
+                          {service.description && (
+                            <p className="text-sm text-muted-foreground">{service.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {formatCurrency(service.default_rate_cents / 100)}{' '}
+                            {SERVICE_BILLING_UNITS.find(u => u.value === service.billing_unit)?.label || service.billing_unit}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditingService(service as ServiceType)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => handleDeleteService(service.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                No service types configured. Click &quot;Add Service&quot; to add one.
               </div>
             )}
           </CardContent>

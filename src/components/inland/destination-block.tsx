@@ -34,6 +34,13 @@ interface DestinationBlockProps {
     default_rate: number
     billing_unit: string
   }>
+  serviceTypes?: Array<{
+    id: string
+    name: string
+    description: string | null
+    default_rate_cents: number
+    billing_unit: string
+  }>
 }
 
 export function DestinationBlock({
@@ -44,6 +51,7 @@ export function DestinationBlock({
   canRemove,
   truckTypes,
   accessorialTypes,
+  serviceTypes,
 }: DestinationBlockProps) {
   const [showWaypoints, setShowWaypoints] = useState(
     (block.waypoints?.length || 0) > 0
@@ -477,6 +485,7 @@ export function DestinationBlock({
                   canRemove={block.load_blocks.length > 0}
                   truckTypes={truckTypes}
                   accessorialTypes={accessorialTypes}
+                  serviceTypes={serviceTypes}
                   distanceMiles={block.distance_miles}
                 />
               ))}

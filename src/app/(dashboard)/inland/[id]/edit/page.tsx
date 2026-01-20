@@ -118,6 +118,7 @@ export default function EditInlandQuotePage() {
   // Fetch data
   const { data: truckTypes } = trpc.inland.getEquipmentTypes.useQuery()
   const { data: accessorialTypes } = trpc.inland.getAccessorialTypes.useQuery()
+  const { data: serviceTypes } = trpc.inland.getServiceTypes.useQuery()
   const { data: settings } = trpc.settings.get.useQuery()
 
   // Normalize a destination block to ensure all required fields exist (for migrated quotes)
@@ -665,6 +666,7 @@ export default function EditInlandQuotePage() {
                             block={destination}
                             truckTypes={truckTypes || []}
                             accessorialTypes={accessorialTypes || []}
+                            serviceTypes={serviceTypes || []}
                             onUpdate={(updatedBlock) => updateDestinationBlock(destination.id, updatedBlock)}
                             onRemove={() => removeDestinationBlock(destination.id)}
                             canRemove={destinationBlocks.length > 1}

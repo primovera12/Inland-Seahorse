@@ -214,6 +214,138 @@ export const inlandRouter = router({
       return data
     }),
 
+  // Get service types
+  getServiceTypes: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('inland_service_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order')
+
+    // If table doesn't exist or no data, return empty array (not an error)
+    if (error && error.code === '42P01') {
+      return []
+    }
+    if (error) {
+      checkSupabaseError(error, 'Service types')
+    }
+    return data || []
+  }),
+
+  // Create service type
+  createServiceType: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        default_rate_cents: z.number().min(0).optional(),
+        billing_unit: z.enum(['flat', 'hour', 'day', 'mile', 'load', 'way']).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get the max sort_order to add at end
+      const { data: existing } = await ctx.supabase
+        .from('inland_service_types')
+        .select('sort_order')
+        .order('sort_order', { ascending: false })
+        .limit(1)
+
+      const nextSortOrder = (existing?.[0]?.sort_order || 0) + 1
+
+      const { data, error } = await ctx.supabase
+        .from('inland_service_types')
+        .insert({
+          ...input,
+          sort_order: nextSortOrder,
+          is_active: true,
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Service type')
+
+      // Log service type creation
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'inland_settings_updated',
+          subject: `Inland service type "${input.name}" created`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} added new inland service type "${input.name}"`.trim(),
+          metadata: { service_type_id: data.id, service_type_name: input.name, action: 'create' },
+        })
+      }
+
+      return data
+    }),
+
+  // Update service type
+  updateServiceType: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        description: z.string().nullable().optional(),
+        default_rate_cents: z.number().min(0).optional(),
+        billing_unit: z.enum(['flat', 'hour', 'day', 'mile', 'load', 'way']).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updateData } = input
+      const { data, error } = await ctx.supabase
+        .from('inland_service_types')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Service type')
+
+      // Log service type update
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'inland_settings_updated',
+          subject: `Inland service type "${data.name}" updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated inland service type "${data.name}"`.trim(),
+          metadata: { service_type_id: data.id, service_type_name: data.name, action: 'update', updated_fields: Object.keys(updateData) },
+        })
+      }
+
+      return data
+    }),
+
+  // Delete service type (soft delete by setting is_active to false) - Admin only
+  deleteServiceType: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Get service type info before deletion for logging
+      const { data: serviceType } = await ctx.supabase
+        .from('inland_service_types')
+        .select('name')
+        .eq('id', input.id)
+        .single()
+
+      const { error } = await ctx.supabase
+        .from('inland_service_types')
+        .update({ is_active: false })
+        .eq('id', input.id)
+
+      checkSupabaseError(error, 'Service type')
+
+      // Log service type deletion
+      if (serviceType) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'inland_settings_updated',
+          subject: `Inland service type "${serviceType.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted inland service type "${serviceType.name}"`.trim(),
+          metadata: { service_type_name: serviceType.name, action: 'delete' },
+        })
+      }
+
+      return { success: true }
+    }),
+
   // Get rate tiers
   getRateTiers: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase

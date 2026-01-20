@@ -79,6 +79,13 @@ interface LoadBlockCardProps {
     default_rate: number
     billing_unit: string
   }>
+  serviceTypes?: Array<{
+    id: string
+    name: string
+    description: string | null
+    default_rate_cents: number
+    billing_unit: string
+  }>
   equipmentTypes?: InlandEquipmentType[]
   distanceMiles?: number
 }
@@ -90,6 +97,7 @@ export function LoadBlockCard({
   canRemove,
   truckTypes,
   accessorialTypes,
+  serviceTypes,
   equipmentTypes,
   distanceMiles,
 }: LoadBlockCardProps) {
@@ -509,17 +517,38 @@ export function LoadBlockCard({
           </div>
 
           <div className="space-y-2">
-            {loadBlock.service_items.map((service, index) => (
+            {loadBlock.service_items.map((service, index) => {
+              // Build service options from database or fall back to predefined
+              const serviceOptions = serviceTypes && serviceTypes.length > 0
+                ? [
+                    ...serviceTypes.map(s => ({ value: s.id, label: s.name })),
+                    { value: 'custom', label: 'Custom Service' }
+                  ]
+                : PREDEFINED_SERVICES
+
+              // Determine if this is a custom service by checking if name matches a service option
+              const matchedService = serviceOptions.find(s => s.label === service.name)
+              const isCustomService = !matchedService || matchedService.value === 'custom'
+              const dropdownValue = matchedService?.value || 'custom'
+
+              return (
               <div key={service.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30 sm:bg-transparent sm:p-0">
                 <SearchableSelect
-                  value={PREDEFINED_SERVICES.find(s => s.label === service.name)?.value || 'custom'}
+                  value={dropdownValue}
                   onChange={(value) => {
-                    const selected = PREDEFINED_SERVICES.find(s => s.value === value)
+                    const selected = serviceOptions.find(s => s.value === value)
                     if (selected) {
                       updateServiceItem(index, 'name', selected.label)
+                      // If using database service types, apply default rate
+                      if (serviceTypes && value !== 'custom') {
+                        const dbService = serviceTypes.find(s => s.id === value)
+                        if (dbService && dbService.default_rate_cents > 0) {
+                          updateServiceItem(index, 'rate', dbService.default_rate_cents)
+                        }
+                      }
                     }
                   }}
-                  options={PREDEFINED_SERVICES.map((s): SearchableSelectOption => ({
+                  options={serviceOptions.map((s): SearchableSelectOption => ({
                     value: s.value,
                     label: s.label,
                   }))}
@@ -527,10 +556,10 @@ export function LoadBlockCard({
                   searchPlaceholder="Search services..."
                   className="w-full sm:w-[180px]"
                 />
-                {service.name === 'Custom Service' && (
+                {isCustomService && (
                   <Input
                     className="flex-1 min-w-[120px]"
-                    placeholder="Custom service name"
+                    placeholder="Enter custom service name"
                     value={service.name === 'Custom Service' ? '' : service.name}
                     onChange={(e) => updateServiceItem(index, 'name', e.target.value || 'Custom Service')}
                   />
@@ -564,7 +593,8 @@ export function LoadBlockCard({
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

@@ -100,6 +100,7 @@ export default function NewInlandQuotePage() {
   // Fetch data
   const { data: truckTypes } = trpc.inland.getEquipmentTypes.useQuery()
   const { data: accessorialTypes } = trpc.inland.getAccessorialTypes.useQuery()
+  const { data: serviceTypes } = trpc.inland.getServiceTypes.useQuery()
   const { data: settings } = trpc.settings.get.useQuery()
 
   // Draft queries and mutations
@@ -631,6 +632,7 @@ export default function NewInlandQuotePage() {
                           canRemove={destinationBlocks.length > 1}
                           truckTypes={truckTypes || []}
                           accessorialTypes={accessorialTypes || []}
+                          serviceTypes={serviceTypes || []}
                         />
                       </SortableDestination>
                     ))}
