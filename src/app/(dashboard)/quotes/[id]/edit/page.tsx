@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { QuoteSummary } from '@/components/quotes/quote-summary'
 import { EquipmentBlockCard } from '@/components/quotes/equipment-block-card'
@@ -22,6 +23,7 @@ import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 
 type CostState = Record<CostField, number>
 type EnabledState = Record<CostField, boolean>
+type OverrideState = Record<CostField, number | null>
 
 const initialCosts: CostState = COST_FIELDS.reduce(
   (acc, field) => ({ ...acc, [field]: 0 }),
@@ -204,19 +206,39 @@ export default function EditQuotePage() {
 
         if (quoteData.costs) setCosts(sanitizeCosts(quoteData.costs) as CostState)
         if (quoteData.enabledCosts) setEnabledCosts(quoteData.enabledCosts)
-        if (quoteData.costOverrides) setCostOverrides(quoteData.costOverrides)
+        // Sanitize cost overrides - convert NaN/undefined/null to null (meaning use base cost)
+        if (quoteData.costOverrides) {
+          const sanitizedOverrides: Record<string, number | null> = {}
+          const overridesObj = quoteData.costOverrides as Record<string, number | null | undefined>
+          for (const key of Object.keys(overridesObj)) {
+            const val = overridesObj[key]
+            sanitizedOverrides[key] = (val === null || val === undefined || isNaN(val as number)) ? null : val
+          }
+          setCostOverrides(sanitizedOverrides as OverrideState)
+        }
         if (quoteData.descriptionOverrides) setDescriptionOverrides(quoteData.descriptionOverrides)
         if (quoteData.miscFees) setMiscFees(quoteData.miscFees)
         if (quoteData.notes) setNotes(quoteData.notes)
         if (quoteData.dimensions) setDimensions(quoteData.dimensions)
         if (quoteData.inlandTransport) setInlandTransport(quoteData.inlandTransport)
 
+        // Helper to sanitize cost overrides - convert NaN/undefined to null
+        const sanitizeOverrides = (overrides: Record<string, number | null | undefined>): Record<string, number | null> => {
+          const result: Record<string, number | null> = {}
+          for (const key of Object.keys(overrides)) {
+            const val = overrides[key]
+            result[key] = (val === null || val === undefined || isNaN(val as number)) ? null : val
+          }
+          return result
+        }
+
         // Load equipment blocks - convert legacy single-equipment quotes to multi-equipment format
         if (quoteData.equipmentBlocks && quoteData.equipmentBlocks.length > 0) {
-          // Sanitize costs in equipment blocks
+          // Sanitize costs and cost_overrides in equipment blocks
           const sanitizedBlocks = quoteData.equipmentBlocks.map(block => ({
             ...block,
             costs: sanitizeCosts(block.costs || {}),
+            cost_overrides: sanitizeOverrides(block.cost_overrides || {}),
             subtotal: sanitizeCost(block.subtotal),
             misc_fees_total: sanitizeCost(block.misc_fees_total),
             total_with_quantity: sanitizeCost(block.total_with_quantity),
@@ -234,7 +256,7 @@ export default function EditQuotePage() {
             quantity: 1,
             costs: sanitizeCosts(quoteData.costs || initialCosts),
             enabled_costs: quoteData.enabledCosts || initialEnabled,
-            cost_overrides: quoteData.costOverrides || initialOverrides,
+            cost_overrides: sanitizeOverrides(quoteData.costOverrides || initialOverrides),
             misc_fees: quoteData.miscFees || [],
             subtotal: sanitizeCost(quote.subtotal) || 0,
             misc_fees_total: 0,
@@ -600,6 +622,28 @@ export default function EditQuotePage() {
                   Add Another Equipment
                 </Button>
               </div>
+
+              {/* Quote Notes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quote Notes</CardTitle>
+                  <CardDescription>
+                    Additional notes to include in the quote
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <textarea
+                      id="notes"
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="Additional notes for this quote..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="customer" className="mt-4">
@@ -626,8 +670,6 @@ export default function EditQuotePage() {
                       setSelectedCompanyId(id)
                       setCustomerCompany(name)
                     }}
-                    notes={notes}
-                    onNotesChange={setNotes}
                   />
                 </CardContent>
               </Card>

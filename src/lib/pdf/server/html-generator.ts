@@ -557,10 +557,11 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
   if (isInlandOnlyQuote && hasInlandTransport) {
     const pickup = data.inlandTransport!.pickup
     const dropoff = data.inlandTransport!.dropoff
+    const distanceMiles = data.inlandTransport!.distance_miles
 
     return `
-      <div class="location-grid" style="border-bottom: 1px solid #f1f5f9;">
-        <div class="location-block">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid #f1f5f9;">
+        <div class="location-block" style="border-right: 1px solid #f1f5f9;">
           <h3 class="section-title">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -573,7 +574,7 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
             <p class="location-address">${[pickup.city, pickup.state, pickup.zip].filter(Boolean).join(', ')}</p>
           ` : ''}
         </div>
-        <div class="location-block">
+        <div class="location-block" style="border-right: 1px solid #f1f5f9;">
           <h3 class="section-title">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -584,6 +585,15 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
           ${(dropoff.city || dropoff.state || dropoff.zip) ? `
             <p class="location-address">${[dropoff.city, dropoff.state, dropoff.zip].filter(Boolean).join(', ')}</p>
           ` : ''}
+        </div>
+        <div class="location-block">
+          <h3 class="section-title">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            Transport Distance
+          </h3>
+          <p class="location-name">${distanceMiles ? `${Math.round(distanceMiles).toLocaleString()} miles` : '-'}</p>
         </div>
       </div>
     `
@@ -609,9 +619,10 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
   }
 
   if (hasInlandTransport && !isInlandOnlyQuote) {
+    const distanceMiles = data.inlandTransport!.distance_miles
     html += `
-      <div class="location-grid" style="border-bottom: 1px solid #f1f5f9;">
-        <div class="location-block">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid #f1f5f9;">
+        <div class="location-block" style="border-right: 1px solid #f1f5f9;">
           <h3 class="section-title">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -624,7 +635,7 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
             <p class="location-address">${[data.inlandTransport!.pickup.city, data.inlandTransport!.pickup.state, data.inlandTransport!.pickup.zip].filter(Boolean).join(', ')}</p>
           ` : ''}
         </div>
-        <div class="location-block">
+        <div class="location-block" style="border-right: 1px solid #f1f5f9;">
           <h3 class="section-title">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -635,6 +646,15 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
           ${(data.inlandTransport!.dropoff.city || data.inlandTransport!.dropoff.state || data.inlandTransport!.dropoff.zip) ? `
             <p class="location-address">${[data.inlandTransport!.dropoff.city, data.inlandTransport!.dropoff.state, data.inlandTransport!.dropoff.zip].filter(Boolean).join(', ')}</p>
           ` : ''}
+        </div>
+        <div class="location-block">
+          <h3 class="section-title">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            Transport Distance
+          </h3>
+          <p class="location-name">${distanceMiles ? `${Math.round(distanceMiles).toLocaleString()} miles` : '-'}</p>
         </div>
       </div>
     `

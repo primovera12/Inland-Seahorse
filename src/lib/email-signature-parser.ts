@@ -23,10 +23,16 @@ export interface ParsedSignature {
 const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
 const PHONE_PATTERNS = [
   /(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/g,
-  /(?:phone|tel|cell|mobile|office|direct|fax)?:?\s*(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/gi,
+  /(?:phone|tel|cell|mobile|office|direct|fax|p|m|o|c)?[:\s]*(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/gi,
+  // International and various formats
+  /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g,
 ]
 const CITY_STATE_ZIP_PATTERN = /([A-Za-z\s]+),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/i
+// Also match "City, State" without zip
+const CITY_STATE_PATTERN = /^([A-Za-z\s]+),\s*([A-Z]{2})$/i
 const WEBSITE_PATTERN = /(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}(?:\/[^\s]*)?/gi
+// Street address pattern
+const STREET_ADDRESS_PATTERN = /^\d+\s+[\w\s]+(?:st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|ct|court|pl|place|pkwy|parkway|hwy|highway|circle|cir|terrace|ter)\.?\b/i
 
 // Title patterns (job titles)
 const TITLE_PATTERN = /\b(?:CEO|CFO|COO|CTO|CIO|CMO|VP|Vice President|President|Director|Manager|Owner|Partner|Founder|Principal|Chairman|Supervisor|Coordinator|Administrator|Executive|Officer|Consultant|Specialist|Analyst|Engineer|Developer|Designer|Architect|Lead|Head|Chief|Sales|Account|Representative|Agent|Broker|Realtor|Attorney|Lawyer|Accountant|Doctor|Nurse|Professor|Teacher)\b/i
@@ -115,7 +121,7 @@ export function parseEmailSignature(signature: string): ParsedSignature {
 
     // Extract address (city, state, zip pattern)
     const cityStateZipMatch = line.match(CITY_STATE_ZIP_PATTERN)
-    if (cityStateZipMatch) {
+    if (cityStateZipMatch && !result.city) {
       result.city = cityStateZipMatch[1].trim()
       result.state = cityStateZipMatch[2].toUpperCase()
       result.zip = cityStateZipMatch[3]
@@ -131,6 +137,20 @@ export function parseEmailSignature(signature: string): ParsedSignature {
       } else {
         result.address = line
       }
+    }
+
+    // Try city, state without zip
+    if (!result.city) {
+      const cityStateMatch = line.match(CITY_STATE_PATTERN)
+      if (cityStateMatch) {
+        result.city = cityStateMatch[1].trim()
+        result.state = cityStateMatch[2].toUpperCase()
+      }
+    }
+
+    // Try street address pattern
+    if (!result.address && STREET_ADDRESS_PATTERN.test(line)) {
+      result.address = line
     }
   }
 

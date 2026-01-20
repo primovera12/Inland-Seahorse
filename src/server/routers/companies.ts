@@ -156,7 +156,7 @@ export const companiesRouter = router({
     .query(async ({ ctx, input }) => {
       const { data, error } = await ctx.supabase
         .from('companies')
-        .select('id, name, phone, status')
+        .select('id, name, phone, status, address, city, state, zip')
         .ilike('name', `%${input.query}%`)
         .eq('status', 'active')
         .limit(10)

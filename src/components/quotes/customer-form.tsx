@@ -15,7 +15,7 @@ import {
 import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { trpc } from '@/lib/trpc/client'
 import { AddressAutocomplete, type AddressComponents } from '@/components/ui/address-autocomplete'
-import { Search, Building2, ClipboardPaste, Users } from 'lucide-react'
+import { Search, Building2, ClipboardPaste, Users, Trash2 } from 'lucide-react'
 import { EmailSignatureDialog } from './email-signature-dialog'
 import type { ParsedSignature } from '@/lib/email-signature-parser'
 
@@ -39,8 +39,9 @@ interface CustomerFormProps {
   onCustomerAddressChange?: (value: CustomerAddress) => void
   onCompanySelect: (id: string, name: string) => void
   onContactSelect?: (id: string, name: string) => void
-  notes: string
-  onNotesChange: (value: string) => void
+  // Optional notes section (used by inland quotes)
+  notes?: string
+  onNotesChange?: (value: string) => void
 }
 
 type SelectionMode = 'browse' | 'search' | 'manual'
@@ -227,6 +228,16 @@ export function CustomerForm({
             </Button>
           }
         />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={clearSelection}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Clear Form
+        </Button>
       </div>
 
       {/* Browse Mode - Company and Contact Dropdowns */}
@@ -327,10 +338,23 @@ export function CustomerForm({
                   type="button"
                   className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
                   onClick={() => {
+                    // Set selected company ID so contacts query runs
+                    setSelectedCompanyId(company.id)
+                    setSelectedContactId('')
                     onCompanySelect(company.id, company.name)
                     onCustomerCompanyChange(company.name)
                     if (company.phone) onCustomerPhoneChange(company.phone)
-                    setSelectionMode('manual')
+                    // Populate address if available
+                    if (onCustomerAddressChange && company.address) {
+                      onCustomerAddressChange({
+                        address: company.address || '',
+                        city: company.city || '',
+                        state: company.state || '',
+                        zip: company.zip || '',
+                      })
+                    }
+                    // Switch to browse mode so contacts query runs and auto-selects primary contact
+                    setSelectionMode('browse')
                     setSearchQuery('')
                   }}
                 >
@@ -452,18 +476,19 @@ export function CustomerForm({
         </div>
       </div>
 
-      {/* Notes */}
-      <Separator />
-      <div className="space-y-2">
-        <Label htmlFor="notes">Quote Notes</Label>
-        <textarea
-          id="notes"
-          className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder="Additional notes for this quote..."
-          value={notes}
-          onChange={(e) => onNotesChange(e.target.value)}
-        />
-      </div>
+      {/* Optional Notes Section (for inland quotes) */}
+      {onNotesChange && (
+        <div className="mt-6">
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Internal Notes</h3>
+          <textarea
+            className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="Internal notes (not visible to customer)..."
+            value={notes || ''}
+            onChange={(e) => onNotesChange(e.target.value)}
+          />
+        </div>
+      )}
+
     </div>
   )
 }

@@ -19,7 +19,7 @@ import { COST_FIELDS, type LocationName, type CostField } from '@/types/equipmen
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { generateQuoteNumber, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Eye, Plus, Layers, Loader2, Mail, Save, Trash2, FolderOpen, Truck } from 'lucide-react'
+import { Plus, Layers, Loader2, Save, Trash2, FolderOpen, Truck, Eye } from 'lucide-react'
 import { QuotePDFPreview, buildUnifiedPDFData, type UnifiedPDFData } from '@/lib/pdf'
 import { EmailQuoteDialog } from '@/components/quotes/email-quote-dialog'
 import { useAutoSave } from '@/hooks/use-auto-save'
@@ -510,10 +510,19 @@ export default function NewQuotePage() {
       toast.error('Please enter a customer name')
       return
     }
-    if (!selectedModelId && !modelName) {
+
+    // Check if any equipment block has equipment selected
+    const hasEquipment = equipmentBlocks.some(b => b.make_name || b.model_name)
+    if (!hasEquipment && !selectedModelId && !modelName) {
       toast.error('Please select equipment')
       return
     }
+
+    // Get equipment info from first block or legacy state
+    const firstBlockWithEquipment = equipmentBlocks.find(b => b.make_name || b.model_name)
+    const effectiveMakeName = firstBlockWithEquipment?.make_name || makeName || 'Custom'
+    const effectiveModelName = firstBlockWithEquipment?.model_name || modelName || 'Equipment'
+    const effectiveLocation = firstBlockWithEquipment?.location || selectedLocation
 
     createQuote.mutate({
       quote_number: quoteNumber,
@@ -525,13 +534,13 @@ export default function NewQuotePage() {
       customer_address: getFullAddressString(customerAddress),
       company_id: selectedCompanyId || undefined,
       contact_id: selectedContactId || undefined,
-      make_id: selectedMakeId || undefined,
-      model_id: selectedModelId || undefined,
-      make_name: makeName,
-      model_name: modelName,
-      location: selectedLocation,
-      subtotal,
-      total,
+      make_id: firstBlockWithEquipment?.make_id || selectedMakeId || undefined,
+      model_id: firstBlockWithEquipment?.model_id || selectedModelId || undefined,
+      make_name: effectiveMakeName,
+      model_name: effectiveModelName,
+      location: effectiveLocation,
+      subtotal: multiEquipmentSubtotal || subtotal,
+      total: multiEquipmentTotal || total,
       quote_data: {
         costs,
         enabledCosts,
@@ -539,6 +548,9 @@ export default function NewQuotePage() {
         miscFees,
         dimensions,
         notes,
+        equipmentBlocks, // Include equipment blocks in quote_data
+        isMultiEquipment,
+        inlandTransport,
       },
     })
   }
@@ -566,43 +578,20 @@ export default function NewQuotePage() {
               />
             </div>
           </div>
-          <Button onClick={handleSaveQuote} disabled={createQuote.isPending} className="w-full sm:w-auto">
-            {createQuote.isPending ? 'Saving...' : 'Create Quote'}
-          </Button>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <Button variant="outline" size="icon" onClick={handlePreviewPdf} title="Preview PDF">
-            <Eye className="h-4 w-4" />
+          <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
+            <Save className="h-4 w-4 mr-2" />
+            {createQuote.isPending ? 'Saving...' : 'Save Draft'}
           </Button>
           <Button
             variant="outline"
-            size="icon"
-            onClick={() => setShowEmailDialog(true)}
-            title="Send via Email"
-            disabled={!savedQuoteId}
+            onClick={handleDiscardDraft}
+            disabled={deleteDraftMutation.isPending}
           >
-            <Mail className="h-4 w-4" />
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear Draft
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleSaveAsTemplate}
-            title="Save as Template"
-            disabled={saveTemplate.isPending}
-          >
-            <Save className="h-4 w-4" />
-          </Button>
-          {hasDraft && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleDiscardDraft}
-              title="Discard Draft"
-              disabled={deleteDraftMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       </div>
 
@@ -659,6 +648,28 @@ export default function NewQuotePage() {
                   Add Another Equipment
                 </Button>
               </div>
+
+              {/* Quote Notes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quote Notes</CardTitle>
+                  <CardDescription>
+                    Additional notes to include in the quote
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <textarea
+                      id="notes"
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="Additional notes for this quote..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="customer" className="mt-4">
@@ -685,8 +696,6 @@ export default function NewQuotePage() {
                       setSelectedCompanyId(id)
                       setCustomerCompany(name)
                     }}
-                    notes={notes}
-                    onNotesChange={setNotes}
                   />
                 </CardContent>
               </Card>

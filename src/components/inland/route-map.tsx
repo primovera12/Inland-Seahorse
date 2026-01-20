@@ -159,7 +159,7 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
   useEffect(() => {
     const timer = setTimeout(() => {
       calculateRoutes()
-    }, 1000) // Debounce
+    }, 2500) // Debounce - increased to reduce API costs
 
     return () => clearTimeout(timer)
   }, [calculateRoutes])

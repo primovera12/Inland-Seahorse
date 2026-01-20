@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download, Printer } from 'lucide-react'
+import { Loader2, Download } from 'lucide-react'
 import { QuotePDFTemplate } from './QuotePDFTemplate'
 import type { UnifiedPDFData } from '../types'
 import { cn } from '@/lib/utils'
@@ -69,11 +69,6 @@ export function QuotePDFPreview({
     }
   }
 
-  // Keep browser print for printing (uses CSS @media print)
-  const handlePrint = () => {
-    window.print()
-  }
-
   return (
     <div className={cn('flex flex-col', className)}>
       {/* Controls */}
@@ -88,11 +83,6 @@ export function QuotePDFPreview({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint} disabled={isGenerating}>
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </Button>
-
             <Button size="sm" onClick={handleDownload} disabled={isGenerating}>
               {isGenerating ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

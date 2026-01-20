@@ -451,10 +451,7 @@ export function EquipmentBlockCard({
                   const displayValue = sanitizeCost(override ?? baseCost)
                   const isEnabled = block.enabled_costs[field]
 
-                  // Hide items with 0 value (unless they have an override set)
-                  if (displayValue === 0 && override === null) {
-                    return null
-                  }
+                  // Show all rows in editor - hiding $0 rows only happens in PDF
 
                   return (
                     <div

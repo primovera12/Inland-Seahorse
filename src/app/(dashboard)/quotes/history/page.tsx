@@ -111,12 +111,18 @@ export default function QuoteHistoryPage() {
       utils.quotes.getHistory.invalidate()
       toast.success('Quote marked as accepted')
     },
+    onError: (error) => {
+      toast.error('Failed to mark quote as accepted', { description: error.message })
+    },
   })
 
   const markAsRejected = trpc.quotes.markAsRejected.useMutation({
     onSuccess: () => {
       utils.quotes.getHistory.invalidate()
       toast.success('Quote marked as rejected')
+    },
+    onError: (error) => {
+      toast.error('Failed to mark quote as rejected', { description: error.message })
     },
   })
 
