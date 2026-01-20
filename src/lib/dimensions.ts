@@ -157,7 +157,111 @@ export function metersToInches(meters: number): number {
   return Math.round(meters * 100 / 2.54)
 }
 
-export type DimensionUnit = 'inches' | 'feet' | 'cm' | 'meters'
+export type DimensionUnit = 'inches' | 'ft-in' | 'cm' | 'mm' | 'meters'
+export type WeightUnit = 'lbs' | 'kg' | 'ton'
+
+/**
+ * Convert millimeters to inches
+ */
+export function mmToInches(mm: number): number {
+  return Math.round(mm / 25.4)
+}
+
+/**
+ * Convert inches to millimeters
+ */
+export function inchesToMm(inches: number): number {
+  return Math.round(inches * 25.4)
+}
+
+/**
+ * Convert kilograms to pounds
+ */
+export function kgToLbs(kg: number): number {
+  return Math.round(kg * 2.20462)
+}
+
+/**
+ * Convert pounds to kilograms
+ */
+export function lbsToKg(lbs: number): number {
+  return Math.round(lbs / 2.20462)
+}
+
+/**
+ * Convert tons to pounds (1 ton = 2000 lbs)
+ */
+export function tonToLbs(ton: number): number {
+  return Math.round(ton * 2000)
+}
+
+/**
+ * Convert pounds to tons
+ */
+export function lbsToTon(lbs: number): number {
+  return Math.round((lbs / 2000) * 100) / 100 // 2 decimal places
+}
+
+/**
+ * Parse dimension from any unit to inches
+ */
+export function parseDimensionToInches(value: number | string, unit: DimensionUnit): number {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value
+  if (!numValue || isNaN(numValue) || numValue <= 0) return 0
+
+  switch (unit) {
+    case 'inches':
+      return Math.round(numValue)
+    case 'ft-in':
+      // For ft-in, use the smart parser
+      return ftInInputToInches(String(value))
+    case 'cm':
+      return cmToInches(numValue)
+    case 'mm':
+      return mmToInches(numValue)
+    case 'meters':
+      return metersToInches(numValue)
+    default:
+      return Math.round(numValue)
+  }
+}
+
+/**
+ * Parse weight from any unit to pounds
+ */
+export function parseWeightToLbs(value: number | string, unit: WeightUnit): number {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value
+  if (!numValue || isNaN(numValue) || numValue <= 0) return 0
+
+  switch (unit) {
+    case 'lbs':
+      return Math.round(numValue)
+    case 'kg':
+      return kgToLbs(numValue)
+    case 'ton':
+      return tonToLbs(numValue)
+    default:
+      return Math.round(numValue)
+  }
+}
+
+/**
+ * Format weight in specified unit
+ */
+export function formatWeightInUnit(lbs: number, unit: WeightUnit): string {
+  if (!lbs || lbs <= 0) return '-'
+
+  switch (unit) {
+    case 'lbs':
+      return `${lbs.toLocaleString()} lbs`
+    case 'kg':
+      return `${lbsToKg(lbs).toLocaleString()} kg`
+    case 'ton':
+      return `${lbsToTon(lbs)} ton`
+    default:
+      return `${lbs.toLocaleString()} lbs`
+  }
+}
 
 /**
  * Format dimension in specified unit
@@ -168,12 +272,14 @@ export function formatDimensionInUnit(inches: number, unit: DimensionUnit): stri
   switch (unit) {
     case 'inches':
       return `${inches}"`
-    case 'feet':
+    case 'ft-in':
       const feet = Math.floor(inches / 12)
       const remainingInches = Math.round(inches % 12)
       return `${feet}'-${remainingInches}"`
     case 'cm':
       return `${inchesToCm(inches)} cm`
+    case 'mm':
+      return `${inchesToMm(inches)} mm`
     case 'meters':
       return `${inchesToMeters(inches)} m`
     default:

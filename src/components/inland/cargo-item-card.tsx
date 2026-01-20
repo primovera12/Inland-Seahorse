@@ -17,7 +17,16 @@ import { Trash2, Package, Ruler, Scale, AlertTriangle, ImageIcon } from 'lucide-
 import Image from 'next/image'
 import type { CargoItem } from '@/types/inland'
 import { trpc } from '@/lib/trpc/client'
-import { inchesToFtInInput, ftInInputToInches } from '@/lib/dimensions'
+import {
+  inchesToFtInInput,
+  ftInInputToInches,
+  formatDimension,
+  formatWeight,
+  parseDimensionToInches,
+  parseWeightToLbs,
+  type DimensionUnit,
+  type WeightUnit,
+} from '@/lib/dimensions'
 
 interface CargoItemCardProps {
   item: CargoItem
@@ -34,6 +43,21 @@ const LEGAL_LIMITS = {
   weight: 80000, // 80,000 lbs
 }
 
+// Unit options for dimensions and weight
+const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
+  { value: 'ft-in', label: 'ft-in' },
+  { value: 'inches', label: 'in' },
+  { value: 'cm', label: 'cm' },
+  { value: 'mm', label: 'mm' },
+  { value: 'meters', label: 'm' },
+]
+
+const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
+  { value: 'lbs', label: 'lbs' },
+  { value: 'kg', label: 'kg' },
+  { value: 'ton', label: 'ton' },
+]
+
 export function CargoItemCard({
   item,
   onUpdate,
@@ -43,6 +67,18 @@ export function CargoItemCard({
   const [isEquipmentMode, setIsEquipmentMode] = useState(item.is_equipment || false)
   const [isCustomEquipment, setIsCustomEquipment] = useState(item.is_custom_equipment || false)
   const [selectedMakeId, setSelectedMakeId] = useState(item.equipment_make_id || '')
+
+  // Unit selection state
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('ft-in')
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs')
+
+  // Local input state (in selected unit)
+  const [dimensionInputs, setDimensionInputs] = useState({
+    length: inchesToFtInInput(item.length_inches),
+    width: inchesToFtInInput(item.width_inches),
+    height: inchesToFtInInput(item.height_inches),
+  })
+  const [weightInput, setWeightInput] = useState(String(item.weight_lbs || ''))
 
   // Fetch makes
   const { data: makes } = trpc.equipment.getMakes.useQuery()
@@ -77,12 +113,12 @@ export function CargoItemCard({
     return { isOversize, isOverweight }
   }
 
-  // Update dimension field
-  const updateDimension = (
-    field: 'length_inches' | 'width_inches' | 'height_inches' | 'weight_lbs',
-    value: number
+  // Update dimension field (internal - receives inches)
+  const updateDimensionInches = (
+    field: 'length_inches' | 'width_inches' | 'height_inches',
+    inches: number
   ) => {
-    const updated = { ...item, [field]: value }
+    const updated = { ...item, [field]: inches }
     const { isOversize, isOverweight } = checkLimits(
       updated.length_inches,
       updated.width_inches,
@@ -90,6 +126,79 @@ export function CargoItemCard({
       updated.weight_lbs
     )
     onUpdate({ ...updated, is_oversize: isOversize, is_overweight: isOverweight })
+  }
+
+  // Update weight field (internal - receives lbs)
+  const updateWeightLbs = (lbs: number) => {
+    const updated = { ...item, weight_lbs: lbs }
+    const { isOversize, isOverweight } = checkLimits(
+      updated.length_inches,
+      updated.width_inches,
+      updated.height_inches,
+      updated.weight_lbs
+    )
+    onUpdate({ ...updated, is_oversize: isOversize, is_overweight: isOverweight })
+  }
+
+  // Handle dimension input change (with unit conversion)
+  const handleDimensionInputChange = (
+    field: 'length' | 'width' | 'height',
+    value: string
+  ) => {
+    setDimensionInputs(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Handle dimension blur (parse, convert to inches, and save)
+  const handleDimensionBlur = (field: 'length' | 'width' | 'height') => {
+    const inputValue = dimensionInputs[field]
+    const inchesField = `${field}_inches` as 'length_inches' | 'width_inches' | 'height_inches'
+
+    // Parse value based on selected unit
+    const inches = parseDimensionToInches(inputValue, dimensionUnit)
+
+    // Update the display to normalized format based on unit
+    if (dimensionUnit === 'ft-in') {
+      setDimensionInputs(prev => ({ ...prev, [field]: inchesToFtInInput(inches) }))
+    } else {
+      // For other units, just keep the numeric value
+      setDimensionInputs(prev => ({ ...prev, [field]: inputValue }))
+    }
+
+    updateDimensionInches(inchesField, inches)
+  }
+
+  // Handle weight input change
+  const handleWeightInputChange = (value: string) => {
+    setWeightInput(value)
+  }
+
+  // Handle weight blur (parse, convert to lbs, and save)
+  const handleWeightBlur = () => {
+    const lbs = parseWeightToLbs(weightInput, weightUnit)
+    updateWeightLbs(lbs)
+  }
+
+  // Handle dimension unit change - convert existing values
+  const handleDimensionUnitChange = (newUnit: DimensionUnit) => {
+    setDimensionUnit(newUnit)
+    // Reset inputs to reflect current values in new unit format
+    if (newUnit === 'ft-in') {
+      setDimensionInputs({
+        length: inchesToFtInInput(item.length_inches),
+        width: inchesToFtInInput(item.width_inches),
+        height: inchesToFtInInput(item.height_inches),
+      })
+    } else {
+      // For other units, clear inputs - user will re-enter
+      setDimensionInputs({ length: '', width: '', height: '' })
+    }
+  }
+
+  // Handle weight unit change
+  const handleWeightUnitChange = (newUnit: WeightUnit) => {
+    setWeightUnit(newUnit)
+    // Clear input - user will re-enter in new unit
+    setWeightInput('')
   }
 
   // Handle equipment mode toggle
@@ -361,59 +470,112 @@ export function CargoItemCard({
         </div>
       </div>
 
-      {/* Dimensions */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <div className="space-y-1">
-          <Label className="text-xs flex items-center gap-1">
-            <Ruler className="h-3 w-3" />
-            Length (ft-in)
-          </Label>
-          <Input
-            type="text"
-            placeholder="e.g., 30-4"
-            value={inchesToFtInInput(item.length_inches)}
-            onChange={(e) => updateDimension('length_inches', ftInInputToInches(e.target.value))}
-            className={item.is_oversize && item.length_inches > LEGAL_LIMITS.length ? 'border-orange-500' : ''}
-          />
+      {/* Dimensions with Unit Selection */}
+      <div className="space-y-3">
+        {/* Unit Selectors */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Dimensions:</Label>
+            <Select value={dimensionUnit} onValueChange={(v) => handleDimensionUnitChange(v as DimensionUnit)}>
+              <SelectTrigger className="h-7 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIMENSION_UNITS.map((unit) => (
+                  <SelectItem key={unit.value} value={unit.value} className="text-xs">
+                    {unit.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Weight:</Label>
+            <Select value={weightUnit} onValueChange={(v) => handleWeightUnitChange(v as WeightUnit)}>
+              <SelectTrigger className="h-7 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WEIGHT_UNITS.map((unit) => (
+                  <SelectItem key={unit.value} value={unit.value} className="text-xs">
+                    {unit.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs flex items-center gap-1">
-            <Ruler className="h-3 w-3" />
-            Width (ft-in)
-          </Label>
-          <Input
-            type="text"
-            placeholder="e.g., 10-4"
-            value={inchesToFtInInput(item.width_inches)}
-            onChange={(e) => updateDimension('width_inches', ftInInputToInches(e.target.value))}
-            className={item.is_oversize && item.width_inches > LEGAL_LIMITS.width ? 'border-orange-500' : ''}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs flex items-center gap-1">
-            <Ruler className="h-3 w-3" />
-            Height (ft-in)
-          </Label>
-          <Input
-            type="text"
-            placeholder="e.g., 10-10"
-            value={inchesToFtInInput(item.height_inches)}
-            onChange={(e) => updateDimension('height_inches', ftInInputToInches(e.target.value))}
-            className={item.is_oversize && item.height_inches > LEGAL_LIMITS.height ? 'border-orange-500' : ''}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs flex items-center gap-1">
-            <Scale className="h-3 w-3" />
-            Weight (lbs)
-          </Label>
-          <Input
-            type="number"
-            min={0}
-            value={item.weight_lbs || ''}
-            onChange={(e) => updateDimension('weight_lbs', parseInt(e.target.value) || 0)}
-            className={item.is_overweight ? 'border-red-500' : ''}
-          />
+
+        {/* Dimension Inputs */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1">
+              <Ruler className="h-3 w-3" />
+              Length ({dimensionUnit})
+            </Label>
+            <Input
+              type="text"
+              placeholder={dimensionUnit === 'ft-in' ? 'e.g., 30-4' : '0'}
+              value={dimensionInputs.length}
+              onChange={(e) => handleDimensionInputChange('length', e.target.value)}
+              onBlur={() => handleDimensionBlur('length')}
+              className={item.is_oversize && item.length_inches > LEGAL_LIMITS.length ? 'border-orange-500' : ''}
+            />
+            {item.length_inches > 0 && (
+              <p className="text-xs text-muted-foreground">{formatDimension(item.length_inches)}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1">
+              <Ruler className="h-3 w-3" />
+              Width ({dimensionUnit})
+            </Label>
+            <Input
+              type="text"
+              placeholder={dimensionUnit === 'ft-in' ? 'e.g., 10-4' : '0'}
+              value={dimensionInputs.width}
+              onChange={(e) => handleDimensionInputChange('width', e.target.value)}
+              onBlur={() => handleDimensionBlur('width')}
+              className={item.is_oversize && item.width_inches > LEGAL_LIMITS.width ? 'border-orange-500' : ''}
+            />
+            {item.width_inches > 0 && (
+              <p className="text-xs text-muted-foreground">{formatDimension(item.width_inches)}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1">
+              <Ruler className="h-3 w-3" />
+              Height ({dimensionUnit})
+            </Label>
+            <Input
+              type="text"
+              placeholder={dimensionUnit === 'ft-in' ? 'e.g., 10-10' : '0'}
+              value={dimensionInputs.height}
+              onChange={(e) => handleDimensionInputChange('height', e.target.value)}
+              onBlur={() => handleDimensionBlur('height')}
+              className={item.is_oversize && item.height_inches > LEGAL_LIMITS.height ? 'border-orange-500' : ''}
+            />
+            {item.height_inches > 0 && (
+              <p className="text-xs text-muted-foreground">{formatDimension(item.height_inches)}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1">
+              <Scale className="h-3 w-3" />
+              Weight ({weightUnit})
+            </Label>
+            <Input
+              type="text"
+              placeholder="0"
+              value={weightInput}
+              onChange={(e) => handleWeightInputChange(e.target.value)}
+              onBlur={handleWeightBlur}
+              className={item.is_overweight ? 'border-red-500' : ''}
+            />
+            {item.weight_lbs > 0 && (
+              <p className="text-xs text-muted-foreground">{formatWeight(item.weight_lbs)}</p>
+            )}
+          </div>
         </div>
       </div>
 
