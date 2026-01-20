@@ -133,21 +133,34 @@ export default function EditInlandQuotePage() {
       setCustomerCompany(quote.customer_company || '')
       if (quote.company_id) setSelectedCompanyId(quote.company_id)
 
-      // Load quote_data
+      // Load quote_data - handle both camelCase and snake_case for backwards compatibility
       const quoteData = quote.quote_data as {
+        // camelCase (new format)
         destinationBlocks?: InlandDestinationBlock[]
         internalNotes?: string
         quoteNotes?: string
         customerAddress?: CustomerAddress
+        // snake_case (legacy format from new page)
+        destination_blocks?: InlandDestinationBlock[]
+        internal_notes?: string
+        quote_notes?: string
+        customer_address?: CustomerAddress
       }
 
       if (quoteData) {
-        if (quoteData.destinationBlocks && quoteData.destinationBlocks.length > 0) {
-          setDestinationBlocks(quoteData.destinationBlocks)
+        // Load destination blocks (check both formats)
+        const blocks = quoteData.destinationBlocks || quoteData.destination_blocks
+        if (blocks && blocks.length > 0) {
+          setDestinationBlocks(blocks)
         }
-        if (quoteData.internalNotes) setInternalNotes(quoteData.internalNotes)
-        if (quoteData.quoteNotes) setQuoteNotes(quoteData.quoteNotes)
-        if (quoteData.customerAddress) setCustomerAddress(quoteData.customerAddress)
+        // Load notes (check both formats)
+        const intNotes = quoteData.internalNotes || quoteData.internal_notes
+        if (intNotes) setInternalNotes(intNotes)
+        const qNotes = quoteData.quoteNotes || quoteData.quote_notes
+        if (qNotes) setQuoteNotes(qNotes)
+        // Load customer address (check both formats)
+        const custAddr = quoteData.customerAddress || quoteData.customer_address
+        if (custAddr) setCustomerAddress(custAddr)
       }
 
       setDataLoaded(true)

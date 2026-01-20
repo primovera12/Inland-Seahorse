@@ -1,7 +1,7 @@
 # Status Tracker - Dismantle Pro
 
 **Created**: January 7, 2026
-**Last Updated**: January 7, 2026
+**Last Updated**: January 20, 2026
 
 ---
 
@@ -69,6 +69,76 @@
 - [x] Apply to email router
 - [x] Apply to import router
 - [x] Apply to notifications router
+
+---
+
+## NEW FEATURES & BUG FIXES (January 2026)
+
+### A. Team Page - User Management
+**Priority**: HIGH
+**Location**: Team management pages
+**Status**: COMPLETED
+
+- [x] Add ability to create users directly (not just invite)
+- [x] Add ability to edit existing users
+- [x] Bypass email invites (SendGrid not configured)
+
+### B. Companies Page - Search Filters
+**Priority**: MEDIUM
+**Location**: Companies page
+**Status**: COMPLETED
+
+- [x] Add more filters for easier searchability (city, state, sort options)
+
+### C. Feedback Popup - Bug Fixes
+**Priority**: HIGH
+**Location**: Feedback floating popup component
+**Status**: COMPLETED
+
+- [x] Fix submit ticket error (made email sending optional when RESEND_API_KEY not set)
+- [x] Fix screenshot/snapshot button error (improved html2canvas options)
+- [x] Created feedback storage bucket migration
+
+### D. Import Data Page - Removal
+**Priority**: HIGH
+**Location**: Import data page/functionality
+**Status**: COMPLETED
+
+- [x] Remove import data page from navigation
+
+### E. Reminders Page - Removal
+**Priority**: HIGH
+**Location**: Reminders page
+**Status**: COMPLETED
+
+- [x] Remove reminders page from navigation (temporary)
+
+### F. Pipeline Page - Improvements
+**Priority**: HIGH
+**Location**: Pipeline/Kanban page
+**Status**: COMPLETED
+
+- [x] Fix responsiveness - kanban in its own scrollable container
+- [x] Prevent horizontal scroll affecting header buttons
+- [x] Drag and drop already implemented (was working)
+- [x] Fix 3-dot menu links (changed to /edit route)
+
+### G. Inland History Page - Fixes
+**Priority**: HIGH
+**Location**: Inland quote history page
+**Status**: COMPLETED
+
+- [x] Fix all actions (added error handlers to mutations)
+- [x] Edit autofill now works (fixed snake_case vs camelCase mismatch)
+- [x] Removed broken Compare Versions link
+
+### H. Dismantle Quote History Page - Edit Autofill
+**Priority**: HIGH
+**Location**: Dismantle quote history page
+**Status**: COMPLETED
+
+- [x] Edit quote autofill works
+- [x] Fix equipment auto-selection in dropdowns (improved sync logic in equipment-block-card)
 
 ---
 

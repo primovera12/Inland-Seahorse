@@ -13,13 +13,18 @@ export const companiesRouter = router({
           .enum(['active', 'inactive', 'prospect', 'lead', 'vip'])
           .optional(),
         search: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        industry: z.string().optional(),
+        sortBy: z.enum(['name', 'created_at', 'city', 'state']).default('name'),
+        sortOrder: z.enum(['asc', 'desc']).default('asc'),
       })
     )
     .query(async ({ ctx, input }) => {
       let query = ctx.supabase
         .from('companies')
         .select('*', { count: 'exact' })
-        .order('name')
+        .order(input.sortBy, { ascending: input.sortOrder === 'asc' })
         .range(input.offset, input.offset + input.limit - 1)
 
       if (input.status) {
@@ -30,11 +35,57 @@ export const companiesRouter = router({
         query = query.ilike('name', `%${input.search}%`)
       }
 
+      if (input.city) {
+        query = query.ilike('city', `%${input.city}%`)
+      }
+
+      if (input.state) {
+        query = query.ilike('state', `%${input.state}%`)
+      }
+
+      if (input.industry) {
+        query = query.ilike('industry', `%${input.industry}%`)
+      }
+
       const { data, error, count } = await query
 
       checkSupabaseError(error, 'Company')
       return { companies: data, total: count }
     }),
+
+  // Get distinct values for filters
+  getFilterOptions: protectedProcedure.query(async ({ ctx }) => {
+    // Get distinct cities
+    const { data: cities } = await ctx.supabase
+      .from('companies')
+      .select('city')
+      .not('city', 'is', null)
+      .not('city', 'eq', '')
+
+    // Get distinct states
+    const { data: states } = await ctx.supabase
+      .from('companies')
+      .select('state')
+      .not('state', 'is', null)
+      .not('state', 'eq', '')
+
+    // Get distinct industries
+    const { data: industries } = await ctx.supabase
+      .from('companies')
+      .select('industry')
+      .not('industry', 'is', null)
+      .not('industry', 'eq', '')
+
+    const uniqueCities = [...new Set(cities?.map(c => c.city).filter(Boolean) || [])]
+    const uniqueStates = [...new Set(states?.map(s => s.state).filter(Boolean) || [])]
+    const uniqueIndustries = [...new Set(industries?.map(i => i.industry).filter(Boolean) || [])]
+
+    return {
+      cities: uniqueCities.sort(),
+      states: uniqueStates.sort(),
+      industries: uniqueIndustries.sort(),
+    }
+  }),
 
   // Get single company with contacts
   getById: protectedProcedure

@@ -87,31 +87,33 @@ export const feedbackRouter = router({
 
       checkSupabaseError(error, 'Ticket')
 
-      // Send email notification to admin
+      // Send email notification to admin (only if Resend is configured)
       const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com'
 
-      try {
-        await getResend().emails.send({
-          from: 'Dismantle Pro <noreply@dismantlepro.com>',
-          to: adminEmail,
-          subject: `[${ticketNumber}] New ${input.type}: ${input.title}`,
-          html: `
-            <h2>New Ticket Submitted</h2>
-            <p><strong>Ticket:</strong> ${ticketNumber}</p>
-            <p><strong>Type:</strong> ${input.type}</p>
-            <p><strong>Priority:</strong> ${input.priority}</p>
-            <p><strong>Title:</strong> ${input.title}</p>
-            <p><strong>Submitted By:</strong> ${submitterName || ctx.user.email}</p>
-            <p><strong>Page:</strong> ${input.page_url}</p>
-            <hr />
-            <p><strong>Description:</strong></p>
-            <p>${input.description.replace(/\n/g, '<br />')}</p>
-            ${screenshotUrl ? `<p><a href="${screenshotUrl}">View Screenshot</a></p>` : ''}
-          `,
-        })
-      } catch (emailError) {
-        // Don't fail the submission if email fails
-        console.error('Failed to send ticket notification email:', emailError)
+      if (process.env.RESEND_API_KEY) {
+        try {
+          await getResend().emails.send({
+            from: 'Dismantle Pro <noreply@dismantlepro.com>',
+            to: adminEmail,
+            subject: `[${ticketNumber}] New ${input.type}: ${input.title}`,
+            html: `
+              <h2>New Ticket Submitted</h2>
+              <p><strong>Ticket:</strong> ${ticketNumber}</p>
+              <p><strong>Type:</strong> ${input.type}</p>
+              <p><strong>Priority:</strong> ${input.priority}</p>
+              <p><strong>Title:</strong> ${input.title}</p>
+              <p><strong>Submitted By:</strong> ${submitterName || ctx.user.email}</p>
+              <p><strong>Page:</strong> ${input.page_url}</p>
+              <hr />
+              <p><strong>Description:</strong></p>
+              <p>${input.description.replace(/\n/g, '<br />')}</p>
+              ${screenshotUrl ? `<p><a href="${screenshotUrl}">View Screenshot</a></p>` : ''}
+            `,
+          })
+        } catch (emailError) {
+          // Don't fail the submission if email fails
+          console.error('Failed to send ticket notification email:', emailError)
+        }
       }
 
       return ticket

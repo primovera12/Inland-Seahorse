@@ -53,7 +53,6 @@ import {
   AlertTriangle,
   CheckSquare,
   X,
-  GitCompare,
 } from 'lucide-react'
 
 // Helper to check if quote is expiring soon (within 7 days)
@@ -97,12 +96,18 @@ export default function InlandHistoryPage() {
       utils.inland.getHistory.invalidate()
       toast.success('Quote deleted')
     },
+    onError: (error) => {
+      toast.error('Failed to delete quote', { description: error.message })
+    },
   })
 
   const markAsSent = trpc.inland.markAsSent.useMutation({
     onSuccess: () => {
       utils.inland.getHistory.invalidate()
       toast.success('Quote marked as sent')
+    },
+    onError: (error) => {
+      toast.error('Failed to mark as sent', { description: error.message })
     },
   })
 
@@ -111,12 +116,18 @@ export default function InlandHistoryPage() {
       utils.inland.getHistory.invalidate()
       toast.success('Quote marked as accepted')
     },
+    onError: (error) => {
+      toast.error('Failed to mark as accepted', { description: error.message })
+    },
   })
 
   const markAsRejected = trpc.inland.markAsRejected.useMutation({
     onSuccess: () => {
       utils.inland.getHistory.invalidate()
       toast.success('Quote marked as rejected')
+    },
+    onError: (error) => {
+      toast.error('Failed to mark as rejected', { description: error.message })
     },
   })
 
@@ -426,12 +437,6 @@ export default function InlandHistoryPage() {
                             {cloneQuote.isPending ? 'Cloning...' : 'Clone Quote'}
                           </DropdownMenuItem>
                           <ShareLinkMenuItem quoteId={quote.id} />
-                          <DropdownMenuItem asChild>
-                            <Link href={`/inland/${quote.id}/versions`}>
-                              <GitCompare className="h-4 w-4 mr-2" />
-                              Compare Versions
-                            </Link>
-                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                           {quote.status === 'draft' && (

@@ -14,8 +14,6 @@ import {
   Wrench,
   Package,
   Building2,
-  Bell,
-  Upload,
   UsersRound,
   MessageSquare,
   Kanban,
@@ -91,11 +89,6 @@ const crmItems = [
     url: '/customers',
     icon: Building2,
   },
-  {
-    title: 'Reminders',
-    url: '/reminders',
-    icon: Bell,
-  },
 ]
 
 const adminItems = [
@@ -103,11 +96,6 @@ const adminItems = [
     title: 'Team',
     url: '/team',
     icon: UsersRound,
-  },
-  {
-    title: 'Import Data',
-    url: '/import',
-    icon: Upload,
   },
   {
     title: 'Feedback',

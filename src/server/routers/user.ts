@@ -56,7 +56,7 @@ export const userRouter = router({
       return { users: data, total: count }
     }),
 
-  // Invite new team member
+  // Invite new team member (creates with 'invited' status)
   inviteTeamMember: protectedProcedure
     .input(
       z.object({
@@ -77,6 +77,62 @@ export const userRouter = router({
           role: input.role,
           status: 'invited',
         })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'User')
+      return data
+    }),
+
+  // Create new team member directly (with 'active' status, no email invite)
+  createTeamMember: protectedProcedure
+    .input(
+      z.object({
+        email: z.string().email(),
+        first_name: z.string().min(1),
+        last_name: z.string().min(1),
+        role: roleSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('users')
+        .insert({
+          email: input.email,
+          first_name: input.first_name,
+          last_name: input.last_name,
+          role: input.role,
+          status: 'active',
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'User')
+      return data
+    }),
+
+  // Update team member details
+  updateTeamMember: protectedProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        email: z.string().email().optional(),
+        first_name: z.string().min(1).optional(),
+        last_name: z.string().min(1).optional(),
+        role: roleSchema.optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { userId, ...updateData } = input
+      // Filter out undefined values
+      const filteredData = Object.fromEntries(
+        Object.entries(updateData).filter(([, v]) => v !== undefined)
+      )
+
+      const { data, error } = await ctx.supabase
+        .from('users')
+        .update(filteredData)
+        .eq('id', userId)
         .select()
         .single()
 

@@ -71,15 +71,29 @@ export function EquipmentBlockCard({
   const [selectedMakeId, setSelectedMakeId] = useState(block.make_id || '')
   const [selectedModelId, setSelectedModelId] = useState(block.model_id || '')
 
+  // Track if we've done the initial sync to avoid overwriting user selections
+  const initialSyncDone = useRef(false)
+
   // Sync selectedMakeId and selectedModelId when block prop changes (e.g., when editing existing quote)
   useEffect(() => {
-    if (block.make_id && block.make_id !== selectedMakeId) {
-      setSelectedMakeId(block.make_id)
+    // Always sync on first data load or when IDs change from external source
+    if (block.make_id !== undefined) {
+      const shouldSyncMake = block.make_id !== selectedMakeId || !initialSyncDone.current
+      if (shouldSyncMake && block.make_id) {
+        setSelectedMakeId(block.make_id)
+      }
     }
-    if (block.model_id && block.model_id !== selectedModelId) {
-      setSelectedModelId(block.model_id)
+    if (block.model_id !== undefined) {
+      const shouldSyncModel = block.model_id !== selectedModelId || !initialSyncDone.current
+      if (shouldSyncModel && block.model_id) {
+        setSelectedModelId(block.model_id)
+      }
     }
-  }, [block.make_id, block.model_id])
+    // Mark initial sync as done after first render with data
+    if ((block.make_id || block.model_id) && !initialSyncDone.current) {
+      initialSyncDone.current = true
+    }
+  }, [block.make_id, block.model_id, selectedMakeId, selectedModelId])
 
   // Use refs to avoid stale closure issues when rates/dimensions return from cache
   const blockRef = useRef(block)

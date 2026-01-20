@@ -116,7 +116,15 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       const canvas = await html2canvas(document.body, {
         logging: false,
         useCORS: true,
+        allowTaint: true,
         scale: 0.5, // Reduce size for faster upload
+        backgroundColor: '#ffffff',
+        removeContainer: true,
+        foreignObjectRendering: false,
+        ignoreElements: (element) => {
+          // Ignore elements that might cause issues
+          return element.tagName === 'IFRAME' || element.classList?.contains('feedback-ignore')
+        },
       })
 
       const dataUrl = canvas.toDataURL('image/png')
@@ -127,7 +135,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       toast.success('Screenshot captured')
     } catch (error) {
       console.error('Screenshot capture failed:', error)
-      toast.error('Failed to capture screenshot')
+      toast.error('Failed to capture screenshot. Try uploading an image instead.')
       onOpenChange(true)
     } finally {
       setIsCapturing(false)

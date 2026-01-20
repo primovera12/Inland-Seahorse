@@ -201,11 +201,37 @@ const STATUS_COLORS: Record<UserStatus, string> = {
   invited: 'bg-yellow-100 text-yellow-800',
 }
 
+interface TeamMember {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  role: UserRole
+  status: UserStatus
+  avatar_url?: string
+  created_at: string
+}
+
 export default function TeamPage() {
   const [activeTab, setActiveTab] = useState('members')
   const [searchQuery, setSearchQuery] = useState('')
   const [showInviteDialog, setShowInviteDialog] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null)
   const [inviteForm, setInviteForm] = useState({
+    email: '',
+    first_name: '',
+    last_name: '',
+    role: 'member' as UserRole,
+  })
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    first_name: '',
+    last_name: '',
+    role: 'member' as UserRole,
+  })
+  const [editForm, setEditForm] = useState({
     email: '',
     first_name: '',
     last_name: '',
@@ -254,6 +280,30 @@ export default function TeamPage() {
     },
   })
 
+  const createMember = trpc.user.createTeamMember.useMutation({
+    onSuccess: () => {
+      toast.success('Team member created successfully')
+      refetch()
+      setShowCreateDialog(false)
+      setCreateForm({ email: '', first_name: '', last_name: '', role: 'member' })
+    },
+    onError: (error) => {
+      toast.error(`Failed to create member: ${error.message}`)
+    },
+  })
+
+  const updateMember = trpc.user.updateTeamMember.useMutation({
+    onSuccess: () => {
+      toast.success('Team member updated successfully')
+      refetch()
+      setShowEditDialog(false)
+      setEditingMember(null)
+    },
+    onError: (error) => {
+      toast.error(`Failed to update member: ${error.message}`)
+    },
+  })
+
   const updateRole = trpc.user.updateRole.useMutation({
     onSuccess: () => {
       toast.success('Role updated successfully')
@@ -290,6 +340,40 @@ export default function TeamPage() {
       return
     }
     inviteMember.mutate(inviteForm)
+  }
+
+  const handleCreate = () => {
+    if (!createForm.email || !createForm.first_name || !createForm.last_name) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    createMember.mutate(createForm)
+  }
+
+  const handleEdit = () => {
+    if (!editingMember) return
+    if (!editForm.email || !editForm.first_name || !editForm.last_name) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    updateMember.mutate({
+      userId: editingMember.id,
+      email: editForm.email,
+      first_name: editForm.first_name,
+      last_name: editForm.last_name,
+      role: editForm.role,
+    })
+  }
+
+  const openEditDialog = (member: TeamMember) => {
+    setEditingMember(member)
+    setEditForm({
+      email: member.email,
+      first_name: member.first_name || '',
+      last_name: member.last_name || '',
+      role: member.role as UserRole,
+    })
+    setShowEditDialog(true)
   }
 
   const getInitials = (firstName?: string, lastName?: string) => {
@@ -430,10 +514,16 @@ export default function TeamPage() {
           </p>
         </div>
         {activeTab === 'members' ? (
-          <Button onClick={() => setShowInviteDialog(true)} className="w-full sm:w-auto">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite Member
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button onClick={() => setShowCreateDialog(true)} className="flex-1 sm:flex-none">
+              <Plus className="h-4 w-4 mr-2" />
+              Create User
+            </Button>
+            <Button variant="outline" onClick={() => setShowInviteDialog(true)} className="flex-1 sm:flex-none">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite
+            </Button>
+          </div>
         ) : (
           <Button onClick={openNewRoleDialog} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
@@ -585,6 +675,13 @@ export default function TeamPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => openEditDialog(user as TeamMember)}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit User
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() =>
                               updateRole.mutate({
@@ -852,6 +949,162 @@ export default function TeamPage() {
             </Button>
             <Button onClick={handleInvite} disabled={inviteMember.isPending}>
               {inviteMember.isPending ? 'Sending...' : 'Send Invite'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Team Member</DialogTitle>
+            <DialogDescription>
+              Create a new user account directly (no email invitation)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="createFirstName">First Name *</Label>
+                <Input
+                  id="createFirstName"
+                  value={createForm.first_name}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, first_name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="createLastName">Last Name *</Label>
+                <Input
+                  id="createLastName"
+                  value={createForm.last_name}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, last_name: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="createEmail">Email *</Label>
+              <Input
+                id="createEmail"
+                type="email"
+                value={createForm.email}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, email: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="createRole">Role</Label>
+              <Select
+                value={createForm.role}
+                onValueChange={(value: UserRole) =>
+                  setCreateForm({ ...createForm, role: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${role.color.split(' ')[0]}`} />
+                        {role.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={createMember.isPending}>
+              {createMember.isPending ? 'Creating...' : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+            <DialogDescription>
+              Update the team member&apos;s details
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editFirstName">First Name *</Label>
+                <Input
+                  id="editFirstName"
+                  value={editForm.first_name}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, first_name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editLastName">Last Name *</Label>
+                <Input
+                  id="editLastName"
+                  value={editForm.last_name}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, last_name: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editEmail">Email *</Label>
+              <Input
+                id="editEmail"
+                type="email"
+                value={editForm.email}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, email: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editRole">Role</Label>
+              <Select
+                value={editForm.role}
+                onValueChange={(value: UserRole) =>
+                  setEditForm({ ...editForm, role: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${role.color.split(' ')[0]}`} />
+                        {role.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEdit} disabled={updateMember.isPending}>
+              {updateMember.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

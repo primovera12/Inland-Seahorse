@@ -51,6 +51,10 @@ const STATUS_COLORS: Record<CompanyStatus, string> = {
 export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<CompanyStatus | 'all'>('all')
+  const [cityFilter, setCityFilter] = useState<string>('all')
+  const [stateFilter, setStateFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'city' | 'state'>('name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null)
@@ -76,12 +80,30 @@ export default function CompaniesPage() {
 
   const utils = trpc.useUtils()
 
+  // Fetch filter options
+  const { data: filterOptions } = trpc.companies.getFilterOptions.useQuery()
+
   const { data, isLoading } = trpc.companies.getAll.useQuery({
     limit: 100,
     offset: 0,
     status: statusFilter === 'all' ? undefined : statusFilter,
     search: searchQuery || undefined,
+    city: cityFilter === 'all' ? undefined : cityFilter,
+    state: stateFilter === 'all' ? undefined : stateFilter,
+    sortBy,
+    sortOrder,
   })
+
+  const clearFilters = () => {
+    setSearchQuery('')
+    setStatusFilter('all')
+    setCityFilter('all')
+    setStateFilter('all')
+    setSortBy('name')
+    setSortOrder('asc')
+  }
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || cityFilter !== 'all' || stateFilter !== 'all'
 
   const createCompany = trpc.companies.create.useMutation({
     onSuccess: () => {
@@ -311,32 +333,104 @@ export default function CompaniesPage() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search companies..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+          <div className="space-y-3 mb-6">
+            {/* Search and primary filters row */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search companies..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as CompanyStatus | 'all')}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="lead">Lead</SelectItem>
+                  <SelectItem value="vip">VIP</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value as CompanyStatus | 'all')}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="prospect">Prospect</SelectItem>
-                <SelectItem value="lead">Lead</SelectItem>
-                <SelectItem value="vip">VIP</SelectItem>
-              </SelectContent>
-            </Select>
+
+            {/* Additional filters row */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center">
+              <Select
+                value={stateFilter}
+                onValueChange={setStateFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="State" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All States</SelectItem>
+                  {filterOptions?.states?.map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={cityFilter}
+                onValueChange={setCityFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="City" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Cities</SelectItem>
+                  {filterOptions?.cities?.map((city) => (
+                    <SelectItem key={city} value={city}>
+                      {city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={`${sortBy}-${sortOrder}`}
+                onValueChange={(value) => {
+                  const [newSortBy, newSortOrder] = value.split('-') as ['name' | 'created_at' | 'city' | 'state', 'asc' | 'desc']
+                  setSortBy(newSortBy)
+                  setSortOrder(newSortOrder)
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                  <SelectItem value="created_at-desc">Newest First</SelectItem>
+                  <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                  <SelectItem value="city-asc">City (A-Z)</SelectItem>
+                  <SelectItem value="state-asc">State (A-Z)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="text-muted-foreground"
+                >
+                  Clear filters
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Table */}

@@ -137,7 +137,7 @@ function QuoteCard({ quote, isDragging }: { quote: Quote; isDragging?: boolean }
         </div>
         <div className="flex-1 min-w-0">
           <Link
-            href={`/quotes/${quote.id}`}
+            href={`/quotes/${quote.id}/edit`}
             className="font-mono text-xs text-primary hover:underline"
           >
             {quote.quote_number}
@@ -154,18 +154,16 @@ function QuoteCard({ quote, isDragging }: { quote: Quote; isDragging?: boolean }
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <Link href={`/quotes/${quote.id}`}>
+              <Link href={`/quotes/${quote.id}/edit`}>
                 <FileText className="h-4 w-4 mr-2" />
-                View Details
+                View / Edit
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Mail className="h-4 w-4 mr-2" />
-              Send Email
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Copy className="h-4 w-4 mr-2" />
-              Duplicate
+            <DropdownMenuItem asChild>
+              <Link href={`/quotes/${quote.id}/compare`}>
+                <Eye className="h-4 w-4 mr-2" />
+                Compare Versions
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {quote.status === 'draft' && (
@@ -450,43 +448,47 @@ export default function QuotePipelinePage() {
         ))}
       </div>
 
-      {/* Kanban Board */}
-      {isLoading ? (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {PIPELINE_STATUSES.map((status) => (
-            <div key={status} className="flex-1 min-w-[280px] max-w-[320px]">
-              <Skeleton className="h-8 w-32 mb-3" />
-              <div className="space-y-2">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-24 w-full" />
+      {/* Kanban Board - in its own scrollable container */}
+      <div className="relative -mx-4 sm:-mx-6 lg:-mx-8">
+        <div className="overflow-x-auto px-4 sm:px-6 lg:px-8">
+          {isLoading ? (
+            <div className="flex gap-4 pb-4 min-w-max">
+              {PIPELINE_STATUSES.map((status) => (
+                <div key={status} className="w-[280px] shrink-0">
+                  <Skeleton className="h-8 w-32 mb-3" />
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <Skeleton key={i} className="h-24 w-full" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="flex gap-4 pb-4 min-w-max">
+                {PIPELINE_STATUSES.map((status) => (
+                  <PipelineColumn
+                    key={status}
+                    status={status}
+                    quotes={quotesByStatus[status] || []}
+                    total={totalsByStatus[status] || 0}
+                  />
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {PIPELINE_STATUSES.map((status) => (
-              <PipelineColumn
-                key={status}
-                status={status}
-                quotes={quotesByStatus[status] || []}
-                total={totalsByStatus[status] || 0}
-              />
-            ))}
-          </div>
 
-          <DragOverlay>
-            {activeQuote ? <QuoteCard quote={activeQuote} isDragging /> : null}
-          </DragOverlay>
-        </DndContext>
-      )}
+              <DragOverlay>
+                {activeQuote ? <QuoteCard quote={activeQuote} isDragging /> : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

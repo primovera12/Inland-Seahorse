@@ -491,9 +491,10 @@ export default function NewInlandQuotePage() {
       subtotal,
       total,
       quote_data: {
-        destination_blocks: destinationBlocks,
-        internal_notes: internalNotes,
-        quote_notes: quoteNotes,
+        destinationBlocks,
+        internalNotes,
+        quoteNotes,
+        customerAddress,
       },
     })
   }
