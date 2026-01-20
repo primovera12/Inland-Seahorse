@@ -144,7 +144,7 @@ describe('formatDimensionInUnit', () => {
   })
 
   it('formats in feet', () => {
-    expect(formatDimensionInUnit(126, 'feet')).toBe("10'-6\"")
+    expect(formatDimensionInUnit(126, 'ft-in')).toBe("10'-6\"")
   })
 
   it('formats in centimeters', () => {
@@ -157,7 +157,7 @@ describe('formatDimensionInUnit', () => {
 
   it('returns dash for invalid values', () => {
     expect(formatDimensionInUnit(0, 'inches')).toBe('-')
-    expect(formatDimensionInUnit(-5, 'feet')).toBe('-')
+    expect(formatDimensionInUnit(-5, 'ft-in')).toBe('-')
   })
 })
 
@@ -167,8 +167,8 @@ describe('parseDimensionFromUnit', () => {
   })
 
   it('parses feet.inches format', () => {
-    expect(parseDimensionFromUnit(10.6, 'feet')).toBe(126) // 10 feet 6 inches
-    expect(parseDimensionFromUnit(5.0, 'feet')).toBe(60)
+    expect(parseDimensionFromUnit(10.6, 'ft-in')).toBe(126) // 10 feet 6 inches
+    expect(parseDimensionFromUnit(5.0, 'ft-in')).toBe(60)
   })
 
   it('parses centimeters to inches', () => {
@@ -181,7 +181,7 @@ describe('parseDimensionFromUnit', () => {
 
   it('returns 0 for invalid values', () => {
     expect(parseDimensionFromUnit(0, 'inches')).toBe(0)
-    expect(parseDimensionFromUnit(-5, 'feet')).toBe(0)
+    expect(parseDimensionFromUnit(-5, 'ft-in')).toBe(0)
   })
 })
 

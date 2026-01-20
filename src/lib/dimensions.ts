@@ -296,7 +296,7 @@ export function parseDimensionFromUnit(value: number, unit: DimensionUnit): numb
   switch (unit) {
     case 'inches':
       return Math.round(value)
-    case 'feet':
+    case 'ft-in':
       // Assume feet.inches format (e.g., 10.6 = 10 feet 6 inches)
       const feet = Math.floor(value)
       const decimalPart = value - feet
@@ -304,6 +304,8 @@ export function parseDimensionFromUnit(value: number, unit: DimensionUnit): numb
       return feet * 12 + remainingInches
     case 'cm':
       return cmToInches(value)
+    case 'mm':
+      return mmToInches(value)
     case 'meters':
       return metersToInches(value)
     default:
