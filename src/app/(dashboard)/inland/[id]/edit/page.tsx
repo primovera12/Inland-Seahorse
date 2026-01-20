@@ -491,6 +491,23 @@ export default function EditInlandQuotePage() {
     },
   })
 
+  // Track PDF download
+  const trackPdfDownload = trpc.activity.recordPdfDownload.useMutation()
+
+  const handlePdfDownload = () => {
+    // Track the download
+    trackPdfDownload.mutate({
+      quote_type: 'inland',
+      quote_id: quoteId,
+      quote_number: quoteNumber,
+      customer_name: customerName,
+    })
+    // Mark as sent if in draft status
+    if (quote?.status === 'draft') {
+      markAsSentOnDownload.mutate({ id: quoteId })
+    }
+  }
+
   const handleUpdateQuote = () => {
     if (!customerName) {
       toast.error('Please enter a customer name')
@@ -682,11 +699,7 @@ export default function EditInlandQuotePage() {
                     <QuotePDFPreview
                       data={previewPdfData}
                       showControls
-                      onDownload={() => {
-                        if (quote?.status === 'draft') {
-                          markAsSentOnDownload.mutate({ id: quoteId })
-                        }
-                      }}
+                      onDownload={handlePdfDownload}
                     />
                   ) : (
                     <div className="flex items-center justify-center py-12">

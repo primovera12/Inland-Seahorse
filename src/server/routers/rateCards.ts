@@ -112,6 +112,21 @@ export const rateCardsRouter = router({
         .single()
 
       checkSupabaseError(error, 'Rate Card')
+
+      // Log the rate card creation activity
+      await ctx.supabase.from('activity_logs').insert({
+        company_id: input.company_id,
+        user_id: ctx.user.id,
+        activity_type: 'rate_card_updated',
+        subject: `Rate card "${input.name}" created`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} created ${input.rate_type} rate card "${input.name}"`.trim(),
+        metadata: {
+          rate_card_id: data?.id,
+          rate_type: input.rate_type,
+          is_default: input.is_default,
+        },
+      })
+
       return data
     }),
 
@@ -157,6 +172,23 @@ export const rateCardsRouter = router({
         .single()
 
       checkSupabaseError(error, 'Rate Card')
+
+      // Log the rate card update activity
+      if (data) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: current.company_id,
+          user_id: ctx.user.id,
+          activity_type: 'rate_card_updated',
+          subject: `Rate card "${data.name}" updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated ${current.rate_type} rate card "${data.name}"`.trim(),
+          metadata: {
+            rate_card_id: data.id,
+            rate_type: current.rate_type,
+            updated_fields: Object.keys(updates),
+          },
+        })
+      }
+
       return data
     }),
 
@@ -164,12 +196,35 @@ export const rateCardsRouter = router({
   delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get rate card info before deleting for logging
+      const { data: rateCard } = await ctx.supabase
+        .from('company_rate_cards')
+        .select('name, company_id, rate_type')
+        .eq('id', input.id)
+        .single()
+
       const { error } = await ctx.supabase
         .from('company_rate_cards')
         .delete()
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Rate Card')
+
+      // Log the rate card deletion activity
+      if (rateCard) {
+        await ctx.supabase.from('activity_logs').insert({
+          company_id: rateCard.company_id,
+          user_id: ctx.user.id,
+          activity_type: 'rate_card_updated',
+          subject: `Rate card "${rateCard.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted ${rateCard.rate_type} rate card "${rateCard.name}"`.trim(),
+          metadata: {
+            rate_type: rateCard.rate_type,
+            action: 'deleted',
+          },
+        })
+      }
+
       return { success: true }
     }),
 

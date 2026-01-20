@@ -510,6 +510,23 @@ export default function EditQuotePage() {
     },
   })
 
+  // Track PDF download
+  const trackPdfDownload = trpc.activity.recordPdfDownload.useMutation()
+
+  const handlePdfDownload = () => {
+    // Track the download
+    trackPdfDownload.mutate({
+      quote_type: 'dismantle',
+      quote_id: quoteId,
+      quote_number: quoteNumber,
+      customer_name: customerName,
+    })
+    // Mark as sent if in draft status
+    if (quote?.status === 'draft') {
+      markAsSentOnDownload.mutate({ id: quoteId })
+    }
+  }
+
   const handleUpdateQuote = () => {
     if (!customerName) {
       toast.error('Please enter a customer name')
@@ -616,11 +633,7 @@ export default function EditQuotePage() {
               <QuotePDFPreview
                 data={pdfData}
                 showControls
-                onDownload={() => {
-                  if (quote?.status === 'draft') {
-                    markAsSentOnDownload.mutate({ id: quoteId })
-                  }
-                }}
+                onDownload={handlePdfDownload}
               />
             )}
           </div>
@@ -796,11 +809,7 @@ export default function EditQuotePage() {
                         },
                       })}
                       showControls
-                      onDownload={() => {
-                        if (quote?.status === 'draft') {
-                          markAsSentOnDownload.mutate({ id: quoteId })
-                        }
-                      }}
+                      onDownload={handlePdfDownload}
                     />
                   ) : (
                     <div className="flex items-center justify-center py-12">

@@ -250,6 +250,14 @@ export const userRouter = router({
 
       // Use admin client to bypass RLS for team management operations
       const adminClient = createAdminClient()
+
+      // Get current user info for logging
+      const { data: currentUserData } = await adminClient
+        .from('users')
+        .select('first_name, last_name, status, email')
+        .eq('id', input.userId)
+        .single()
+
       const { data, error } = await adminClient
         .from('users')
         .update({ status: input.status })
@@ -258,6 +266,24 @@ export const userRouter = router({
         .single()
 
       checkSupabaseError(error, 'User')
+
+      // Log the status change activity
+      if (data && currentUserData && currentUserData.status !== input.status) {
+        const activityType = input.status === 'inactive' ? 'user_deactivated' : 'user_reactivated'
+        await ctx.supabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: activityType,
+          subject: `User "${data.first_name} ${data.last_name}" ${input.status === 'inactive' ? 'deactivated' : 'reactivated'}`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} ${input.status === 'inactive' ? 'deactivated' : 'reactivated'} user ${data.first_name} ${data.last_name}`.trim(),
+          metadata: {
+            target_user_id: data.id,
+            target_email: data.email,
+            previous_status: currentUserData.status,
+            new_status: input.status,
+          },
+        })
+      }
+
       return data
     }),
 
@@ -275,12 +301,35 @@ export const userRouter = router({
 
       // Use admin client to bypass RLS for team management operations
       const adminClient = createAdminClient()
+
+      // Get user info before deleting for logging
+      const { data: userData } = await adminClient
+        .from('users')
+        .select('first_name, last_name, email, role')
+        .eq('id', input.userId)
+        .single()
+
       const { error } = await adminClient
         .from('users')
         .delete()
         .eq('id', input.userId)
 
       checkSupabaseError(error, 'User')
+
+      // Log the user deletion activity
+      if (userData) {
+        await ctx.supabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'user_deleted',
+          subject: `User "${userData.first_name} ${userData.last_name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted team member ${userData.first_name} ${userData.last_name} (${userData.role})`.trim(),
+          metadata: {
+            deleted_user_email: userData.email,
+            deleted_user_role: userData.role,
+          },
+        })
+      }
+
       return { success: true }
     }),
 

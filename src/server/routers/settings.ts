@@ -92,6 +92,18 @@ export const settingsRouter = router({
           .single()
 
         checkSupabaseError(error, 'Settings')
+
+        // Log the settings update activity
+        await ctx.supabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'company_settings_updated',
+          subject: 'Company settings updated',
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated company settings`.trim(),
+          metadata: {
+            updated_fields: Object.keys(input),
+          },
+        })
+
         return data
       } else {
         const { data, error } = await ctx.supabase
@@ -168,6 +180,19 @@ export const settingsRouter = router({
           .single()
 
         checkSupabaseError(error, 'Settings')
+
+        // Log the terms update activity
+        await ctx.supabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: input.type === 'dismantle' ? 'dismantle_settings_updated' : 'inland_settings_updated',
+          subject: `${input.type === 'dismantle' ? 'Dismantle' : 'Inland'} terms & conditions updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated ${input.type} terms & conditions`.trim(),
+          metadata: {
+            new_version: newVersion,
+            terms_type: input.type,
+          },
+        })
+
         return { success: true, version: newVersion }
       } else {
         const { error } = await ctx.supabase
@@ -254,6 +279,17 @@ export const settingsRouter = router({
 
         checkSupabaseError(error, 'Settings')
       }
+
+      // Log the popular makes update activity
+      await ctx.supabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        activity_type: 'rate_card_updated',
+        subject: 'Popular makes list updated',
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated popular equipment makes list`.trim(),
+        metadata: {
+          makes_count: input.makes.length,
+        },
+      })
 
       return { success: true }
     }),

@@ -30,6 +30,14 @@ export function Header({ user }: HeaderProps) {
   const router = useRouter()
 
   const handleSignOut = async () => {
+    // Record logout event before signing out
+    try {
+      await fetch('/api/auth/record-logout', { method: 'POST' })
+    } catch {
+      // Don't block logout if tracking fails
+      console.error('Failed to record logout event')
+    }
+
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')

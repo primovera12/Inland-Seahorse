@@ -126,6 +126,9 @@ export default function QuoteHistoryPage() {
     },
   })
 
+  // Track exports
+  const trackExport = trpc.activity.recordExport.useMutation()
+
   const cloneQuote = trpc.quotes.clone.useMutation({
     onSuccess: (data) => {
       utils.quotes.getHistory.invalidate()
@@ -244,6 +247,12 @@ export default function QuoteHistoryPage() {
       ],
       `quotes-export-${new Date().toISOString().split('T')[0]}`
     )
+    // Track the export
+    trackExport.mutate({
+      export_type: 'csv',
+      data_type: 'dismantle quotes',
+      record_count: quotesToExport.length,
+    })
     toast.success(`Exported ${quotesToExport.length} quotes`)
   }
 

@@ -51,6 +51,14 @@ import {
   UserCog,
   Settings,
   Key,
+  Download,
+  Eye,
+  UserX,
+  UserCheck,
+  Database,
+  FileSpreadsheet,
+  Timer,
+  AlertTriangle,
 } from 'lucide-react'
 
 const ACTIVITY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Phone; color: string }> = {
@@ -64,28 +72,45 @@ const ACTIVITY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Phone; 
   quote_accepted: { label: 'Quote Accepted', icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
   quote_rejected: { label: 'Quote Rejected', icon: XCircle, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
   follow_up: { label: 'Follow Up', icon: Calendar, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
-  // System events - User
+  // Security events
   login: { label: 'Login', icon: LogIn, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300' },
   logout: { label: 'Logout', icon: LogOut, color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300' },
+  failed_login: { label: 'Failed Login', icon: AlertTriangle, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
+  session_timeout: { label: 'Session Timeout', icon: Timer, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
   password_changed: { label: 'Password Changed', icon: Key, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
-  // System events - Quotes
+  // Quote operations
   quote_created: { label: 'Quote Created', icon: FilePlus, color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
   quote_updated: { label: 'Quote Updated', icon: FileEdit, color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' },
   quote_deleted: { label: 'Quote Deleted', icon: Trash2, color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300' },
-  // System events - Inland Quotes
+  quote_status_changed: { label: 'Quote Status Changed', icon: FileEdit, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  pdf_downloaded: { label: 'PDF Downloaded', icon: Download, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  quote_emailed: { label: 'Quote Emailed', icon: Mail, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+  public_link_viewed: { label: 'Public Link Viewed', icon: Eye, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300' },
+  // Inland quote operations
   inland_quote_created: { label: 'Inland Quote Created', icon: Truck, color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
   inland_quote_updated: { label: 'Inland Quote Updated', icon: Truck, color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' },
   inland_quote_deleted: { label: 'Inland Quote Deleted', icon: Trash2, color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300' },
-  // System events - Companies & Contacts
+  // Company & Contact events
   company_created: { label: 'Company Created', icon: Building2, color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300' },
   company_updated: { label: 'Company Updated', icon: Building2, color: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300' },
   contact_created: { label: 'Contact Created', icon: UserPlus, color: 'bg-lime-100 text-lime-800 dark:bg-lime-900/30 dark:text-lime-300' },
   contact_updated: { label: 'Contact Updated', icon: User, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-  // System events - User Management
+  // Team management events
   user_created: { label: 'User Created', icon: UserPlus, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
   user_updated: { label: 'User Updated', icon: UserCog, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' },
-  // System events - Settings
+  user_deactivated: { label: 'User Deactivated', icon: UserX, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
+  user_reactivated: { label: 'User Reactivated', icon: UserCheck, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  user_deleted: { label: 'User Deleted', icon: Trash2, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
+  // Settings events
   settings_updated: { label: 'Settings Updated', icon: Settings, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
+  company_settings_updated: { label: 'Company Settings Updated', icon: Settings, color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300' },
+  dismantle_settings_updated: { label: 'Dismantle Settings Updated', icon: Settings, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  inland_settings_updated: { label: 'Inland Settings Updated', icon: Truck, color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
+  rate_card_updated: { label: 'Rate Card Updated', icon: FileSpreadsheet, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
+  // Data operations
+  csv_exported: { label: 'CSV Exported', icon: Database, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  pdf_exported: { label: 'PDF Exported', icon: FileText, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  bulk_operation: { label: 'Bulk Operation', icon: Database, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
 }
 
 export default function AdminActivityLogPage() {

@@ -40,6 +40,17 @@ function LoginForm() {
 
       if (error) {
         setError(error.message)
+        // Record failed login attempt
+        try {
+          await fetch('/api/auth/record-failed-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, error_message: error.message }),
+          })
+        } catch {
+          // Don't block error display if tracking fails
+          console.error('Failed to record failed login event')
+        }
         return
       }
 

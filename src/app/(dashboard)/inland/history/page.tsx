@@ -132,6 +132,9 @@ export default function InlandHistoryPage() {
     },
   })
 
+  // Track exports
+  const trackExport = trpc.activity.recordExport.useMutation()
+
   const cloneQuote = trpc.inland.clone.useMutation({
     onSuccess: (data) => {
       utils.inland.getHistory.invalidate()
@@ -245,6 +248,12 @@ export default function InlandHistoryPage() {
       ],
       `inland-quotes-export-${new Date().toISOString().split('T')[0]}`
     )
+    // Track the export
+    trackExport.mutate({
+      export_type: 'csv',
+      data_type: 'inland quotes',
+      record_count: quotesToExport.length,
+    })
     toast.success(`Exported ${quotesToExport.length} quotes`)
   }
 

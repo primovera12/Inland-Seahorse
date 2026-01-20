@@ -13,23 +13,44 @@ const activityTypes = [
   'quote_accepted',
   'quote_rejected',
   'follow_up',
-  // System events
+  // Security events
   'login',
   'logout',
+  'failed_login',
+  'session_timeout',
+  // Quote operations
   'quote_created',
   'quote_updated',
   'quote_deleted',
+  'quote_status_changed',
+  'pdf_downloaded',
+  'quote_emailed',
+  'public_link_viewed',
   'inland_quote_created',
   'inland_quote_updated',
   'inland_quote_deleted',
+  // Company/Contact events
   'company_created',
   'company_updated',
   'contact_created',
   'contact_updated',
+  // Team events
   'user_created',
   'user_updated',
-  'settings_updated',
+  'user_deactivated',
+  'user_reactivated',
+  'user_deleted',
   'password_changed',
+  // Settings events
+  'settings_updated',
+  'company_settings_updated',
+  'dismantle_settings_updated',
+  'inland_settings_updated',
+  'rate_card_updated',
+  // Data operations
+  'csv_exported',
+  'pdf_exported',
+  'bulk_operation',
 ] as const
 
 export const activityRouter = router({
@@ -370,4 +391,88 @@ export const activityRouter = router({
     checkSupabaseError(error, 'Activity')
     return { success: true, activity: data }
   }),
+
+  // Record user logout
+  recordLogout: protectedProcedure.mutation(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('activity_logs')
+      .insert({
+        user_id: ctx.user.id,
+        activity_type: 'logout',
+        subject: 'User logged out',
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} logged out`.trim(),
+        metadata: {
+          email: ctx.user.email,
+        },
+      })
+      .select()
+      .single()
+
+    checkSupabaseError(error, 'Activity')
+    return { success: true, activity: data }
+  }),
+
+  // Record PDF download
+  recordPdfDownload: protectedProcedure
+    .input(
+      z.object({
+        quote_type: z.enum(['dismantle', 'inland']),
+        quote_id: z.string().uuid(),
+        quote_number: z.string(),
+        customer_name: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data, error } = await ctx.supabase
+        .from('activity_logs')
+        .insert({
+          user_id: ctx.user.id,
+          activity_type: 'pdf_downloaded',
+          subject: `PDF downloaded: ${input.quote_number}`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} downloaded PDF for ${input.quote_type} quote ${input.quote_number}`.trim(),
+          related_quote_id: input.quote_type === 'dismantle' ? input.quote_id : null,
+          related_inland_quote_id: input.quote_type === 'inland' ? input.quote_id : null,
+          metadata: {
+            quote_type: input.quote_type,
+            quote_number: input.quote_number,
+            customer_name: input.customer_name,
+          },
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Activity')
+      return { success: true, activity: data }
+    }),
+
+  // Record data export
+  recordExport: protectedProcedure
+    .input(
+      z.object({
+        export_type: z.enum(['csv', 'pdf']),
+        data_type: z.string(),
+        record_count: z.number().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const activityType = input.export_type === 'csv' ? 'csv_exported' : 'pdf_exported'
+      const { data, error } = await ctx.supabase
+        .from('activity_logs')
+        .insert({
+          user_id: ctx.user.id,
+          activity_type: activityType,
+          subject: `${input.export_type.toUpperCase()} exported: ${input.data_type}`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} exported ${input.data_type}${input.record_count ? ` (${input.record_count} records)` : ''}`.trim(),
+          metadata: {
+            export_type: input.export_type,
+            data_type: input.data_type,
+            record_count: input.record_count,
+          },
+        })
+        .select()
+        .single()
+
+      checkSupabaseError(error, 'Activity')
+      return { success: true, activity: data }
+    }),
 })
