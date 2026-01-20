@@ -737,9 +737,13 @@ export default function QuoteHistoryPage() {
 }
 
 function ViewQuoteMenuItem({ quoteId }: { quoteId: string }) {
-  const { data, isLoading } = trpc.quotes.getPublicLink.useQuery({ id: quoteId })
+  const { data, isLoading, error } = trpc.quotes.getPublicLink.useQuery({ id: quoteId })
 
   const viewQuote = () => {
+    if (error) {
+      toast.error('Failed to get quote link', { description: error.message })
+      return
+    }
     if (!data?.token) {
       toast.error('Failed to get quote link')
       return
@@ -756,9 +760,13 @@ function ViewQuoteMenuItem({ quoteId }: { quoteId: string }) {
 }
 
 function ShareLinkMenuItem({ quoteId }: { quoteId: string }) {
-  const { data, isLoading } = trpc.quotes.getPublicLink.useQuery({ id: quoteId })
+  const { data, isLoading, error } = trpc.quotes.getPublicLink.useQuery({ id: quoteId })
 
   const copyShareLink = async () => {
+    if (error) {
+      toast.error('Failed to get share link', { description: error.message })
+      return
+    }
     if (!data?.token) {
       toast.error('Failed to get share link')
       return
