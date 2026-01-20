@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, protectedProcedure, publicProcedure, managerProcedure, adminProcedure } from '../trpc/trpc'
+import { router, protectedProcedure, managerProcedure, adminProcedure, rateLimitedProcedure } from '../trpc/trpc'
 import { generateInlandQuoteNumber } from '@/lib/utils'
 import { checkSupabaseError, assertDataExists } from '@/lib/errors'
 
@@ -255,8 +255,8 @@ export const inlandRouter = router({
       return data
     }),
 
-  // Get quote by public token (public endpoint for customers)
-  getByPublicToken: publicProcedure
+  // Get quote by public token (public endpoint for customers) - rate limited
+  getByPublicToken: rateLimitedProcedure.publicQuoteRead
     .input(z.object({ token: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { data, error } = await ctx.supabase
@@ -1147,8 +1147,8 @@ export const inlandRouter = router({
       return { success: true, deleted: input.ids.length }
     }),
 
-  // Public endpoint to accept a quote with signature
-  publicAccept: publicProcedure
+  // Public endpoint to accept a quote with signature - rate limited
+  publicAccept: rateLimitedProcedure.publicQuoteAction
     .input(
       z.object({
         token: z.string().uuid(),
@@ -1218,8 +1218,8 @@ export const inlandRouter = router({
       return { success: true, quoteNumber: quote.quote_number }
     }),
 
-  // Public endpoint to reject a quote
-  publicReject: publicProcedure
+  // Public endpoint to reject a quote - rate limited
+  publicReject: rateLimitedProcedure.publicQuoteAction
     .input(
       z.object({
         token: z.string().uuid(),

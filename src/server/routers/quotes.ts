@@ -1173,8 +1173,8 @@ export const quotesRouter = router({
       return { success: true, quoteNumber: quote.quote_number }
     }),
 
-  // Public endpoint to reject a quote
-  publicReject: publicProcedure
+  // Public endpoint to reject a quote - rate limited
+  publicReject: rateLimitedProcedure.publicQuoteAction
     .input(
       z.object({
         token: z.string().uuid(),
