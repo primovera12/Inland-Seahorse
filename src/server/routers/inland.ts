@@ -308,7 +308,22 @@ export const inlandRouter = router({
         .single()
 
       checkSupabaseError(error, 'Inland quote')
-      return { token: data?.public_token }
+
+      // Auto-generate token if it doesn't exist (for migrated quotes)
+      if (!data?.public_token) {
+        const newToken = crypto.randomUUID()
+        const { error: updateError } = await ctx.supabase
+          .from('inland_quotes')
+          .update({ public_token: newToken })
+          .eq('id', input.id)
+
+        if (updateError) {
+          throw new Error('Failed to generate public token')
+        }
+        return { token: newToken }
+      }
+
+      return { token: data.public_token }
     }),
 
   // Regenerate public token for a quote
