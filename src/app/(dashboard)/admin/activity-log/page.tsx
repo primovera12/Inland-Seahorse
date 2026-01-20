@@ -12,6 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Checkbox } from '@/components/ui/checkbox'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -26,6 +37,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  X,
   Phone,
   Mail,
   Users,
@@ -115,7 +128,8 @@ const ACTIVITY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Phone; 
 
 export default function AdminActivityLogPage() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [activityTypeFilter, setActivityTypeFilter] = useState<string>('all')
+  const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>([])
+  const [activityTypePopoverOpen, setActivityTypePopoverOpen] = useState(false)
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [page, setPage] = useState(0)
@@ -136,7 +150,7 @@ export default function AdminActivityLogPage() {
     {
       limit,
       offset: page * limit,
-      activityType: activityTypeFilter === 'all' ? undefined : activityTypeFilter as any,
+      activityTypes: selectedActivityTypes.length > 0 ? selectedActivityTypes as any : undefined,
       userId: userFilter === 'all' ? undefined : userFilter,
       search: searchQuery || undefined,
       startDate: startDate || undefined,
@@ -214,26 +228,77 @@ export default function AdminActivityLogPage() {
               />
             </div>
 
-            {/* Activity Type Filter */}
-            <Select
-              value={activityTypeFilter}
-              onValueChange={(value) => {
-                setActivityTypeFilter(value)
-                setPage(0)
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Activity Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Activity Types</SelectItem>
-                {Object.entries(ACTIVITY_TYPE_CONFIG).map(([key, config]) => (
-                  <SelectItem key={key} value={key}>
-                    {config.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Activity Type Filter - Searchable Multiselect */}
+            <Popover open={activityTypePopoverOpen} onOpenChange={setActivityTypePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={activityTypePopoverOpen}
+                  className="justify-between font-normal"
+                >
+                  <span className="truncate">
+                    {selectedActivityTypes.length === 0
+                      ? 'All Activity Types'
+                      : selectedActivityTypes.length === 1
+                        ? ACTIVITY_TYPE_CONFIG[selectedActivityTypes[0]]?.label || selectedActivityTypes[0]
+                        : `${selectedActivityTypes.length} types selected`}
+                  </span>
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search activity types..." />
+                  <CommandList>
+                    <CommandEmpty>No activity type found.</CommandEmpty>
+                    <CommandGroup>
+                      {Object.entries(ACTIVITY_TYPE_CONFIG).map(([key, config]) => {
+                        const Icon = config.icon
+                        const isSelected = selectedActivityTypes.includes(key)
+                        return (
+                          <CommandItem
+                            key={key}
+                            value={config.label}
+                            onSelect={() => {
+                              setSelectedActivityTypes((prev) =>
+                                isSelected
+                                  ? prev.filter((t) => t !== key)
+                                  : [...prev, key]
+                              )
+                              setPage(0)
+                            }}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              className="mr-2"
+                            />
+                            <Icon className={cn('h-4 w-4 mr-2', config.color.split(' ')[1])} />
+                            <span>{config.label}</span>
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+                {selectedActivityTypes.length > 0 && (
+                  <div className="border-t p-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-center text-muted-foreground"
+                      onClick={() => {
+                        setSelectedActivityTypes([])
+                        setPage(0)
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Clear selection
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
 
             {/* User Filter */}
             <Select
@@ -291,7 +356,7 @@ export default function AdminActivityLogPage() {
               variant="outline"
               onClick={() => {
                 setSearchQuery('')
-                setActivityTypeFilter('all')
+                setSelectedActivityTypes([])
                 setUserFilter('all')
                 setStartDate('')
                 setEndDate('')

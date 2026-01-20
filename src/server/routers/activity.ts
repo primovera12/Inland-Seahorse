@@ -284,7 +284,7 @@ export const activityRouter = router({
       z.object({
         limit: z.number().min(1).max(100).default(50),
         offset: z.number().min(0).default(0),
-        activityType: z.enum(activityTypes).optional(),
+        activityTypes: z.array(z.enum(activityTypes)).optional(),
         userId: z.string().uuid().optional(),
         startDate: z.string().optional(),
         endDate: z.string().optional(),
@@ -306,8 +306,8 @@ export const activityRouter = router({
         .order('created_at', { ascending: false })
 
       // Apply filters
-      if (input.activityType) {
-        query = query.eq('activity_type', input.activityType)
+      if (input.activityTypes && input.activityTypes.length > 0) {
+        query = query.in('activity_type', input.activityTypes)
       }
 
       if (input.userId) {
