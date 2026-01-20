@@ -144,8 +144,9 @@ export interface CargoItem {
   equipment_model_name?: string
   custom_make_name?: string // Manual make name entry
   custom_model_name?: string // Manual model name entry
-  // Cargo image (generic)
+  // Cargo images (standard mode - supports up to 2)
   image_url?: string
+  image_url_2?: string
   // Equipment-specific images (front and side views)
   front_image_url?: string
   side_image_url?: string

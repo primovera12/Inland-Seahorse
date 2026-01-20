@@ -164,7 +164,8 @@ export interface InlandCargoItem {
   custom_make_name?: string
   custom_model_name?: string
   // Images
-  image_url?: string // Generic cargo image
+  image_url?: string // Generic cargo image (first)
+  image_url_2?: string // Generic cargo image (second)
   front_image_url?: string // Equipment front view
   side_image_url?: string // Equipment side view
 }

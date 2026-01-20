@@ -601,7 +601,7 @@ export function CargoItemCard({
       <div className="mt-4 pt-4 border-t">
         <Label className="text-xs flex items-center gap-1 mb-2">
           <ImageIcon className="h-3 w-3" />
-          {isEquipmentMode ? 'Equipment Images' : 'Cargo Image'} (optional)
+          {isEquipmentMode ? 'Equipment Images' : 'Cargo Images'} (optional)
         </Label>
 
         {/* Equipment Mode: Show front and side image uploads */}
@@ -710,39 +710,90 @@ export function CargoItemCard({
             </div>
           </div>
         ) : (
-          /* Standard cargo mode: Single image upload */
-          <div className="flex items-start gap-4">
-            {item.image_url ? (
-              <div className="relative w-32 h-24 rounded-lg overflow-hidden border bg-muted">
-                <Image
-                  src={item.image_url}
-                  alt={item.description || 'Cargo image'}
-                  fill
-                  className="object-cover"
-                  sizes="128px"
-                />
+          /* Standard cargo mode: Up to 2 images */
+          <div className="grid grid-cols-2 gap-4">
+            {/* Image 1 */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Image 1</Label>
+              <div className="flex flex-col items-center gap-2">
+                {item.image_url ? (
+                  <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
+                    <Image
+                      src={item.image_url}
+                      alt={`${item.description || 'Cargo'} - Image 1`}
+                      fill
+                      className="object-contain"
+                      sizes="200px"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center text-muted-foreground text-xs">
+                    No image
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <ImageUpload
+                    value={item.image_url || null}
+                    onChange={(url) => onUpdate({ ...item, image_url: url || undefined })}
+                    bucket="cargo-images"
+                    folder={`cargo/${item.id}/1`}
+                    label={item.image_url ? 'Change' : 'Upload'}
+                    maxSizeMB={5}
+                  />
+                  {item.image_url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive text-xs h-7 px-2"
+                      onClick={() => onUpdate({ ...item, image_url: undefined })}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
-            ) : null}
-            <div className="flex-1">
-              <ImageUpload
-                value={item.image_url || null}
-                onChange={(url) => onUpdate({ ...item, image_url: url || undefined })}
-                bucket="cargo-images"
-                folder={`cargo/${item.id}`}
-                label={item.image_url ? 'Change Image' : 'Upload Image'}
-                maxSizeMB={5}
-              />
-              {item.image_url && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-1 text-destructive text-xs h-7"
-                  onClick={() => onUpdate({ ...item, image_url: undefined })}
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  Remove
-                </Button>
-              )}
+            </div>
+
+            {/* Image 2 */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Image 2 (optional)</Label>
+              <div className="flex flex-col items-center gap-2">
+                {item.image_url_2 ? (
+                  <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
+                    <Image
+                      src={item.image_url_2}
+                      alt={`${item.description || 'Cargo'} - Image 2`}
+                      fill
+                      className="object-contain"
+                      sizes="200px"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center text-muted-foreground text-xs">
+                    No image
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <ImageUpload
+                    value={item.image_url_2 || null}
+                    onChange={(url) => onUpdate({ ...item, image_url_2: url || undefined })}
+                    bucket="cargo-images"
+                    folder={`cargo/${item.id}/2`}
+                    label={item.image_url_2 ? 'Change' : 'Upload'}
+                    maxSizeMB={5}
+                  />
+                  {item.image_url_2 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive text-xs h-7 px-2"
+                      onClick={() => onUpdate({ ...item, image_url_2: undefined })}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

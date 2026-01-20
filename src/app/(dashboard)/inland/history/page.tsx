@@ -844,6 +844,7 @@ function DownloadQuoteMenuItem({ quoteId }: { quoteId: string }) {
               custom_make_name?: string
               custom_model_name?: string
               image_url?: string
+              image_url_2?: string
               front_image_url?: string
               side_image_url?: string
             }>
@@ -920,6 +921,7 @@ function DownloadQuoteMenuItem({ quoteId }: { quoteId: string }) {
             custom_make_name?: string
             custom_model_name?: string
             image_url?: string
+            image_url_2?: string
             front_image_url?: string
             side_image_url?: string
           }>

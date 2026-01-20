@@ -478,6 +478,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                 ? `${cargo.equipment_make_name || cargo.custom_make_name || ''} ${cargo.equipment_model_name || cargo.custom_model_name || ''}`.trim() || cargo.description
                 : cargo.description
               const hasEquipmentImages = cargo.is_equipment && (cargo.front_image_url || cargo.side_image_url)
+              const hasMultipleStandardImages = !cargo.is_equipment && cargo.image_url && cargo.image_url_2
               return (
                 <div key={cargo.id} className="px-6 py-4">
                   {/* Equipment with front/side images */}
@@ -563,8 +564,77 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                         </div>
                       )}
                     </div>
+                  ) : hasMultipleStandardImages ? (
+                    /* Standard cargo with 2 images - side by side */
+                    <div className="space-y-3">
+                      <p className="text-sm font-bold text-slate-900">
+                        {displayName}
+                        {cargo.quantity > 1 && (
+                          <span className="text-slate-500 font-normal ml-2">(Qty: {cargo.quantity})</span>
+                        )}
+                      </p>
+                      {/* 2-column image grid */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                          <img
+                            src={cargo.image_url}
+                            alt={`${displayName} - Image 1`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                          <img
+                            src={cargo.image_url_2}
+                            alt={`${displayName} - Image 2`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      </div>
+                      {/* Dimensions Grid */}
+                      <div className="grid grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <span className="text-slate-400">Length</span>
+                          <p className="font-medium text-slate-700">
+                            {formatDimension(cargo.length_inches)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Width</span>
+                          <p className="font-medium text-slate-700">
+                            {formatDimension(cargo.width_inches)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Height</span>
+                          <p className="font-medium text-slate-700">
+                            {formatDimension(cargo.height_inches)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Weight</span>
+                          <p className="font-medium text-slate-700">
+                            {formatWeight(cargo.weight_lbs)}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Oversize/Overweight Badges */}
+                      {(cargo.is_oversize || cargo.is_overweight) && (
+                        <div className="flex gap-2">
+                          {cargo.is_oversize && (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-700 uppercase">
+                              Oversize
+                            </span>
+                          )}
+                          {cargo.is_overweight && (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase">
+                              Overweight
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    /* Standard cargo layout with single image */
+                    /* Standard cargo layout with single (or no) image */
                     <div className="flex gap-4">
                       {/* Cargo Image */}
                       {cargo.image_url && (
@@ -820,6 +890,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                       custom_make_name: cargo.custom_make_name,
                       custom_model_name: cargo.custom_model_name,
                       image_url: cargo.image_url,
+                      image_url_2: cargo.image_url_2,
                       front_image_url: cargo.front_image_url,
                       side_image_url: cargo.side_image_url,
                     })) || [],
