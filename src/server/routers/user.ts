@@ -156,7 +156,9 @@ export const userRouter = router({
         Object.entries(updateData).filter(([, v]) => v !== undefined)
       )
 
-      const { data, error } = await ctx.supabase
+      // Use admin client to bypass RLS for team management operations
+      const adminClient = createAdminClient()
+      const { data, error } = await adminClient
         .from('users')
         .update(filteredData)
         .eq('id', userId)
@@ -176,7 +178,9 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      // Use admin client to bypass RLS for team management operations
+      const adminClient = createAdminClient()
+      const { data, error } = await adminClient
         .from('users')
         .update({ role: input.role })
         .eq('id', input.userId)
@@ -196,7 +200,9 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      // Use admin client to bypass RLS for team management operations
+      const adminClient = createAdminClient()
+      const { data, error } = await adminClient
         .from('users')
         .update({ status: input.status })
         .eq('id', input.userId)
@@ -211,7 +217,9 @@ export const userRouter = router({
   removeTeamMember: protectedProcedure
     .input(z.object({ userId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const { error } = await ctx.supabase
+      // Use admin client to bypass RLS for team management operations
+      const adminClient = createAdminClient()
+      const { error } = await adminClient
         .from('users')
         .delete()
         .eq('id', input.userId)
