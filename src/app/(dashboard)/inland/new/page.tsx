@@ -124,8 +124,8 @@ export default function NewInlandQuotePage() {
   const accessorialsTotal = destinationBlocks.reduce((sum, block) => sum + (block.accessorials_total || 0), 0)
   const total = subtotal
 
-  // Reset form to initial state (called after download)
-  const resetForm = useCallback(() => {
+  // Reset form to initial state
+  const resetFormState = useCallback(() => {
     setQuoteNumber(generateInlandQuoteNumber())
     setCustomerName('')
     setCustomerEmail('')
@@ -138,10 +138,7 @@ export default function NewInlandQuotePage() {
     setDestinationBlocks([createEmptyDestination('A')])
     setDraftRestored(false)
     setSavedQuoteId(null)
-    // Delete the draft from the database
-    deleteDraftMutation.mutate()
-    toast.success('Quote downloaded', { description: 'Form has been reset for a new quote.' })
-  }, [deleteDraftMutation])
+  }, [])
 
   // Build preview PDF data for the Preview tab
   const previewPdfData: UnifiedPDFData | null = useMemo(() => {
@@ -348,17 +345,7 @@ export default function NewInlandQuotePage() {
       return
     }
     // Reset all fields
-    setQuoteNumber(generateInlandQuoteNumber())
-    setCustomerName('')
-    setCustomerEmail('')
-    setCustomerPhone('')
-    setCustomerCompany('')
-    setCustomerAddress({ address: '', city: '', state: '', zip: '' })
-    setSelectedCompanyId(null)
-    setInternalNotes('')
-    setQuoteNotes('')
-    setDestinationBlocks([createEmptyDestination('A')])
-    setDraftRestored(false)
+    resetFormState()
     deleteDraftMutation.mutate()
   }
 
@@ -490,6 +477,67 @@ export default function NewInlandQuotePage() {
       toast.error(`Failed to create quote: ${error.message}`)
     },
   })
+
+  // Save quote and reset form (called after download)
+  const saveAndResetForm = useCallback(async () => {
+    // If quote was already saved, just reset
+    if (savedQuoteId) {
+      resetFormState()
+      deleteDraftMutation.mutate()
+      toast.success('Quote downloaded', { description: 'Form has been reset for a new quote.' })
+      return
+    }
+
+    // Validate before saving
+    if (!customerName) {
+      toast.error('Quote not saved', { description: 'Customer name is required to save the quote.' })
+      return
+    }
+
+    try {
+      // Save the quote to database before resetting
+      await createQuote.mutateAsync({
+        quote_number: quoteNumber,
+        status: 'draft',
+        customer_name: customerName,
+        customer_email: customerEmail || undefined,
+        customer_phone: customerPhone || undefined,
+        customer_company: customerCompany || undefined,
+        company_id: selectedCompanyId || undefined,
+        subtotal,
+        total,
+        quote_data: {
+          destinationBlocks,
+          internalNotes,
+          quoteNotes,
+          customerAddress,
+        },
+      })
+
+      // Reset the form after successful save (toast shown by mutation's onSuccess)
+      resetFormState()
+    } catch (error) {
+      // Don't reset if save failed - toast shown by mutation's onError
+      console.error('Failed to save quote on download:', error)
+    }
+  }, [
+    savedQuoteId,
+    customerName,
+    quoteNumber,
+    customerEmail,
+    customerPhone,
+    customerCompany,
+    selectedCompanyId,
+    subtotal,
+    total,
+    destinationBlocks,
+    internalNotes,
+    quoteNotes,
+    customerAddress,
+    createQuote,
+    resetFormState,
+    deleteDraftMutation,
+  ])
 
   const handleSaveQuote = () => {
     if (!customerName) {
@@ -680,7 +728,7 @@ export default function NewInlandQuotePage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {settings && previewPdfData ? (
-                    <QuotePDFPreview data={previewPdfData} showControls onDownload={resetForm} />
+                    <QuotePDFPreview data={previewPdfData} showControls onDownload={saveAndResetForm} />
                   ) : (
                     <div className="p-8 text-center text-muted-foreground">
                       Loading preview...
