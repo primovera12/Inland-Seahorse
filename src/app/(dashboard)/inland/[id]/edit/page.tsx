@@ -34,7 +34,7 @@ import { toast } from 'sonner'
 import { Plus, Eye, Loader2, Mail, ArrowLeft } from 'lucide-react'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { InlandDestinationBlock } from '@/types/inland'
+import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
 import {
   getInlandQuotePDFDataUrl,
   type InlandQuotePDFData,
@@ -120,6 +120,46 @@ export default function EditInlandQuotePage() {
   const { data: accessorialTypes } = trpc.inland.getAccessorialTypes.useQuery()
   const { data: settings } = trpc.settings.get.useQuery()
 
+  // Normalize a destination block to ensure all required fields exist (for migrated quotes)
+  const normalizeDestinationBlock = (block: Partial<InlandDestinationBlock>, index: number): InlandDestinationBlock => {
+    return {
+      id: block.id || crypto.randomUUID(),
+      label: block.label || DESTINATION_LABELS[index] || String(index + 1),
+      pickup_address: block.pickup_address || '',
+      pickup_city: block.pickup_city,
+      pickup_state: block.pickup_state,
+      pickup_zip: block.pickup_zip,
+      pickup_lat: block.pickup_lat,
+      pickup_lng: block.pickup_lng,
+      pickup_place_id: block.pickup_place_id,
+      waypoints: block.waypoints || [],
+      dropoff_address: block.dropoff_address || '',
+      dropoff_city: block.dropoff_city,
+      dropoff_state: block.dropoff_state,
+      dropoff_zip: block.dropoff_zip,
+      dropoff_lat: block.dropoff_lat,
+      dropoff_lng: block.dropoff_lng,
+      dropoff_place_id: block.dropoff_place_id,
+      distance_miles: block.distance_miles,
+      duration_minutes: block.duration_minutes,
+      route_polyline: block.route_polyline,
+      load_blocks: ((block.load_blocks || []) as Partial<InlandLoadBlock>[]).map((lb): InlandLoadBlock => ({
+        id: lb.id || crypto.randomUUID(),
+        truck_type_id: lb.truck_type_id || '',
+        truck_type_name: lb.truck_type_name || 'Flatbed',
+        cargo_items: lb.cargo_items || [],
+        service_items: lb.service_items || [],
+        accessorial_charges: lb.accessorial_charges || [],
+        load_image_base64: lb.load_image_base64,
+        notes: lb.notes,
+        subtotal: lb.subtotal || 0,
+        accessorials_total: lb.accessorials_total || 0,
+      })),
+      subtotal: block.subtotal || 0,
+      accessorials_total: block.accessorials_total || 0,
+    }
+  }
+
   // Load quote data into state
   useEffect(() => {
     if (quote && !dataLoaded) {
@@ -136,22 +176,22 @@ export default function EditInlandQuotePage() {
       // Load quote_data - handle both camelCase and snake_case for backwards compatibility
       const quoteData = quote.quote_data as {
         // camelCase (new format)
-        destinationBlocks?: InlandDestinationBlock[]
+        destinationBlocks?: Partial<InlandDestinationBlock>[]
         internalNotes?: string
         quoteNotes?: string
         customerAddress?: CustomerAddress
         // snake_case (legacy format from new page)
-        destination_blocks?: InlandDestinationBlock[]
+        destination_blocks?: Partial<InlandDestinationBlock>[]
         internal_notes?: string
         quote_notes?: string
         customer_address?: CustomerAddress
       }
 
       if (quoteData) {
-        // Load destination blocks (check both formats)
+        // Load destination blocks (check both formats) and normalize them
         const blocks = quoteData.destinationBlocks || quoteData.destination_blocks
         if (blocks && blocks.length > 0) {
-          setDestinationBlocks(blocks)
+          setDestinationBlocks(blocks.map((block, index) => normalizeDestinationBlock(block, index)))
         }
         // Load notes (check both formats)
         const intNotes = quoteData.internalNotes || quoteData.internal_notes
