@@ -161,9 +161,6 @@ export function EquipmentBlockCard({
   // Mutation to update equipment images in database
   const updateImagesMutation = trpc.equipment.updateImages.useMutation()
 
-  // Mutation to update equipment dimensions in database
-  const upsertDimensionsMutation = trpc.equipment.upsertDimensions.useMutation()
-
   // Mutations for creating new makes and models on the fly
   const utils = trpc.useUtils()
   const createMakeMutation = trpc.equipment.createMake.useMutation({
@@ -195,8 +192,6 @@ export function EquipmentBlockCard({
     weight: String(block.weight_lbs || ''),
   })
 
-  // Debounce timer ref for dimension auto-save
-  const dimensionSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Sync local dimensions when block dimensions change (e.g., from database load)
   useEffect(() => {
@@ -215,29 +210,13 @@ export function EquipmentBlockCard({
     })
   }, [block.length_inches, block.width_inches, block.height_inches, block.weight_lbs])
 
-  // Auto-save dimensions to database with debounce
-  const saveDimensionsToDatabase = useCallback(async (dims: typeof localDimensions) => {
-    if (!selectedModelId) return
-
-    try {
-      await upsertDimensionsMutation.mutateAsync({
-        modelId: selectedModelId,
-        length_inches: dims.length_inches,
-        width_inches: dims.width_inches,
-        height_inches: dims.height_inches,
-        weight_lbs: dims.weight_lbs,
-      })
-    } catch (error) {
-      console.error('Failed to save dimensions:', error)
-    }
-  }, [selectedModelId, upsertDimensionsMutation])
 
   // Handle dimension input change (while typing - just update the display string)
   const handleDimensionInputChange = useCallback((field: 'length' | 'width' | 'height', value: string) => {
     setDimensionInputs(prev => ({ ...prev, [field]: value }))
   }, [])
 
-  // Handle dimension blur (when leaving field - parse, convert, and save)
+  // Handle dimension blur (when leaving field - parse and convert)
   const handleDimensionBlur = useCallback((field: 'length' | 'width' | 'height') => {
     const inputValue = dimensionInputs[field]
     const inchesField = `${field}_inches` as keyof typeof localDimensions
@@ -252,17 +231,9 @@ export function EquipmentBlockCard({
     const newDimensions = { ...localDimensions, [inchesField]: inches }
     setLocalDimensions(newDimensions)
 
-    // Update block immediately for UI
+    // Update block immediately for UI (dimensions saved with quote, not auto-saved to model)
     onUpdate({ ...block, [inchesField]: inches })
-
-    // Debounce database save
-    if (dimensionSaveTimerRef.current) {
-      clearTimeout(dimensionSaveTimerRef.current)
-    }
-    dimensionSaveTimerRef.current = setTimeout(() => {
-      saveDimensionsToDatabase(newDimensions)
-    }, 1000)
-  }, [dimensionInputs, localDimensions, block, onUpdate, saveDimensionsToDatabase])
+  }, [dimensionInputs, localDimensions, block, onUpdate])
 
   // Handle weight change (numbers only)
   const handleWeightChange = useCallback((value: string) => {
@@ -272,33 +243,10 @@ export function EquipmentBlockCard({
     const newDimensions = { ...localDimensions, weight_lbs: weightLbs }
     setLocalDimensions(newDimensions)
 
-    // Update block immediately for UI
+    // Update block immediately for UI (dimensions saved with quote, not auto-saved to model)
     onUpdate({ ...block, weight_lbs: weightLbs })
+  }, [localDimensions, block, onUpdate])
 
-    // Debounce database save
-    if (dimensionSaveTimerRef.current) {
-      clearTimeout(dimensionSaveTimerRef.current)
-    }
-    dimensionSaveTimerRef.current = setTimeout(() => {
-      saveDimensionsToDatabase(newDimensions)
-    }, 1000)
-  }, [localDimensions, block, onUpdate, saveDimensionsToDatabase])
-
-  // Cleanup timer on unmount AND when model changes
-  // CRITICAL: Clear pending saves when switching models to prevent
-  // old dimensions from being saved to the new model
-  useEffect(() => {
-    // Clear any pending save when model changes
-    if (dimensionSaveTimerRef.current) {
-      clearTimeout(dimensionSaveTimerRef.current)
-      dimensionSaveTimerRef.current = null
-    }
-    return () => {
-      if (dimensionSaveTimerRef.current) {
-        clearTimeout(dimensionSaveTimerRef.current)
-      }
-    }
-  }, [selectedModelId])
 
   // Update costs when rates change - uses refs to avoid stale closure
   // Also depends on selectedModelId and location to handle cached data scenarios
@@ -426,10 +374,34 @@ export function EquipmentBlockCard({
   const handleModelChange = (modelId: string) => {
     const model = models?.find((m) => m.id === modelId)
     setSelectedModelId(modelId)
+    // Immediately clear dimensions when switching models
+    // The new dimensions will be loaded from the query when it completes
+    setLocalDimensions({
+      length_inches: 0,
+      width_inches: 0,
+      height_inches: 0,
+      weight_lbs: 0,
+    })
+    setDimensionInputs({
+      length: '',
+      width: '',
+      height: '',
+      weight: '',
+    })
+    // Clear images when switching models
+    setFrontImageUrl(null)
+    setSideImageUrl(null)
     onUpdate({
       ...block,
       model_id: modelId,
       model_name: model?.name || '',
+      // Clear dimensions in block
+      length_inches: 0,
+      width_inches: 0,
+      height_inches: 0,
+      weight_lbs: 0,
+      front_image_url: undefined,
+      side_image_url: undefined,
     })
   }
 
@@ -620,12 +592,7 @@ export function EquipmentBlockCard({
             {/* Dimensions */}
             {selectedModelId && (
               <div className="rounded-lg border p-4 bg-muted/30">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium">Dimensions</h4>
-                  {upsertDimensionsMutation.isPending && (
-                    <span className="text-xs text-muted-foreground">Saving...</span>
-                  )}
-                </div>
+                <h4 className="font-medium mb-3">Dimensions</h4>
                 <div className="grid gap-4 md:grid-cols-4">
                   <div className="space-y-1">
                     <Label className="text-sm text-muted-foreground">Length (ft-in)</Label>
