@@ -215,12 +215,31 @@ export const companiesRouter = router({
   delete: managerProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get company info before deletion for logging
+      const { data: companyToDelete } = await ctx.supabase
+        .from('companies')
+        .select('name')
+        .eq('id', input.id)
+        .single()
+
       const { error } = await ctx.supabase
         .from('companies')
         .delete()
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Company')
+
+      // Log company deletion
+      if (companyToDelete) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'company_updated',
+          subject: `Company "${companyToDelete.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted company "${companyToDelete.name}" and all associated contacts`.trim(),
+          metadata: { company_name: companyToDelete.name, action: 'delete' },
+        })
+      }
+
       return { success: true }
     }),
 

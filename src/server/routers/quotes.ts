@@ -842,6 +842,22 @@ export const quotesRouter = router({
         notes: `Revision ${newVersion} created from ${sourceQuote.quote_number}`,
       })
 
+      // Log the revision creation activity
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        company_id: sourceQuote.company_id || null,
+        activity_type: 'quote_created',
+        subject: `Quote revision ${newQuoteNumber} created`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} created revision ${newVersion} of dismantle quote from ${sourceQuote.quote_number}`.trim(),
+        related_quote_id: newQuote.id,
+        metadata: {
+          quote_number: newQuoteNumber,
+          version: newVersion,
+          source_quote_number: sourceQuote.quote_number,
+          action: 'revision',
+        },
+      })
+
       return newQuote
     }),
 
@@ -1042,6 +1058,21 @@ export const quotesRouter = router({
         notes: `Cloned from ${sourceQuote.quote_number}`,
       })
 
+      // Log the clone activity
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        company_id: sourceQuote.company_id || null,
+        activity_type: 'quote_created',
+        subject: `Quote ${newQuoteNumber} cloned`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} cloned dismantle quote from ${sourceQuote.quote_number} to ${newQuoteNumber}`.trim(),
+        related_quote_id: clonedQuote.id,
+        metadata: {
+          quote_number: newQuoteNumber,
+          source_quote_number: sourceQuote.quote_number,
+          action: 'clone',
+        },
+      })
+
       return clonedQuote
     }),
 
@@ -1182,6 +1213,20 @@ export const quotesRouter = router({
         })
       }
 
+      // Log the bulk status update activity
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        activity_type: 'bulk_operation',
+        subject: `Bulk status update: ${input.ids.length} dismantle quote(s) → ${input.status}`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} changed status of ${input.ids.length} dismantle quote(s) to ${input.status}`.trim(),
+        metadata: {
+          operation: 'bulk_status_update',
+          quote_type: 'dismantle',
+          count: input.ids.length,
+          new_status: input.status,
+        },
+      })
+
       return { success: true, updated: input.ids.length }
     }),
 
@@ -1193,12 +1238,34 @@ export const quotesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Get quote info before deletion for logging
+      const { data: quotesToDelete } = await ctx.supabase
+        .from('quote_history')
+        .select('quote_number, customer_name')
+        .in('id', input.ids)
+
       const { error } = await ctx.supabase
         .from('quote_history')
         .delete()
         .in('id', input.ids)
 
       checkSupabaseError(error, 'Quote')
+
+      // Log the bulk deletion activity
+      const quoteNumbers = quotesToDelete?.map(q => q.quote_number).join(', ') || 'Unknown'
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        activity_type: 'bulk_operation',
+        subject: `Bulk delete: ${input.ids.length} dismantle quote(s)`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted ${input.ids.length} dismantle quote(s): ${quoteNumbers}`.trim(),
+        metadata: {
+          operation: 'bulk_delete',
+          quote_type: 'dismantle',
+          count: input.ids.length,
+          quote_numbers: quotesToDelete?.map(q => q.quote_number) || [],
+        },
+      })
+
       return { success: true, deleted: input.ids.length }
     }),
 

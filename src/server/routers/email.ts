@@ -45,11 +45,29 @@ export const emailRouter = router({
       checkSupabaseError(updateError, 'Email log')
 
       // Update quote status to 'sent'
-      const tableName = input.quoteType === 'dismantle' ? 'quotes' : 'inland_quotes'
+      const tableName = input.quoteType === 'dismantle' ? 'quote_history' : 'inland_quotes'
       await ctx.supabase
         .from(tableName)
         .update({ status: 'sent', sent_at: new Date().toISOString() })
         .eq('id', input.quoteId)
+
+      // Log the email sending activity
+      if (ctx.user) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'quote_emailed',
+          subject: `Quote emailed to ${input.recipientName}`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} sent ${input.quoteType} quote to ${input.recipientEmail}`.trim(),
+          related_quote_id: input.quoteType === 'dismantle' ? input.quoteId : null,
+          related_inland_quote_id: input.quoteType === 'inland' ? input.quoteId : null,
+          metadata: {
+            recipient_email: input.recipientEmail,
+            recipient_name: input.recipientName,
+            quote_type: input.quoteType,
+            include_pdf: input.includePdf,
+          },
+        })
+      }
 
       return { success: true, emailLogId: emailLog.id }
     }),

@@ -116,6 +116,18 @@ export const templatesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Template')
+
+      // Log template creation
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Quote template "${input.name}" created`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} created ${input.template_type} quote template "${input.name}"`.trim(),
+          metadata: { template_id: data.id, template_name: input.name, template_type: input.template_type, action: 'create' },
+        })
+      }
+
       return data
     }),
 
@@ -158,6 +170,18 @@ export const templatesRouter = router({
         .single()
 
       checkSupabaseError(error, 'Template')
+
+      // Log template update
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Quote template "${data.name}" updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated ${data.template_type} quote template "${data.name}"`.trim(),
+          metadata: { template_id: data.id, template_name: data.name, template_type: data.template_type, action: 'update', updated_fields: Object.keys(updates) },
+        })
+      }
+
       return data
     }),
 
@@ -165,12 +189,31 @@ export const templatesRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get template info before deletion for logging
+      const { data: templateToDelete } = await ctx.supabase
+        .from('quote_templates')
+        .select('name, template_type')
+        .eq('id', input.id)
+        .single()
+
       const { error } = await ctx.supabase
         .from('quote_templates')
         .delete()
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Template')
+
+      // Log template deletion
+      if (templateToDelete) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Quote template "${templateToDelete.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted ${templateToDelete.template_type} quote template "${templateToDelete.name}"`.trim(),
+          metadata: { template_name: templateToDelete.name, template_type: templateToDelete.template_type, action: 'delete' },
+        })
+      }
+
       return { success: true }
     }),
 

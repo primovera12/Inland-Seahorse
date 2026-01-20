@@ -202,6 +202,18 @@ export const equipmentRouter = router({
         .single()
 
       checkSupabaseError(error, 'Create make')
+
+      // Log equipment make creation
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Equipment make "${input.name}" created`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} added new equipment make "${input.name}"`.trim(),
+          metadata: { make_id: data.id, make_name: input.name, action: 'create' },
+        })
+      }
+
       return data
     }),
 
@@ -212,6 +224,13 @@ export const equipmentRouter = router({
       popularity_rank: z.number().optional()
     }))
     .mutation(async ({ ctx, input }) => {
+      // Get current name for logging
+      const { data: current } = await ctx.supabase
+        .from('makes')
+        .select('name')
+        .eq('id', input.id)
+        .single()
+
       const updates: Record<string, unknown> = { name: input.name }
       if (input.popularity_rank !== undefined) {
         updates.popularity_rank = input.popularity_rank
@@ -225,12 +244,31 @@ export const equipmentRouter = router({
         .single()
 
       checkSupabaseError(error, 'Update make')
+
+      // Log equipment make update
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Equipment make "${data.name}" updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated equipment make${current?.name !== input.name ? ` from "${current?.name}" to "${input.name}"` : ` "${input.name}"`}`.trim(),
+          metadata: { make_id: data.id, make_name: data.name, action: 'update', previous_name: current?.name },
+        })
+      }
+
       return data
     }),
 
   deleteMake: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get make info for logging before deletion
+      const { data: makeToDelete } = await ctx.supabase
+        .from('makes')
+        .select('name')
+        .eq('id', input.id)
+        .single()
+
       // This will cascade delete models, dimensions, and rates
       const { error } = await ctx.supabase
         .from('makes')
@@ -238,6 +276,18 @@ export const equipmentRouter = router({
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Delete make')
+
+      // Log equipment make deletion
+      if (makeToDelete) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Equipment make "${makeToDelete.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted equipment make "${makeToDelete.name}" and all associated models`.trim(),
+          metadata: { make_name: makeToDelete.name, action: 'delete' },
+        })
+      }
+
       return { success: true }
     }),
 
@@ -248,6 +298,13 @@ export const equipmentRouter = router({
       name: z.string().min(1)
     }))
     .mutation(async ({ ctx, input }) => {
+      // Get make name for logging
+      const { data: make } = await ctx.supabase
+        .from('makes')
+        .select('name')
+        .eq('id', input.makeId)
+        .single()
+
       const { data, error } = await ctx.supabase
         .from('models')
         .insert({ make_id: input.makeId, name: input.name })
@@ -255,6 +312,18 @@ export const equipmentRouter = router({
         .single()
 
       checkSupabaseError(error, 'Create model')
+
+      // Log equipment model creation
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Equipment model "${make?.name} ${input.name}" created`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} added new equipment model "${input.name}" to make "${make?.name}"`.trim(),
+          metadata: { model_id: data.id, model_name: input.name, make_name: make?.name, action: 'create' },
+        })
+      }
+
       return data
     }),
 
@@ -264,6 +333,13 @@ export const equipmentRouter = router({
       name: z.string().min(1)
     }))
     .mutation(async ({ ctx, input }) => {
+      // Get current model with make info for logging
+      const { data: current } = await ctx.supabase
+        .from('models')
+        .select('name, makes(name)')
+        .eq('id', input.id)
+        .single()
+
       const { data, error } = await ctx.supabase
         .from('models')
         .update({ name: input.name })
@@ -272,12 +348,33 @@ export const equipmentRouter = router({
         .single()
 
       checkSupabaseError(error, 'Update model')
+
+      // Log equipment model update
+      if (data) {
+        const makesData = current?.makes as unknown as { name: string } | { name: string }[] | null
+        const makeName = Array.isArray(makesData) ? makesData[0]?.name : makesData?.name || 'Unknown'
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Equipment model "${makeName} ${data.name}" updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated equipment model${current?.name !== input.name ? ` from "${current?.name}" to "${input.name}"` : ` "${input.name}"`}`.trim(),
+          metadata: { model_id: data.id, model_name: data.name, make_name: makeName, action: 'update', previous_name: current?.name },
+        })
+      }
+
       return data
     }),
 
   deleteModel: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get model info with make for logging before deletion
+      const { data: modelToDelete } = await ctx.supabase
+        .from('models')
+        .select('name, makes(name)')
+        .eq('id', input.id)
+        .single()
+
       // This will cascade delete dimensions and rates
       const { error } = await ctx.supabase
         .from('models')
@@ -285,6 +382,20 @@ export const equipmentRouter = router({
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Delete model')
+
+      // Log equipment model deletion
+      if (modelToDelete) {
+        const makesData = modelToDelete.makes as unknown as { name: string } | { name: string }[] | null
+        const makeName = Array.isArray(makesData) ? makesData[0]?.name : makesData?.name || 'Unknown'
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'settings_updated',
+          subject: `Equipment model "${makeName} ${modelToDelete.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted equipment model "${modelToDelete.name}" from make "${makeName}"`.trim(),
+          metadata: { model_name: modelToDelete.name, make_name: makeName, action: 'delete' },
+        })
+      }
+
       return { success: true }
     }),
 

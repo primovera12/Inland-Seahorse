@@ -47,6 +47,17 @@ export const importRouter = router({
         }
       }
 
+      // Log the import activity
+      if (imported > 0) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'bulk_operation',
+          subject: `Imported ${imported} equipment make(s)`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} imported ${imported} equipment makes via CSV${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}`.trim(),
+          metadata: { operation: 'csv_import', data_type: 'equipment_makes', imported, skipped, errors_count: errors.length },
+        })
+      }
+
       return { imported, skipped, errors }
     }),
 
@@ -107,6 +118,17 @@ export const importRouter = router({
         }
       }
 
+      // Log the import activity
+      if (imported > 0) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'bulk_operation',
+          subject: `Imported ${imported} equipment model(s)`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} imported ${imported} equipment models via CSV${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}`.trim(),
+          metadata: { operation: 'csv_import', data_type: 'equipment_models', imported, skipped, errors_count: errors.length },
+        })
+      }
+
       return { imported, skipped, errors }
     }),
 
@@ -159,6 +181,17 @@ export const importRouter = router({
         } catch (error) {
           errors.push(`Failed to import "${item.name}": ${(error as Error).message}`)
         }
+      }
+
+      // Log the import activity
+      if (imported > 0) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'bulk_operation',
+          subject: `Imported ${imported} company/companies`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} imported ${imported} companies via CSV${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}`.trim(),
+          metadata: { operation: 'csv_import', data_type: 'companies', imported, skipped, errors_count: errors.length },
+        })
       }
 
       return { imported, skipped, errors }
@@ -227,6 +260,17 @@ export const importRouter = router({
             `Failed to import "${item.first_name} ${item.last_name}": ${(error as Error).message}`
           )
         }
+      }
+
+      // Log the import activity
+      if (imported > 0) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'bulk_operation',
+          subject: `Imported ${imported} contact(s)`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} imported ${imported} contacts via CSV${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}`.trim(),
+          metadata: { operation: 'csv_import', data_type: 'contacts', imported, skipped, errors_count: errors.length },
+        })
       }
 
       return { imported, skipped, errors }
@@ -330,6 +374,17 @@ export const importRouter = router({
             `Failed to import rate for "${item.make_name} ${item.model_name}": ${(error as Error).message}`
           )
         }
+      }
+
+      // Log the import activity
+      if (imported > 0 || updated > 0) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'bulk_operation',
+          subject: `Imported ${imported + updated} equipment rate(s)`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} imported ${imported} new and updated ${updated} existing equipment rates via CSV${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}`.trim(),
+          metadata: { operation: 'csv_import', data_type: 'equipment_rates', imported, updated, skipped, errors_count: errors.length },
+        })
       }
 
       return { imported, skipped, updated, errors }

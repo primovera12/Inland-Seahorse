@@ -63,6 +63,18 @@ export const inlandRouter = router({
         .single()
 
       checkSupabaseError(error, 'Equipment type')
+
+      // Log equipment type creation
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'inland_settings_updated',
+          subject: `Inland equipment type "${input.name}" created`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} added new inland equipment type "${input.name}"`.trim(),
+          metadata: { equipment_type_id: data.id, equipment_type_name: input.name, action: 'create' },
+        })
+      }
+
       return data
     }),
 
@@ -89,6 +101,18 @@ export const inlandRouter = router({
         .single()
 
       checkSupabaseError(error, 'Equipment type')
+
+      // Log equipment type update
+      if (data) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'inland_settings_updated',
+          subject: `Inland equipment type "${data.name}" updated`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} updated inland equipment type "${data.name}"`.trim(),
+          metadata: { equipment_type_id: data.id, equipment_type_name: data.name, action: 'update', updated_fields: Object.keys(updateData) },
+        })
+      }
+
       return data
     }),
 
@@ -96,12 +120,31 @@ export const inlandRouter = router({
   deleteEquipmentType: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Get equipment type info before deletion for logging
+      const { data: equipmentType } = await ctx.supabase
+        .from('inland_equipment_types')
+        .select('name')
+        .eq('id', input.id)
+        .single()
+
       const { error } = await ctx.supabase
         .from('inland_equipment_types')
         .update({ is_active: false })
         .eq('id', input.id)
 
       checkSupabaseError(error, 'Equipment type')
+
+      // Log equipment type deletion
+      if (equipmentType) {
+        await ctx.adminSupabase.from('activity_logs').insert({
+          user_id: ctx.user.id,
+          activity_type: 'inland_settings_updated',
+          subject: `Inland equipment type "${equipmentType.name}" deleted`,
+          description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted inland equipment type "${equipmentType.name}"`.trim(),
+          metadata: { equipment_type_name: equipmentType.name, action: 'delete' },
+        })
+      }
+
       return { success: true }
     }),
 
@@ -922,6 +965,22 @@ export const inlandRouter = router({
         notes: `Revision ${newVersion} created from ${sourceQuote.quote_number}`,
       })
 
+      // Log the revision creation activity
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        company_id: sourceQuote.company_id || null,
+        activity_type: 'inland_quote_created',
+        subject: `Inland quote revision ${newQuoteNumber} created`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} created revision ${newVersion} of inland quote from ${sourceQuote.quote_number}`.trim(),
+        related_inland_quote_id: newQuote.id,
+        metadata: {
+          quote_number: newQuoteNumber,
+          version: newVersion,
+          source_quote_number: sourceQuote.quote_number,
+          action: 'revision',
+        },
+      })
+
       return newQuote
     }),
 
@@ -1002,6 +1061,21 @@ export const inlandRouter = router({
         new_status: 'draft',
         changed_by: ctx.user.id,
         notes: `Cloned from ${sourceQuote.quote_number}`,
+      })
+
+      // Log the clone activity
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        company_id: sourceQuote.company_id || null,
+        activity_type: 'inland_quote_created',
+        subject: `Inland quote ${newQuoteNumber} cloned`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} cloned inland quote from ${sourceQuote.quote_number} to ${newQuoteNumber}`.trim(),
+        related_inland_quote_id: clonedQuote.id,
+        metadata: {
+          quote_number: newQuoteNumber,
+          source_quote_number: sourceQuote.quote_number,
+          action: 'clone',
+        },
       })
 
       return clonedQuote
@@ -1252,6 +1326,20 @@ export const inlandRouter = router({
 
       checkSupabaseError(error, 'Quote')
 
+      // Log the bulk status update activity
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        activity_type: 'bulk_operation',
+        subject: `Bulk status update: ${input.ids.length} inland quote(s) → ${input.status}`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} changed status of ${input.ids.length} inland quote(s) to ${input.status}`.trim(),
+        metadata: {
+          operation: 'bulk_status_update',
+          quote_type: 'inland',
+          count: input.ids.length,
+          new_status: input.status,
+        },
+      })
+
       return { success: true, updated: input.ids.length }
     }),
 
@@ -1263,12 +1351,34 @@ export const inlandRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Get quote info before deletion for logging
+      const { data: quotesToDelete } = await ctx.supabase
+        .from('inland_quotes')
+        .select('quote_number, customer_name')
+        .in('id', input.ids)
+
       const { error } = await ctx.supabase
         .from('inland_quotes')
         .delete()
         .in('id', input.ids)
 
       checkSupabaseError(error, 'Quote')
+
+      // Log the bulk deletion activity
+      const quoteNumbers = quotesToDelete?.map(q => q.quote_number).join(', ') || 'Unknown'
+      await ctx.adminSupabase.from('activity_logs').insert({
+        user_id: ctx.user.id,
+        activity_type: 'bulk_operation',
+        subject: `Bulk delete: ${input.ids.length} inland quote(s)`,
+        description: `${ctx.user.first_name || ''} ${ctx.user.last_name || ''} deleted ${input.ids.length} inland quote(s): ${quoteNumbers}`.trim(),
+        metadata: {
+          operation: 'bulk_delete',
+          quote_type: 'inland',
+          count: input.ids.length,
+          quote_numbers: quotesToDelete?.map(q => q.quote_number) || [],
+        },
+      })
+
       return { success: true, deleted: input.ids.length }
     }),
 
