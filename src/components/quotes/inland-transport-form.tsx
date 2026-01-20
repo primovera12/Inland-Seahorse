@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,6 +181,20 @@ export const initialInlandTransportData: InlandTransportData = {
 export function InlandTransportForm({ data, onChange, equipmentDimensions }: InlandTransportFormProps) {
   const [serviceTypes, setServiceTypes] = useState<SearchableSelectOption[]>(DEFAULT_SERVICE_TYPES)
   const [accessorialTypes, setAccessorialTypes] = useState<SearchableSelectOption[]>(DEFAULT_ACCESSORIAL_TYPES)
+
+  // Refs to prevent duplicate API calls and implement debouncing
+  const routeCalculationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastCalculatedCoordsRef = useRef<string>('')
+  const isCalculatingRouteRef = useRef(false)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (routeCalculationTimeoutRef.current) {
+        clearTimeout(routeCalculationTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Fetch truck types from API
   const { data: truckTypesData } = trpc.inland.getEquipmentTypes.useQuery(undefined, {
@@ -460,80 +474,107 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
     return `https://maps.googleapis.com/maps/api/staticmap?size=${size}&maptype=${mapType}&${pickupMarker}&${dropoffMarker}&${path}&key=${apiKey}`
   }
 
-  // Calculate route info using Google Directions API
-  const calculateRouteInfo = async (newData: InlandTransportData) => {
+  // Calculate route info using Google Directions API with debouncing and caching
+  const calculateRouteInfo = useCallback((newData: InlandTransportData) => {
+    // Always update the data immediately (address, city, state, zip)
+    onChange(newData)
+
     if (!newData.pickup_lat || !newData.pickup_lng || !newData.dropoff_lat || !newData.dropoff_lng) {
-      onChange(newData)
       return
     }
 
-    try {
-      // Use Google Directions Service to get actual route
-      const directionsService = new google.maps.DirectionsService()
-      const directionsResult = await directionsService.route({
-        origin: { lat: newData.pickup_lat, lng: newData.pickup_lng },
-        destination: { lat: newData.dropoff_lat, lng: newData.dropoff_lng },
-        travelMode: google.maps.TravelMode.DRIVING,
-      })
+    // Create a cache key from coordinates
+    const coordsKey = `${newData.pickup_lat.toFixed(6)},${newData.pickup_lng.toFixed(6)}|${newData.dropoff_lat.toFixed(6)},${newData.dropoff_lng.toFixed(6)}`
 
-      if (directionsResult.routes[0]) {
-        const route = directionsResult.routes[0]
-        const leg = route.legs[0]
-
-        // Get distance and duration from directions response
-        const distanceMeters = leg?.distance?.value || 0
-        const durationSeconds = leg?.duration?.value || 0
-
-        // Convert to miles and minutes
-        const distanceMiles = distanceMeters / 1609.34
-        const durationMinutes = Math.round(durationSeconds / 60)
-
-        // Get the encoded polyline for the route
-        const encodedPolyline = route.overview_polyline
-
-        // Generate static map URL with actual route
-        const staticMapUrl = generateStaticMapUrl(
-          newData.pickup_lat,
-          newData.pickup_lng,
-          newData.dropoff_lat,
-          newData.dropoff_lng,
-          encodedPolyline
-        )
-
-        onChange({
-          ...newData,
-          distance_miles: Math.round(distanceMiles * 10) / 10, // Round to 1 decimal
-          duration_minutes: durationMinutes,
-          static_map_url: staticMapUrl,
-        })
-      } else {
-        // Fallback: generate map with straight line if directions fail
-        const staticMapUrl = generateStaticMapUrl(
-          newData.pickup_lat,
-          newData.pickup_lng,
-          newData.dropoff_lat,
-          newData.dropoff_lng
-        )
-        onChange({
-          ...newData,
-          static_map_url: staticMapUrl,
-        })
-      }
-    } catch (error) {
-      console.error('Error calculating route:', error)
-      // Fallback: generate map with straight line on error
-      const staticMapUrl = generateStaticMapUrl(
-        newData.pickup_lat,
-        newData.pickup_lng,
-        newData.dropoff_lat,
-        newData.dropoff_lng
-      )
-      onChange({
-        ...newData,
-        static_map_url: staticMapUrl,
-      })
+    // Skip if we already calculated this exact route
+    if (lastCalculatedCoordsRef.current === coordsKey && newData.distance_miles) {
+      return
     }
-  }
+
+    // Clear any pending calculation
+    if (routeCalculationTimeoutRef.current) {
+      clearTimeout(routeCalculationTimeoutRef.current)
+    }
+
+    // Debounce the API call - wait 1.5 seconds after last change
+    routeCalculationTimeoutRef.current = setTimeout(async () => {
+      // Prevent concurrent calculations
+      if (isCalculatingRouteRef.current) return
+      isCalculatingRouteRef.current = true
+
+      try {
+        // Use Google Directions Service to get actual route
+        const directionsService = new google.maps.DirectionsService()
+        const directionsResult = await directionsService.route({
+          origin: { lat: newData.pickup_lat!, lng: newData.pickup_lng! },
+          destination: { lat: newData.dropoff_lat!, lng: newData.dropoff_lng! },
+          travelMode: google.maps.TravelMode.DRIVING,
+        })
+
+        if (directionsResult.routes[0]) {
+          const route = directionsResult.routes[0]
+          const leg = route.legs[0]
+
+          // Get distance and duration from directions response
+          const distanceMeters = leg?.distance?.value || 0
+          const durationSeconds = leg?.duration?.value || 0
+
+          // Convert to miles and minutes
+          const distanceMiles = distanceMeters / 1609.34
+          const durationMinutes = Math.round(durationSeconds / 60)
+
+          // Get the encoded polyline for the route
+          const encodedPolyline = route.overview_polyline
+
+          // Generate static map URL with actual route
+          const staticMapUrl = generateStaticMapUrl(
+            newData.pickup_lat!,
+            newData.pickup_lng!,
+            newData.dropoff_lat!,
+            newData.dropoff_lng!,
+            encodedPolyline
+          )
+
+          // Mark this route as calculated
+          lastCalculatedCoordsRef.current = coordsKey
+
+          onChange({
+            ...newData,
+            distance_miles: Math.round(distanceMiles * 10) / 10, // Round to 1 decimal
+            duration_minutes: durationMinutes,
+            static_map_url: staticMapUrl,
+          })
+        } else {
+          // Fallback: generate map with straight line if directions fail
+          const staticMapUrl = generateStaticMapUrl(
+            newData.pickup_lat!,
+            newData.pickup_lng!,
+            newData.dropoff_lat!,
+            newData.dropoff_lng!
+          )
+          onChange({
+            ...newData,
+            static_map_url: staticMapUrl,
+          })
+        }
+      } catch (error) {
+        console.error('Error calculating route:', error)
+        // Fallback: generate map with straight line on error
+        const staticMapUrl = generateStaticMapUrl(
+          newData.pickup_lat!,
+          newData.pickup_lng!,
+          newData.dropoff_lat!,
+          newData.dropoff_lng!
+        )
+        onChange({
+          ...newData,
+          static_map_url: staticMapUrl,
+        })
+      } finally {
+        isCalculatingRouteRef.current = false
+      }
+    }, 1500) // 1.5 second debounce
+  }, [onChange])
 
   return (
     <Card>
@@ -580,12 +621,8 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                       pickup_lat: components.lat,
                       pickup_lng: components.lng,
                     }
-                    // Calculate route if both addresses have coordinates
-                    if (newData.pickup_lat && newData.pickup_lng && newData.dropoff_lat && newData.dropoff_lng) {
-                      calculateRouteInfo(newData)
-                    } else {
-                      onChange(newData)
-                    }
+                    // calculateRouteInfo handles both data update and route calculation with debouncing
+                    calculateRouteInfo(newData)
                   }}
                 />
               </div>
@@ -645,12 +682,8 @@ export function InlandTransportForm({ data, onChange, equipmentDimensions }: Inl
                       dropoff_lat: components.lat,
                       dropoff_lng: components.lng,
                     }
-                    // Calculate route if both addresses have coordinates
-                    if (newData.pickup_lat && newData.pickup_lng && newData.dropoff_lat && newData.dropoff_lng) {
-                      calculateRouteInfo(newData)
-                    } else {
-                      onChange(newData)
-                    }
+                    // calculateRouteInfo handles both data update and route calculation with debouncing
+                    calculateRouteInfo(newData)
                   }}
                 />
               </div>

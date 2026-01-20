@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import {
   GoogleMap,
   useJsApiLoader,
@@ -9,7 +9,7 @@ import {
 } from '@react-google-maps/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, MapPin, Route, Maximize2, Minimize2 } from 'lucide-react'
+import { Loader2, MapPin, Route, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
 import type { InlandDestinationBlock } from '@/types/inland'
 
 const containerStyle = {
@@ -65,6 +65,10 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
   const [isExpanded, setIsExpanded] = useState(false)
   const [isCalculating, setIsCalculating] = useState(false)
 
+  // Track what we've already calculated to prevent duplicate API calls
+  const lastCalculatedRef = useRef<string>('')
+  const isCalculatingRef = useRef(false)
+
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
     libraries: ['places'],
@@ -77,11 +81,26 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
     )
   }, [destinationBlocks])
 
-  // Calculate routes for all valid destinations
+  // Create a stable hash of destinations to detect actual changes
+  const destinationsHash = useMemo(() => {
+    return validDestinations.map(d =>
+      `${d.id}|${d.pickup_address}|${d.dropoff_address}|${d.waypoints?.map(w => w.address).join(',') || ''}`
+    ).join('||')
+  }, [validDestinations])
+
+  // Calculate routes for all valid destinations - now manually triggered
   const calculateRoutes = useCallback(async () => {
     if (!isLoaded || validDestinations.length === 0) return
 
+    // Prevent duplicate calculations
+    if (isCalculatingRef.current) return
+    if (lastCalculatedRef.current === destinationsHash && directions.length > 0) {
+      return // Already calculated these exact destinations
+    }
+
+    isCalculatingRef.current = true
     setIsCalculating(true)
+
     const directionsService = new google.maps.DirectionsService()
     const newDirections: google.maps.DirectionsResult[] = []
     const newRouteInfos = new Map<string, RouteInfo>()
@@ -140,6 +159,8 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
 
     setDirections(newDirections)
     setRouteInfos(newRouteInfos)
+    lastCalculatedRef.current = destinationsHash
+    isCalculatingRef.current = false
     setIsCalculating(false)
 
     // Fit bounds to show all routes
@@ -153,16 +174,10 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
       })
       map.fitBounds(bounds, 50)
     }
-  }, [isLoaded, validDestinations, map, onRouteCalculated])
+  }, [isLoaded, validDestinations, destinationsHash, map, onRouteCalculated, directions.length])
 
-  // Recalculate routes when destinations change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      calculateRoutes()
-    }, 2500) // Debounce - increased to reduce API costs
-
-    return () => clearTimeout(timer)
-  }, [calculateRoutes])
+  // Check if routes need recalculation (destinations changed since last calculation)
+  const needsRecalculation = destinationsHash !== lastCalculatedRef.current && validDestinations.length > 0
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map)
@@ -213,6 +228,17 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
                 Calculating...
               </span>
             )}
+            {needsRecalculation && !isCalculating && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={calculateRoutes}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Calculate
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -234,6 +260,21 @@ export function RouteMap({ destinationBlocks, className, onRouteCalculated }: Ro
             <MapPin className="h-8 w-8 mb-2 opacity-50" />
             <p className="text-sm">Enter pickup and dropoff addresses</p>
             <p className="text-xs">to see routes on the map</p>
+          </div>
+        ) : directions.length === 0 && !isCalculating ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-muted/30">
+            <Route className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">Click &quot;Calculate&quot; to show routes</p>
+            <p className="text-xs">{validDestinations.length} route{validDestinations.length > 1 ? 's' : ''} ready to calculate</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={calculateRoutes}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Calculate Routes
+            </Button>
           </div>
         ) : (
           <GoogleMap
