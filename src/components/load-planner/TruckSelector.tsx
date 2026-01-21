@@ -333,7 +333,6 @@ export function TruckSelector({
                 </div>
               )
             })}
-            )}
             </div>
           </div>
         </>

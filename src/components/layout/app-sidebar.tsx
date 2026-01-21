@@ -82,6 +82,11 @@ const inlandItems: NavItem[] = [
     icon: Truck,
   },
   {
+    title: 'Load Planner (Testing)',
+    url: '/inland/new-v2',
+    icon: Package,
+  },
+  {
     title: 'Inland History',
     url: '/inland/history',
     icon: History,
