@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { LoadItem } from '@/lib/load-planner/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Pencil, Trash2, Check, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Plus, ChevronDown, ChevronUp, Package, Copy } from 'lucide-react'
 
 interface ExtractedItemsListProps {
   items: LoadItem[]
@@ -66,6 +66,15 @@ export function ExtractedItemsList({ items, onChange }: ExtractedItemsListProps)
     handleEdit(newItem)
   }
 
+  const handleDuplicate = (item: LoadItem) => {
+    const newItem: LoadItem = {
+      ...item,
+      id: `item-${Date.now()}`,
+      description: `${item.description} (copy)`
+    }
+    onChange([...items, newItem])
+  }
+
   const formatDimensions = (item: LoadItem) => {
     return `${item.length.toFixed(1)}' x ${item.width.toFixed(1)}' x ${item.height.toFixed(1)}'`
   }
@@ -79,6 +88,17 @@ export function ExtractedItemsList({ items, onChange }: ExtractedItemsListProps)
 
   return (
     <div className="space-y-2">
+      {/* Empty State */}
+      {items.length === 0 && (
+        <div className="py-8 text-center">
+          <Package className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+          <p className="text-sm text-gray-500 mb-1">No items added yet</p>
+          <p className="text-xs text-gray-400">
+            Upload a file or add items manually
+          </p>
+        </div>
+      )}
+
       {/* Items List */}
       <div className="max-h-[400px] overflow-y-auto space-y-2">
         {items.map((item) => (
@@ -189,14 +209,25 @@ export function ExtractedItemsList({ items, onChange }: ExtractedItemsListProps)
                       variant="ghost"
                       className="h-8 w-8 p-0"
                       onClick={() => handleEdit(item)}
+                      title="Edit item"
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleDuplicate(item)}
+                      title="Duplicate item"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                       onClick={() => handleDelete(item.id)}
+                      title="Delete item"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

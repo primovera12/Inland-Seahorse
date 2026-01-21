@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import type { TruckType, LoadItem, ItemPlacement } from '@/lib/load-planner/types'
 import { getItemColor } from './LoadPlanVisualizer'
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 
 interface TrailerDiagramProps {
   truck: TruckType
@@ -10,7 +12,9 @@ interface TrailerDiagramProps {
 }
 
 export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps) {
-  const SCALE = 10 // pixels per foot
+  const [scale, setScale] = useState(10) // pixels per foot
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const SCALE = scale
   const PADDING = 20
 
   const deckLength = truck.deckLength
@@ -27,8 +31,68 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
   // Get placement by item ID
   const getPlacement = (itemId: string) => placements.find(p => p.itemId === itemId)
 
+  const handleZoomIn = () => setScale(s => Math.min(s + 2, 16))
+  const handleZoomOut = () => setScale(s => Math.max(s - 2, 6))
+  const handleResetZoom = () => setScale(10)
+
   return (
     <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleZoomOut}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            title="Zoom out"
+          >
+            <ZoomOut className="w-4 h-4 text-gray-600" />
+          </button>
+          <button
+            onClick={handleResetZoom}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            title="Reset zoom"
+          >
+            <Maximize2 className="w-4 h-4 text-gray-600" />
+          </button>
+          <button
+            onClick={handleZoomIn}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            title="Zoom in"
+          >
+            <ZoomIn className="w-4 h-4 text-gray-600" />
+          </button>
+          <span className="text-xs text-gray-400 ml-2">{scale}px/ft</span>
+        </div>
+        <div className="text-xs text-gray-500">
+          {items.length} item{items.length !== 1 ? 's' : ''} placed
+        </div>
+      </div>
+
+      {/* Legend */}
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className={`
+                flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer
+                transition-all
+                ${hoveredItem === item.id ? 'ring-2 ring-blue-400' : ''}
+              `}
+              style={{ backgroundColor: `${getItemColor(index)}20` }}
+              onMouseEnter={() => setHoveredItem(item.id)}
+              onMouseLeave={() => setHoveredItem(null)}
+            >
+              <div
+                className="w-3 h-3 rounded"
+                style={{ backgroundColor: getItemColor(index) }}
+              />
+              <span className="text-gray-700">{item.description}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Top View */}
       <div>
         <h4 className="text-sm font-medium text-gray-600 mb-2">Top View (Looking Down)</h4>
@@ -81,19 +145,26 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
 
               const itemLength = placement.rotated ? item.width : item.length
               const itemWidth = placement.rotated ? item.length : item.width
+              const isHovered = hoveredItem === item.id
 
               return (
-                <g key={item.id}>
+                <g
+                  key={item.id}
+                  onMouseEnter={() => setHoveredItem(item.id)}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  className="cursor-pointer"
+                >
                   <rect
                     x={PADDING + placement.x * SCALE}
                     y={PADDING + placement.z * SCALE}
                     width={itemLength * SCALE}
                     height={itemWidth * SCALE}
                     fill={getItemColor(index)}
-                    fillOpacity="0.8"
-                    stroke={getItemColor(index)}
-                    strokeWidth="2"
+                    fillOpacity={isHovered ? "1" : "0.8"}
+                    stroke={isHovered ? "#3b82f6" : getItemColor(index)}
+                    strokeWidth={isHovered ? "3" : "2"}
                     rx="2"
+                    style={{ transition: 'all 0.15s ease' }}
                   />
                   {/* Item label */}
                   {itemLength * SCALE > 40 && itemWidth * SCALE > 20 && (
@@ -243,19 +314,26 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
 
               const itemLength = placement.rotated ? item.width : item.length
               const itemHeight = item.height
+              const isHovered = hoveredItem === item.id
 
               return (
-                <g key={item.id}>
+                <g
+                  key={item.id}
+                  onMouseEnter={() => setHoveredItem(item.id)}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  className="cursor-pointer"
+                >
                   <rect
                     x={PADDING + placement.x * SCALE}
                     y={PADDING + (maxLegalHeight - deckHeight - itemHeight) * SCALE}
                     width={itemLength * SCALE}
                     height={itemHeight * SCALE}
                     fill={getItemColor(index)}
-                    fillOpacity="0.8"
-                    stroke={getItemColor(index)}
-                    strokeWidth="2"
+                    fillOpacity={isHovered ? "1" : "0.8"}
+                    stroke={isHovered ? "#3b82f6" : getItemColor(index)}
+                    strokeWidth={isHovered ? "3" : "2"}
                     rx="2"
+                    style={{ transition: 'all 0.15s ease' }}
                   />
                   {/* Height label */}
                   {itemLength * SCALE > 30 && itemHeight * SCALE > 15 && (

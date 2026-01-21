@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { TruckType, TrailerCategory } from '@/lib/load-planner/types'
 import { trucks } from '@/lib/load-planner/trucks'
-import { ChevronDown, Check, AlertTriangle } from 'lucide-react'
+import { ChevronDown, Check, AlertTriangle, Search, X, Filter } from 'lucide-react'
 
 interface TruckSelectorProps {
   currentTruck: TruckType
@@ -23,28 +23,34 @@ export function TruckSelector({
   maxItemHeight
 }: TruckSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showOnlyFitting, setShowOnlyFitting] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Categorize and sort trucks
-  const categorizedTrucks = useMemo(() => {
-    const categories: Record<string, TruckType[]> = {}
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 100)
+    }
+    if (!isOpen) {
+      setSearchQuery('')
+    }
+  }, [isOpen])
 
-    trucks.forEach(truck => {
-      const category = truck.category
-      if (!categories[category]) {
-        categories[category] = []
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return
+      if (e.key === 'Escape') {
+        setIsOpen(false)
       }
-      categories[category].push(truck)
-    })
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
 
-    // Sort by deck length within each category
-    Object.keys(categories).forEach(cat => {
-      categories[cat].sort((a, b) => a.deckLength - b.deckLength)
-    })
-
-    return categories
-  }, [])
-
-  // Check if truck can handle the cargo
+  // Check if truck can handle the cargo (defined early for use in filtering)
   const canHandle = (truck: TruckType) => {
     const fitsWeight = itemsWeight <= truck.maxCargoWeight
     const fitsLength = maxItemLength <= truck.deckLength
@@ -59,6 +65,49 @@ export function TruckSelector({
       fitsHeight
     }
   }
+
+  // Categorize, filter, and sort trucks
+  const categorizedTrucks = useMemo(() => {
+    const categories: Record<string, TruckType[]> = {}
+    const query = searchQuery.toLowerCase().trim()
+
+    trucks.forEach(truck => {
+      // Apply search filter
+      if (query) {
+        const matchesSearch =
+          truck.name.toLowerCase().includes(query) ||
+          truck.category.toLowerCase().includes(query) ||
+          truck.description.toLowerCase().includes(query) ||
+          truck.bestFor.some(b => b.toLowerCase().includes(query))
+
+        if (!matchesSearch) return
+      }
+
+      // Apply "fits only" filter
+      if (showOnlyFitting) {
+        const fit = canHandle(truck)
+        if (!fit.fits) return
+      }
+
+      const category = truck.category
+      if (!categories[category]) {
+        categories[category] = []
+      }
+      categories[category].push(truck)
+    })
+
+    // Sort by deck length within each category
+    Object.keys(categories).forEach(cat => {
+      categories[cat].sort((a, b) => a.deckLength - b.deckLength)
+    })
+
+    return categories
+  }, [searchQuery, showOnlyFitting, itemsWeight, maxItemLength, maxItemWidth, maxItemHeight])
+
+  // Count total matching trucks
+  const matchingTruckCount = useMemo(() => {
+    return Object.values(categorizedTrucks).reduce((sum, trucks) => sum + trucks.length, 0)
+  }, [categorizedTrucks])
 
   // Category display names
   const categoryNames: Record<TrailerCategory, string> = {
@@ -157,8 +206,71 @@ export function TruckSelector({
           />
 
           {/* Dropdown Panel */}
-          <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-            {categoryOrder.map(category => {
+          <div
+            ref={dropdownRef}
+            className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col"
+            style={{ maxHeight: '28rem' }}
+          >
+            {/* Search Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-2 space-y-2 z-10">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search trucks by name, type, or use..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X className="w-4 h-4 text-gray-400" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyFitting(!showOnlyFitting)}
+                  className={`
+                    flex items-center gap-1.5 px-2 py-1 text-xs rounded-md transition-colors
+                    ${showOnlyFitting
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
+                  `}
+                >
+                  <Filter className="w-3 h-3" />
+                  {showOnlyFitting ? 'Showing fitting only' : 'Show all trucks'}
+                </button>
+                <span className="text-xs text-gray-500">
+                  {matchingTruckCount} truck{matchingTruckCount !== 1 ? 's' : ''} found
+                </span>
+              </div>
+            </div>
+
+            {/* Truck List */}
+            <div className="overflow-y-auto flex-1">
+            {matchingTruckCount === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No trucks match your search</p>
+                {showOnlyFitting && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOnlyFitting(false)}
+                    className="mt-2 text-xs text-blue-600 hover:underline"
+                  >
+                    Try showing all trucks
+                  </button>
+                )}
+              </div>
+            ) : (
+            categoryOrder.map(category => {
               const trucksInCategory = categorizedTrucks[category]
               if (!trucksInCategory || trucksInCategory.length === 0) return null
 
@@ -221,6 +333,8 @@ export function TruckSelector({
                 </div>
               )
             })}
+            )}
+            </div>
           </div>
         </>
       )}
