@@ -276,10 +276,7 @@ export function ImageUpload({
                 src={value}
                 alt={label}
                 className="absolute inset-0 w-full h-full object-contain"
-                onError={(e) => {
-                  console.error('Image load error:', value, e)
-                  setImageError(true)
-                }}
+                onError={() => setImageError(true)}
                 onLoad={() => setImageError(false)}
               />
             )}
