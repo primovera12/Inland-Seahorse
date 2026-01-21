@@ -307,6 +307,7 @@ export default function SettingsPage() {
                     width={32}
                     height={32}
                     className="rounded"
+                    unoptimized
                   />
                   <span className="text-xs text-muted-foreground">Preview at actual size (32x32)</span>
                 </div>
@@ -379,6 +380,7 @@ export default function SettingsPage() {
                       alt="Logo preview"
                       fill
                       className="object-contain"
+                      unoptimized
                     />
                   </div>
                 ) : null}

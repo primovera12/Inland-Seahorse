@@ -751,6 +751,7 @@ export function CargoItemCard({
                       fill
                       className="object-contain"
                       sizes="200px"
+                      unoptimized
                     />
                   </div>
                 ) : (
@@ -802,6 +803,7 @@ export function CargoItemCard({
                       fill
                       className="object-contain"
                       sizes="200px"
+                      unoptimized
                     />
                   </div>
                 ) : (
@@ -856,6 +858,7 @@ export function CargoItemCard({
                       fill
                       className="object-contain"
                       sizes="200px"
+                      unoptimized
                     />
                   </div>
                 ) : (
@@ -898,6 +901,7 @@ export function CargoItemCard({
                       fill
                       className="object-contain"
                       sizes="200px"
+                      unoptimized
                     />
                   </div>
                 ) : (

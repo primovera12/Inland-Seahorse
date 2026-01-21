@@ -402,7 +402,7 @@ export function EquipmentSelector({
                       fill
                       className="object-contain"
                       sizes="(max-width: 768px) 100vw, 300px"
-                      unoptimized={fullDimensions.front_image_url.endsWith('.svg')}
+                      unoptimized
                       onError={() => handleImageError('front')}
                     />
                   )}
@@ -466,7 +466,7 @@ export function EquipmentSelector({
                       fill
                       className="object-contain"
                       sizes="(max-width: 768px) 100vw, 300px"
-                      unoptimized={fullDimensions.side_image_url.endsWith('.svg')}
+                      unoptimized
                       onError={() => handleImageError('side')}
                     />
                   )}
