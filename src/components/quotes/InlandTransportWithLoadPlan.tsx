@@ -199,7 +199,7 @@ export function InlandTransportWithLoadPlan({
 
   // Handle truck change from visualizer
   const handleTruckChange = (loadIndex: number, newTruck: TruckType) => {
-    if (!loadPlan) return
+    if (!loadPlan || !newTruck) return
 
     // Update load plan with new truck
     const updatedLoads = [...loadPlan.loads]
@@ -304,75 +304,80 @@ export function InlandTransportWithLoadPlan({
                   )}
 
                   {/* Load Cards with Diagrams */}
-                  {loadPlan.loads.map((load, index) => (
-                    <Card key={load.id} className="border-l-4 border-l-blue-500">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold">
-                              {index + 1}
-                            </div>
-                            <div>
-                              <div className="font-medium">{load.recommendedTruck.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {load.items.length} item{load.items.length > 1 ? 's' : ''} &bull;{' '}
-                                {(load.weight / 1000).toFixed(1)}k lbs
+                  {loadPlan.loads.map((load, index) => {
+                    // Skip loads without a valid truck
+                    if (!load.recommendedTruck) return null
+
+                    return (
+                      <Card key={load.id} className="border-l-4 border-l-blue-500">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <div className="font-medium">{load.recommendedTruck.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {load.items.length} item{load.items.length > 1 ? 's' : ''} &bull;{' '}
+                                  {(load.weight / 1000).toFixed(1)}k lbs
+                                </div>
                               </div>
                             </div>
+                            {load.warnings.length > 0 && (
+                              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                            )}
                           </div>
-                          {load.warnings.length > 0 && (
-                            <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {/* Trailer Diagram */}
-                        <TrailerDiagram
-                          truck={load.recommendedTruck}
-                          items={load.items}
-                          placements={load.placements}
-                        />
+                        </CardHeader>
+                        <CardContent>
+                          {/* Trailer Diagram */}
+                          <TrailerDiagram
+                            truck={load.recommendedTruck}
+                            items={load.items}
+                            placements={load.placements}
+                          />
 
-                        {/* Items List */}
-                        <div className="mt-4 space-y-1">
-                          <div className="text-sm font-medium text-muted-foreground mb-2">
-                            Items on this truck:
-                          </div>
-                          {load.items.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex justify-between text-sm py-1 px-2 hover:bg-muted/50 rounded"
-                            >
-                              <span>
-                                {item.description}
-                                {item.quantity > 1 && (
-                                  <span className="text-muted-foreground ml-1">
-                                    x{item.quantity}
-                                  </span>
-                                )}
-                              </span>
-                              <span className="text-muted-foreground">
-                                {item.length.toFixed(1)}' x {item.width.toFixed(1)}' x{' '}
-                                {item.height.toFixed(1)}'
-                              </span>
+                          {/* Items List */}
+                          <div className="mt-4 space-y-1">
+                            <div className="text-sm font-medium text-muted-foreground mb-2">
+                              Items on this truck:
                             </div>
-                          ))}
-                        </div>
-
-                        {/* Warnings for this load */}
-                        {load.warnings.length > 0 && (
-                          <div className="mt-3 p-2 bg-yellow-50 rounded text-sm text-yellow-700">
-                            {load.warnings.map((w, i) => (
-                              <div key={i} className="flex items-center gap-2">
-                                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                                {w}
+                            {load.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex justify-between text-sm py-1 px-2 hover:bg-muted/50 rounded"
+                              >
+                                <span>
+                                  {item.description}
+                                  {item.quantity > 1 && (
+                                    <span className="text-muted-foreground ml-1">
+                                      x{item.quantity}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  {item.length.toFixed(1)}' x {item.width.toFixed(1)}' x{' '}
+                                  {item.height.toFixed(1)}'
+                                </span>
                               </div>
                             ))}
                           </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+
+                          {/* Warnings for this load */}
+                          {load.warnings.length > 0 && (
+                            <div className="mt-3 p-2 bg-yellow-50 rounded text-sm text-yellow-700">
+                              {load.warnings.map((w, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                                  {w}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
 
                   {/* Unassigned Items */}
                   {loadPlan.unassignedItems.length > 0 && (

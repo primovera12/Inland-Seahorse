@@ -115,7 +115,37 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
       await new Promise(r => setTimeout(r, 400))
 
       // Get or generate load plan
-      const loadPlan: LoadPlanResult = data.loadPlan || generateBasicLoadPlan(items)
+      // API returns 'recommendedTruck' but our interface uses 'truck', so map it
+      let loadPlan: LoadPlanResult
+      if (data.loadPlan && data.loadPlan.loads) {
+        loadPlan = {
+          loads: data.loadPlan.loads.map((load: {
+            id: string
+            items: LoadItem[]
+            recommendedTruck?: TruckType
+            truck?: TruckType
+            placements: Array<{ itemId: string; x: number; z: number; rotated: boolean }>
+            weight?: number
+            warnings: string[]
+          }) => ({
+            id: load.id,
+            items: load.items,
+            truck: load.recommendedTruck || load.truck || trucks[0], // Handle both property names
+            placements: load.placements,
+            utilization: {
+              weight: load.weight ? Math.round((load.weight / (load.recommendedTruck?.maxCargoWeight || load.truck?.maxCargoWeight || 48000)) * 100) : 0,
+              space: 0
+            },
+            warnings: load.warnings || []
+          })),
+          totalTrucks: data.loadPlan.totalTrucks || data.loadPlan.loads.length,
+          totalWeight: data.loadPlan.totalWeight || 0,
+          totalItems: data.loadPlan.totalItems || items.reduce((sum: number, i: LoadItem) => sum + i.quantity, 0),
+          warnings: data.loadPlan.warnings || []
+        }
+      } else {
+        loadPlan = generateBasicLoadPlan(items)
+      }
 
       updateStatus(`Done! Loaded onto ${loadPlan.totalTrucks} truck${loadPlan.totalTrucks > 1 ? 's' : ''}`)
       await new Promise(r => setTimeout(r, 300))

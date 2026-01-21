@@ -531,40 +531,45 @@ export default function NewInlandQuoteV2Page() {
                       </div>
                     )}
 
-                    {loadPlan.loads.map((load, index) => (
-                      <Card key={load.id} className="border-l-4 border-l-blue-500">
-                        <CardHeader className="pb-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                                {index + 1}
-                              </div>
-                              <div>
-                                <div className="font-medium">{load.recommendedTruck.name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {load.items.length} items &bull; {(load.weight / 1000).toFixed(1)}k lbs
+                    {loadPlan.loads.map((load, index) => {
+                      // Skip loads without a valid truck
+                      if (!load.recommendedTruck) return null
+
+                      return (
+                        <Card key={load.id} className="border-l-4 border-l-blue-500">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <div className="font-medium">{load.recommendedTruck.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {load.items.length} items &bull; {(load.weight / 1000).toFixed(1)}k lbs
+                                  </div>
                                 </div>
                               </div>
+                              <TruckSelector
+                                currentTruck={load.recommendedTruck}
+                                onChange={(truck) => handleTruckChange(index, truck)}
+                                itemsWeight={load.weight}
+                                maxItemLength={Math.max(...load.items.map((i) => i.length), 0)}
+                                maxItemWidth={Math.max(...load.items.map((i) => i.width), 0)}
+                                maxItemHeight={Math.max(...load.items.map((i) => i.height), 0)}
+                              />
                             </div>
-                            <TruckSelector
-                              currentTruck={load.recommendedTruck}
-                              onChange={(truck) => handleTruckChange(index, truck)}
-                              itemsWeight={load.weight}
-                              maxItemLength={Math.max(...load.items.map((i) => i.length))}
-                              maxItemWidth={Math.max(...load.items.map((i) => i.width))}
-                              maxItemHeight={Math.max(...load.items.map((i) => i.height))}
+                          </CardHeader>
+                          <CardContent>
+                            <TrailerDiagram
+                              truck={load.recommendedTruck}
+                              items={load.items}
+                              placements={load.placements}
                             />
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <TrailerDiagram
-                            truck={load.recommendedTruck}
-                            items={load.items}
-                            placements={load.placements}
-                          />
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
                   </CardContent>
                 </Card>
               )}
