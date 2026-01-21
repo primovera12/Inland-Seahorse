@@ -4,7 +4,6 @@ import { useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Upload,
   FileText,
@@ -296,36 +295,32 @@ Example formats:
           <div className="space-y-4">
             {/* Status */}
             {result.success ? (
-              <Alert>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertDescription className="ml-2">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 text-green-800">
+                <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                <p>
                   Found <strong>{result.items.length}</strong> item(s) with{' '}
                   <span className={getConfidenceColor(result.confidence)}>
                     {Math.round(result.confidence * 100)}% confidence
                   </span>
-                </AlertDescription>
-              </Alert>
+                </p>
+              </div>
             ) : (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="ml-2">
-                  {result.errors.join(', ') || 'Failed to parse cargo'}
-                </AlertDescription>
-              </Alert>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <p>{result.errors.join(', ') || 'Failed to parse cargo'}</p>
+              </div>
             )}
 
             {/* Warnings */}
             {result.warnings.length > 0 && (
-              <Alert>
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
-                <AlertDescription className="ml-2">
-                  <ul className="list-disc list-inside">
-                    {result.warnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
+                <AlertCircle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <ul className="list-disc list-inside">
+                  {result.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {/* Parsed Items Preview */}
