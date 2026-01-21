@@ -97,3 +97,13 @@ export {
   getInlandQuotePDFDataUrlAsync,
   type InlandQuotePDFData,
 } from './inland-quote-generator'
+
+// Load Plan PDF Integration (Phase 6)
+export {
+  addLoadPlanSection,
+  addPermitSummary,
+  preRenderLoadPlanSvgs,
+  type LoadPlanSectionOptions,
+  type PermitSummaryData,
+  type PermitSummaryOptions,
+} from './load-plan-pdf'

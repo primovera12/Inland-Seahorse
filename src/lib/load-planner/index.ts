@@ -127,6 +127,26 @@ export {
 } from './state-permits'
 
 // =============================================================================
+// UNIT HELPERS (Phase 6)
+// =============================================================================
+export {
+  formatFeetInches,
+  formatFeetDecimal,
+  inchesToFeet,
+  feetToInches,
+  cmToFeet,
+  feetToCm,
+  metersToFeet,
+  feetToMeters,
+  kgToLbs,
+  lbsToKg,
+  formatWeight,
+  formatWeightShort,
+  parseDimensionToFeet,
+  parseWeightToLbs,
+} from './unit-helpers'
+
+// =============================================================================
 // BACKWARD COMPATIBILITY - FEET <-> INCHES CONVERSION
 // =============================================================================
 

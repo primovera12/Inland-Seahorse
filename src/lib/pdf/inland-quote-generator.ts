@@ -3,8 +3,10 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { InlandDestinationBlock, InlandLoadBlock } from '@/types/inland'
+import type { LoadPlan } from '@/lib/load-planner/types'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight } from '@/lib/dimensions'
+import { addLoadPlanSection, addPermitSummary, type PermitSummaryData } from './load-plan-pdf'
 
 export interface InlandQuotePDFData {
   quoteNumber: string
@@ -28,6 +30,9 @@ export interface InlandQuotePDFData {
   secondaryColor?: string
   companyLogoUrl?: string
   logoSizePercentage?: number
+  // Load plan integration (Phase 6)
+  loadPlan?: LoadPlan | null
+  permitInfo?: PermitSummaryData | null
 }
 
 // Convert hex to RGB
@@ -100,7 +105,338 @@ export async function generateInlandQuotePDFAsync(data: InlandQuotePDFData): Pro
   if (data.companyLogoUrl) {
     logoBase64 = await loadImageAsBase64(data.companyLogoUrl)
   }
+
+  // If load plan is provided, use the enhanced generator
+  if (data.loadPlan && data.loadPlan.loads.length > 0) {
+    return generateInlandQuotePDFWithLoadPlan(data, logoBase64)
+  }
+
   return generateInlandQuotePDFWithLogo(data, logoBase64)
+}
+
+/**
+ * Enhanced PDF generator with load plan diagrams (Phase 6)
+ */
+async function generateInlandQuotePDFWithLoadPlan(
+  data: InlandQuotePDFData,
+  logoBase64: string | null
+): Promise<jsPDF> {
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 20
+
+  const primaryColor = hexToRgb(data.primaryColor || '#6366F1')
+
+  // Header
+  doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
+  doc.rect(0, 0, pageWidth, 40, 'F')
+
+  // Logo or Company name
+  if (logoBase64) {
+    const logoSize = ((data.logoSizePercentage || 100) / 100) * 30
+    try {
+      doc.addImage(logoBase64, 'PNG', margin, 5, logoSize, logoSize)
+    } catch {
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.text(data.companyName || 'Seahorse Express', margin, 25)
+    }
+  } else {
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text(data.companyName || 'Seahorse Express', margin, 25)
+  }
+
+  // Quote number and date
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Inland Quote #${data.quoteNumber}`, pageWidth - margin, 15, { align: 'right' })
+  doc.text(data.date, pageWidth - margin, 23, { align: 'right' })
+
+  if (data.expiresAt) {
+    doc.setFontSize(10)
+    doc.text(`Valid until: ${data.expiresAt}`, pageWidth - margin, 31, { align: 'right' })
+  }
+
+  let y = 55
+  doc.setTextColor(0, 0, 0)
+
+  // Customer Info Section
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Customer Information', margin, y)
+  y += 8
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(100, 100, 100)
+
+  const customerInfo = [
+    ['Name:', data.customerName],
+    ['Company:', data.customerCompany || '-'],
+    ['Email:', data.customerEmail || '-'],
+    ['Phone:', data.customerPhone || '-'],
+  ]
+
+  customerInfo.forEach(([label, value]) => {
+    doc.text(label, margin, y)
+    doc.setTextColor(0, 0, 0)
+    doc.text(value, margin + 30, y)
+    doc.setTextColor(100, 100, 100)
+    y += 6
+  })
+
+  y += 10
+
+  // Transportation Details (destinations)
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Transportation Details', margin, y)
+  y += 10
+
+  for (const block of data.destinationBlocks) {
+    if (y > 240) {
+      doc.addPage()
+      y = 20
+    }
+
+    // Destination header
+    doc.setFillColor(248, 250, 252)
+    doc.roundedRect(margin, y, pageWidth - margin * 2, 25, 3, 3, 'F')
+
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b)
+    doc.text(`Destination ${block.label}`, margin + 5, y + 8)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(9)
+
+    // Pickup
+    doc.setTextColor(34, 139, 34)
+    doc.text('Pickup:', margin + 5, y + 16)
+    doc.setTextColor(0, 0, 0)
+    const pickupAddr = [block.pickup_address, block.pickup_city, block.pickup_state, block.pickup_zip]
+      .filter(Boolean)
+      .join(', ')
+    doc.text(pickupAddr || '-', margin + 30, y + 16)
+
+    // Dropoff
+    doc.setTextColor(220, 20, 60)
+    doc.text('Dropoff:', margin + 5, y + 22)
+    doc.setTextColor(0, 0, 0)
+    const dropoffAddr = [block.dropoff_address, block.dropoff_city, block.dropoff_state, block.dropoff_zip]
+      .filter(Boolean)
+      .join(', ')
+    doc.text(dropoffAddr || '-', margin + 30, y + 22)
+
+    // Route info
+    if (block.distance_miles || block.duration_minutes) {
+      const routeInfo = []
+      if (block.distance_miles) routeInfo.push(`${block.distance_miles} miles`)
+      if (block.duration_minutes) {
+        const hours = Math.floor(block.duration_minutes / 60)
+        const mins = block.duration_minutes % 60
+        routeInfo.push(`${hours}h ${mins}m`)
+      }
+      doc.text(routeInfo.join(' | '), pageWidth - margin - 5, y + 16, { align: 'right' })
+    }
+
+    // Subtotal
+    doc.setFont('helvetica', 'bold')
+    doc.text(formatCurrency(block.subtotal), pageWidth - margin - 5, y + 22, { align: 'right' })
+
+    y += 30
+
+    // Load blocks (service items)
+    for (const loadBlock of block.load_blocks) {
+      if (y > 250) {
+        doc.addPage()
+        y = 20
+      }
+
+      const serviceData: string[][] = []
+
+      loadBlock.service_items.forEach((service) => {
+        serviceData.push([
+          `${loadBlock.truck_type_name} - ${service.name}`,
+          service.quantity.toString(),
+          formatCurrency(service.rate),
+          formatCurrency(service.total),
+        ])
+      })
+
+      loadBlock.accessorial_charges.forEach((charge) => {
+        serviceData.push([
+          charge.name,
+          charge.quantity.toString(),
+          formatCurrency(charge.rate),
+          formatCurrency(charge.total),
+        ])
+      })
+
+      if (serviceData.length > 0) {
+        autoTable(doc, {
+          startY: y,
+          head: [['Description', 'Qty', 'Rate', 'Total']],
+          body: serviceData,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [primaryColor.r, primaryColor.g, primaryColor.b],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9,
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto' },
+            1: { cellWidth: 20, halign: 'center' },
+            2: { cellWidth: 35, halign: 'right' },
+            3: { cellWidth: 35, halign: 'right' },
+          },
+          margin: { left: margin, right: margin },
+          styles: {
+            fontSize: 9,
+            cellPadding: 3,
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252],
+          },
+        })
+
+        y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+      }
+    }
+
+    y += 5
+  }
+
+  // === LOAD PLAN SECTION (Phase 6) ===
+  if (data.loadPlan && data.loadPlan.loads.length > 0) {
+    // Check if we need a new page for load plan
+    if (y > pageHeight - 150) {
+      doc.addPage()
+      y = 20
+    }
+
+    y = await addLoadPlanSection(doc, data.loadPlan, y, {
+      pageWidth,
+      margin,
+      primaryColor,
+      showDiagrams: true,
+      showWarnings: true
+    })
+    y += 10
+  }
+
+  // === PERMIT SUMMARY SECTION ===
+  if (data.permitInfo && data.permitInfo.totalCost > 0) {
+    if (y > pageHeight - 60) {
+      doc.addPage()
+      y = 20
+    }
+
+    y = addPermitSummary(doc, data.permitInfo, y, { margin, pageWidth })
+    y += 10
+  }
+
+  // Check if we need a new page for totals
+  if (y > 230) {
+    doc.addPage()
+    y = 20
+  }
+
+  // Totals Section
+  y += 10
+  const totalsX = pageWidth - margin - 80
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(0, 0, 0)
+  doc.text('Subtotal:', totalsX, y)
+  doc.text(formatCurrency(data.subtotal), pageWidth - margin, y, { align: 'right' })
+  y += 8
+
+  // Total with background
+  doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
+  doc.roundedRect(totalsX - 5, y - 5, pageWidth - margin - totalsX + 10, 12, 2, 2, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Total:', totalsX, y + 3)
+  doc.text(formatCurrency(data.total), pageWidth - margin, y + 3, { align: 'right' })
+
+  y += 20
+
+  // Notes Section
+  if (data.quoteNotes) {
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Notes', margin, y)
+    y += 8
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+
+    const splitNotes = doc.splitTextToSize(data.quoteNotes, pageWidth - margin * 2)
+    doc.text(splitNotes, margin, y)
+    y += splitNotes.length * 5 + 10
+  }
+
+  // Terms & Conditions
+  if (data.termsAndConditions) {
+    if (y > pageHeight - 80) {
+      doc.addPage()
+      y = 20
+    }
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Terms & Conditions', margin, y)
+    y += 6
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+
+    const splitTerms = doc.splitTextToSize(data.termsAndConditions, pageWidth - margin * 2)
+    const maxTermsLines = Math.min(splitTerms.length, 20)
+    doc.text(splitTerms.slice(0, maxTermsLines), margin, y)
+    if (splitTerms.length > maxTermsLines) {
+      y += maxTermsLines * 3.5 + 3
+      doc.text('... (see full terms in attached document)', margin, y)
+    }
+  }
+
+  // Footer
+  const footerY = pageHeight - 20
+  doc.setFontSize(8)
+  doc.setTextColor(150, 150, 150)
+
+  const footerLines: string[] = []
+  if (data.companyName) footerLines.push(data.companyName)
+
+  const contactParts: string[] = []
+  if (data.companyPhone) contactParts.push(data.companyPhone)
+  if (data.companyEmail) contactParts.push(data.companyEmail)
+  if (data.companyWebsite) contactParts.push(data.companyWebsite)
+  if (contactParts.length > 0) footerLines.push(contactParts.join(' | '))
+
+  if (data.companyAddress) footerLines.push(data.companyAddress)
+
+  footerLines.forEach((line, index) => {
+    doc.text(line, pageWidth / 2, footerY + (index * 4), { align: 'center' })
+  })
+
+  return doc
 }
 
 function generateInlandQuotePDFWithLogo(data: InlandQuotePDFData, logoBase64: string | null): jsPDF {
