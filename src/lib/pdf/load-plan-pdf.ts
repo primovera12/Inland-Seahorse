@@ -161,8 +161,8 @@ async function addSingleLoadSection(
   const maxItemHeight = load.items.length > 0 ? Math.max(...load.items.map(i => i.height)) : 0
   const heightUsed = load.recommendedTruck.deckHeight + maxItemHeight
 
-  // Load header
-  doc.setFillColor(245, 245, 245)
+  // Load header - matches existing PDF section backgrounds
+  doc.setFillColor(248, 250, 252)
   doc.rect(margin, y, contentWidth, 7, 'F')
   doc.setTextColor(0, 0, 0)
   doc.setFontSize(10)
