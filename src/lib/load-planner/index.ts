@@ -147,6 +147,78 @@ export {
 } from './unit-helpers'
 
 // =============================================================================
+// ROUTE INTELLIGENCE EXPORTS (Phase 8)
+// =============================================================================
+
+// Route calculation
+export {
+  calculateRoute,
+  decodePolyline,
+  calculateDistance,
+  formatDuration,
+  estimateStatesFromAddresses,
+  getStateName,
+  getStateCode,
+  getAllStateCodes as getAllStateCodesRoute,
+  isValidStateCode,
+} from './route-calculator'
+
+export type {
+  LatLng,
+  StateSegment,
+  RouteResult,
+  RouteCalculatorOptions,
+} from './route-calculator'
+
+// State detection
+export {
+  getStateFromPoint,
+  detectStatesFromPolyline,
+  detectStatesFromPoints,
+  identifyFreightCorridors,
+  getNeighboringStates,
+  validateRouteGeography,
+  getStateBoundingBox,
+  getStateCenter,
+  isIntraStateRoute,
+  getRouteRegions,
+  FREIGHT_CORRIDORS,
+} from './state-detector'
+
+export type { FreightCorridor } from './state-detector'
+
+// Seasonal restrictions
+export {
+  hasSeasonalRestrictions,
+  getSeasonalRestriction,
+  getActiveRestrictions,
+  checkRouteSeasonalRestrictions,
+  calculateAdjustedWeightLimits,
+  formatRestrictionPeriod,
+  getStatesWithoutSeasonalRestrictions,
+  SEASONAL_RESTRICTIONS,
+} from './seasonal-restrictions'
+
+export type { SeasonalRestriction } from './seasonal-restrictions'
+
+// Bridge heights
+export {
+  checkBridgeClearance,
+  findNearbyBridges,
+  checkRouteBridgeClearances,
+  getBridgesInState,
+  getBridgesBelowHeight,
+  getBridgesByHazardLevel,
+  getTruckProhibitedRoutes,
+  getRecommendedClearance,
+  needsHeightConsideration,
+  LOW_CLEARANCE_BRIDGES,
+  STANDARD_CLEARANCES,
+} from './bridge-heights'
+
+export type { LowClearanceBridge } from './bridge-heights'
+
+// =============================================================================
 // BACKWARD COMPATIBILITY - FEET <-> INCHES CONVERSION
 // =============================================================================
 

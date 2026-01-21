@@ -9,6 +9,7 @@
  * - TruckSelector: Truck selection dropdown with fit analysis
  * - LoadPlanPDFRenderer: SVG rendering functions for PDF generation
  * - AICargoParser: AI-powered cargo parsing with confidence preview (Phase 7)
+ * - RouteIntelligence: Route analysis with permits, seasonal, bridges (Phase 8)
  */
 
 export { UniversalDropzone } from './UniversalDropzone'
@@ -25,3 +26,7 @@ export {
   svgToDataUrl,
   calculateMaxHeightUsed,
 } from './LoadPlanPDFRenderer'
+
+// Route Intelligence (Phase 8)
+export { RouteIntelligence } from './RouteIntelligence'
+export type { RouteIntelligenceProps, RouteIntelligenceState } from './RouteIntelligence'
