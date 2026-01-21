@@ -9,9 +9,39 @@ import {
   type LoadItem,
   type ParsedLoad,
 } from '@/lib/load-planner'
+import type { ParsedItem } from '@/lib/load-planner/universal-parser'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Allow up to 60s for AI parsing
+
+/**
+ * Convert AIParseResult items to ParsedLoad format
+ */
+function aiResultToParsedLoad(items: ParsedItem[], confidence: number = 80): ParsedLoad {
+  const loadItems: LoadItem[] = items.map(item => ({
+    id: item.id,
+    sku: item.sku,
+    description: item.description,
+    quantity: item.quantity,
+    length: item.length,
+    width: item.width,
+    height: item.height,
+    weight: item.weight,
+    stackable: item.stackable,
+    fragile: false,
+    hazmat: false,
+  }))
+
+  return {
+    length: Math.max(...loadItems.map(i => i.length), 0),
+    width: Math.max(...loadItems.map(i => i.width), 0),
+    height: Math.max(...loadItems.map(i => i.height), 0),
+    weight: Math.max(...loadItems.map(i => i.weight * i.quantity), 0),
+    totalWeight: loadItems.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+    items: loadItems,
+    confidence,
+  }
+}
 
 /**
  * POST /api/load-planner/analyze
@@ -49,13 +79,12 @@ export async function POST(request: NextRequest) {
         if (fileType.startsWith('image/')) {
           const buffer = await file.arrayBuffer()
           const base64 = Buffer.from(buffer).toString('base64')
-          const result = await parseImageWithAI(
-            base64,
-            fileType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
-          )
-          items = result.items
-          parsedLoad = result
-          metadata = { parseMethod: 'image-ai', itemsFound: items.length, confidence: result.confidence }
+          // parseImageWithAI expects a data URL format
+          const dataUrl = `data:${fileType};base64,${base64}`
+          const result = await parseImageWithAI(dataUrl)
+          parsedLoad = aiResultToParsedLoad(result.items, 85)
+          items = parsedLoad.items
+          metadata = { parseMethod: 'image-ai', itemsFound: items.length, confidence: parsedLoad.confidence }
         }
         // Handle spreadsheets
         else if (
@@ -63,11 +92,13 @@ export async function POST(request: NextRequest) {
           fileName.endsWith('.xls') ||
           fileName.endsWith('.csv')
         ) {
-          const buffer = await file.arrayBuffer()
-          const result = await parseSpreadsheet(Buffer.from(buffer), fileName)
-          items = result.items
-          parsedLoad = result
-          metadata = { parseMethod: 'spreadsheet', itemsFound: items.length, confidence: result.confidence }
+          const arrayBuffer = await file.arrayBuffer()
+          const result = parseSpreadsheet(arrayBuffer, fileName)
+          // parseSpreadsheet returns pattern-based confidence (80) or AI-enhanced (90)
+          const spreadsheetConfidence = result.metadata?.parseMethod === 'AI' ? 90 : 80
+          parsedLoad = aiResultToParsedLoad(result.items, spreadsheetConfidence)
+          items = parsedLoad.items
+          metadata = { parseMethod: 'spreadsheet', itemsFound: items.length, confidence: parsedLoad.confidence }
         }
         // Unsupported file type
         else {
@@ -84,9 +115,9 @@ export async function POST(request: NextRequest) {
       } else if (text) {
         // Text provided via form data
         const result = await parseTextWithAI(text)
-        items = result.items
-        parsedLoad = result
-        metadata = { parseMethod: 'text-ai', itemsFound: items.length, confidence: result.confidence }
+        parsedLoad = aiResultToParsedLoad(result.items, 85)
+        items = parsedLoad.items
+        metadata = { parseMethod: 'text-ai', itemsFound: items.length, confidence: parsedLoad.confidence }
       } else {
         return NextResponse.json<AnalyzeResponse>(
           {
@@ -118,16 +149,20 @@ export async function POST(request: NextRequest) {
           )
         }
         const result = await parseTextWithAI(text)
-        items = result.items
-        parsedLoad = result
-        metadata = { parseMethod: 'text-ai', itemsFound: items.length, confidence: result.confidence }
+        parsedLoad = aiResultToParsedLoad(result.items, 85)
+        items = parsedLoad.items
+        metadata = { parseMethod: 'text-ai', itemsFound: items.length, confidence: parsedLoad.confidence }
       }
       // Base64 image parsing
       else if (body.imageBase64 && body.mimeType) {
-        const result = await parseImageWithAI(body.imageBase64, body.mimeType)
-        items = result.items
-        parsedLoad = result
-        metadata = { parseMethod: 'image-ai', itemsFound: items.length, confidence: result.confidence }
+        // Construct data URL from base64 and mimeType
+        const dataUrl = body.imageBase64.startsWith('data:')
+          ? body.imageBase64
+          : `data:${body.mimeType};base64,${body.imageBase64}`
+        const result = await parseImageWithAI(dataUrl)
+        parsedLoad = aiResultToParsedLoad(result.items, 85)
+        items = parsedLoad.items
+        metadata = { parseMethod: 'image-ai', itemsFound: items.length, confidence: parsedLoad.confidence }
       }
       // Direct items array (already parsed)
       else if (body.items && Array.isArray(body.items)) {
@@ -216,22 +251,26 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Ensure we have a valid parsedLoad
+    const finalParsedLoad: ParsedLoad = parsedLoad || {
+      length: Math.max(...validItems.map((i) => i.length)),
+      width: Math.max(...validItems.map((i) => i.width)),
+      height: Math.max(...validItems.map((i) => i.height)),
+      weight: Math.max(...validItems.map((i) => i.weight * i.quantity)),
+      totalWeight: validItems.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+      items: validItems,
+      confidence: metadata.confidence || 80,
+    }
+
     // Get truck recommendations
-    const recommendations = selectTrucks(validItems)
+    const recommendations = selectTrucks(finalParsedLoad)
 
     // Create load plan
-    const loadPlan = planLoads(validItems)
+    const loadPlan = planLoads(finalParsedLoad)
 
     return NextResponse.json<AnalyzeResponse>({
       success: true,
-      parsedLoad: parsedLoad || {
-        length: Math.max(...validItems.map((i) => i.length)),
-        width: Math.max(...validItems.map((i) => i.width)),
-        height: Math.max(...validItems.map((i) => i.height)),
-        weight: Math.max(...validItems.map((i) => i.weight)),
-        items: validItems,
-        confidence: metadata.confidence || 80,
-      },
+      parsedLoad: finalParsedLoad,
       recommendations,
       loadPlan,
       metadata,

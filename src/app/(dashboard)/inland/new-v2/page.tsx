@@ -67,6 +67,7 @@ export default function NewInlandQuoteV2Page() {
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
 
   // Load plan state (automatically calculated)
   const [loadPlan, setLoadPlan] = useState<LoadPlan | null>(null)
@@ -115,8 +116,25 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
+    // Convert LoadItem[] to ParsedLoad for planLoads
+    const maxLength = Math.max(...validItems.map(i => i.length))
+    const maxWidth = Math.max(...validItems.map(i => i.width))
+    const maxHeight = Math.max(...validItems.map(i => i.height))
+    const maxWeight = Math.max(...validItems.map(i => i.weight * i.quantity))
+    const totalWeight = validItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
+
+    const parsedLoad = {
+      length: maxLength,
+      width: maxWidth,
+      height: maxHeight,
+      weight: maxWeight,
+      totalWeight,
+      items: validItems,
+      confidence: 100,
+    }
+
     // Calculate full load plan
-    const plan = planLoads(validItems)
+    const plan = planLoads(parsedLoad)
     setLoadPlan(plan)
   }, [cargoItems])
 
@@ -128,10 +146,49 @@ export default function NewInlandQuoteV2Page() {
   const total = subtotal
 
   // Handle file/text analysis
-  const handleAnalysisComplete = (items: LoadItem[], plan?: LoadPlan) => {
-    setCargoItems(items)
-    if (plan) {
-      setLoadPlan(plan)
+  const handleAnalyzed = (result: {
+    items: LoadItem[]
+    loadPlan: {
+      loads: Array<{
+        id: string
+        items: LoadItem[]
+        truck: TruckType
+        placements: Array<{ itemId: string; x: number; z: number; rotated: boolean }>
+        utilization: { weight: number; space: number }
+        warnings: string[]
+      }>
+      totalTrucks: number
+      totalWeight: number
+      totalItems: number
+      warnings: string[]
+    }
+    parseMethod: 'AI' | 'pattern'
+  }) => {
+    setCargoItems(result.items)
+    // Convert the LoadPlanResult format to LoadPlan format
+    if (result.loadPlan) {
+      const convertedPlan: LoadPlan = {
+        loads: result.loadPlan.loads.map(load => ({
+          id: load.id,
+          items: load.items,
+          length: Math.max(...load.items.map(i => i.length), 0),
+          width: Math.max(...load.items.map(i => i.width), 0),
+          height: Math.max(...load.items.map(i => i.height), 0),
+          weight: load.items.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+          recommendedTruck: load.truck,
+          truckScore: 85,
+          placements: load.placements,
+          permitsRequired: [],
+          warnings: load.warnings,
+          isLegal: true,
+        })),
+        totalTrucks: result.loadPlan.totalTrucks,
+        totalWeight: result.loadPlan.totalWeight,
+        totalItems: result.loadPlan.totalItems,
+        unassignedItems: [],
+        warnings: result.loadPlan.warnings,
+      }
+      setLoadPlan(convertedPlan)
     }
   }
 
@@ -418,10 +475,13 @@ export default function NewInlandQuoteV2Page() {
                 </CardHeader>
                 <CardContent>
                   <UniversalDropzone
-                    onAnalysisComplete={handleAnalysisComplete}
-                    onAnalysisStart={() => setIsAnalyzing(true)}
-                    onAnalysisEnd={() => setIsAnalyzing(false)}
+                    onAnalyzed={handleAnalyzed}
+                    onLoading={setIsAnalyzing}
+                    onError={setAnalysisError}
                   />
+                  {analysisError && (
+                    <p className="text-sm text-red-500 mt-2">{analysisError}</p>
+                  )}
                 </CardContent>
               </Card>
 

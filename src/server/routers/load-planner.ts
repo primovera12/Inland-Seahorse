@@ -122,7 +122,18 @@ export const loadPlannerRouter = router({
       })
     )
     .mutation(({ input }) => {
-      const recommendations = selectTrucks(input.items as LoadItem[])
+      const items = input.items as LoadItem[]
+      // Convert LoadItem[] to ParsedLoad
+      const parsedLoad = {
+        length: Math.max(...items.map(i => i.length), 0),
+        width: Math.max(...items.map(i => i.width), 0),
+        height: Math.max(...items.map(i => i.height), 0),
+        weight: Math.max(...items.map(i => i.weight * i.quantity), 0),
+        totalWeight: items.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+        items,
+        confidence: 100,
+      }
+      const recommendations = selectTrucks(parsedLoad)
       return recommendations.slice(0, input.limit)
     }),
 
@@ -136,7 +147,18 @@ export const loadPlannerRouter = router({
       })
     )
     .query(({ input }) => {
-      return getBestTruck(input.items as LoadItem[])
+      const items = input.items as LoadItem[]
+      // Convert LoadItem[] to ParsedLoad
+      const parsedLoad = {
+        length: Math.max(...items.map(i => i.length), 0),
+        width: Math.max(...items.map(i => i.width), 0),
+        height: Math.max(...items.map(i => i.height), 0),
+        weight: Math.max(...items.map(i => i.weight * i.quantity), 0),
+        totalWeight: items.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+        items,
+        confidence: 100,
+      }
+      return getBestTruck(parsedLoad)
     }),
 
   /**
@@ -154,7 +176,18 @@ export const loadPlannerRouter = router({
       if (!truck) {
         throw new Error('Truck not found')
       }
-      return calculateFitAnalysis(input.items as LoadItem[], truck)
+      const items = input.items as LoadItem[]
+      // Convert LoadItem[] to ParsedLoad
+      const parsedLoad = {
+        length: Math.max(...items.map(i => i.length), 0),
+        width: Math.max(...items.map(i => i.width), 0),
+        height: Math.max(...items.map(i => i.height), 0),
+        weight: Math.max(...items.map(i => i.weight * i.quantity), 0),
+        totalWeight: items.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+        items,
+        confidence: 100,
+      }
+      return calculateFitAnalysis(parsedLoad, truck)
     }),
 
   // ---------------------------------------------------------------------------
@@ -173,10 +206,19 @@ export const loadPlannerRouter = router({
       })
     )
     .mutation(({ input }) => {
-      return planLoads(input.items as LoadItem[], {
-        preferredTruckTypes: input.preferredTruckTypes,
-        maxTrucks: input.maxTrucks,
-      })
+      const items = input.items as LoadItem[]
+      // Convert LoadItem[] to ParsedLoad
+      const parsedLoad = {
+        length: Math.max(...items.map(i => i.length), 0),
+        width: Math.max(...items.map(i => i.width), 0),
+        height: Math.max(...items.map(i => i.height), 0),
+        weight: Math.max(...items.map(i => i.weight * i.quantity), 0),
+        totalWeight: items.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+        items,
+        confidence: 100,
+      }
+      // Note: preferredTruckTypes and maxTrucks options are not currently used by planLoads
+      return planLoads(parsedLoad)
     }),
 
   /**
@@ -202,7 +244,17 @@ export const loadPlannerRouter = router({
         fragile: false,
         hazmat: false,
       }))
-      return planLoads(converted)
+      // Convert LoadItem[] to ParsedLoad
+      const parsedLoad = {
+        length: Math.max(...converted.map(i => i.length), 0),
+        width: Math.max(...converted.map(i => i.width), 0),
+        height: Math.max(...converted.map(i => i.height), 0),
+        weight: Math.max(...converted.map(i => i.weight * i.quantity), 0),
+        totalWeight: converted.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+        items: converted,
+        confidence: 100,
+      }
+      return planLoads(parsedLoad)
     }),
 
   // ---------------------------------------------------------------------------
@@ -224,7 +276,18 @@ export const loadPlannerRouter = router({
       if (!truck) {
         throw new Error('Truck not found')
       }
-      return getRequiredPermits(input.items as LoadItem[], truck)
+      const items = input.items as LoadItem[]
+      // Convert LoadItem[] to ParsedLoad
+      const parsedLoad = {
+        length: Math.max(...items.map(i => i.length), 0),
+        width: Math.max(...items.map(i => i.width), 0),
+        height: Math.max(...items.map(i => i.height), 0),
+        weight: Math.max(...items.map(i => i.weight * i.quantity), 0),
+        totalWeight: items.reduce((sum, i) => sum + i.weight * i.quantity, 0),
+        items,
+        confidence: 100,
+      }
+      return getRequiredPermits(parsedLoad, truck)
     }),
 
   /**
@@ -253,10 +316,13 @@ export const loadPlannerRouter = router({
     .input(
       z.object({
         dimensions: DimensionsSchema,
+        stateCodes: z.array(z.string().length(2)).optional(),
       })
     )
     .query(({ input }) => {
-      return getStatesRequiringPermits({
+      // Use provided state codes or default to all US states
+      const states = input.stateCodes || getAllStateCodes()
+      return getStatesRequiringPermits(states, {
         width: input.dimensions.width,
         height: input.dimensions.height,
         length: input.dimensions.length,
@@ -276,6 +342,14 @@ export const loadPlannerRouter = router({
       })
     )
     .query(({ input }) => {
+      // Distribute total distance evenly across states for estimation
+      const perStateDistance = input.stateCodes.length > 0
+        ? input.distanceMiles / input.stateCodes.length
+        : 0
+      const stateDistances: Record<string, number> = {}
+      for (const code of input.stateCodes) {
+        stateDistances[code] = perStateDistance
+      }
       return estimateTotalCost(
         input.stateCodes,
         {
@@ -284,7 +358,7 @@ export const loadPlannerRouter = router({
           length: input.dimensions.length,
           grossWeight: input.dimensions.weight,
         },
-        input.distanceMiles
+        stateDistances
       )
     }),
 
@@ -332,7 +406,11 @@ export const loadPlannerRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      return parseImageWithAI(input.imageBase64, input.mimeType)
+      // Construct data URL from base64 and mimeType
+      const dataUrl = input.imageBase64.startsWith('data:')
+        ? input.imageBase64
+        : `data:${input.mimeType};base64,${input.imageBase64}`
+      return parseImageWithAI(dataUrl)
     }),
 })
 

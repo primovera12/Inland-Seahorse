@@ -335,3 +335,18 @@ export function selectTrucksForMultipleCargo(
 
   return results
 }
+
+/**
+ * Public export: Calculate fit analysis for cargo on a specific truck
+ */
+export function calculateFitAnalysis(cargo: ParsedLoad, truck: TruckType): FitAnalysis {
+  return analyzeFit(cargo, truck)
+}
+
+/**
+ * Public export: Get required permits for cargo on a specific truck
+ */
+export function getRequiredPermits(cargo: ParsedLoad, truck: TruckType): PermitRequired[] {
+  const fit = analyzeFit(cargo, truck)
+  return determinePermits(cargo, fit)
+}

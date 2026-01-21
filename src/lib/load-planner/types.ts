@@ -169,6 +169,8 @@ export interface LoadItem {
 }
 
 export interface ParsedLoad {
+  // Optional identifier for multi-cargo scenarios
+  id?: string
   // Cargo dimensions (in feet)
   length: number
   width: number
@@ -448,9 +450,10 @@ export interface AnalyzeMetadata {
   fileName?: string
   fileType?: string
   parsedRows?: number
-  parseMethod?: 'pattern' | 'AI'
+  parseMethod?: 'pattern' | 'AI' | 'text-ai' | 'image-ai' | 'spreadsheet'
   itemsFound?: number
   hasAIFallback?: boolean
+  confidence?: number
 }
 
 export interface AnalyzeResponse {

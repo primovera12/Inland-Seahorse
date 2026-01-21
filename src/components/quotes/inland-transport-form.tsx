@@ -83,6 +83,12 @@ export interface LoadBlock {
   accessorial_charges: AccessorialCharge[]
   subtotal: number // Only includes service items (what will be billed)
   accessorials_total: number // Separate tracking for "if applicable" fees
+  // Load plan visualization data (from AI load planner)
+  loadPlan?: {
+    truck: { id: string; name: string; deckLength: number; deckWidth: number }
+    placements: Array<{ itemId: string; x: number; z: number; rotated: boolean }>
+    warnings: string[]
+  }
 }
 
 export interface InlandTransportData {

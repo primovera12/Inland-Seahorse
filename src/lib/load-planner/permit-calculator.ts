@@ -364,6 +364,3 @@ export function estimateTotalCost(
   const summary = calculateRoutePermits(stateCodes, cargo, stateDistances)
   return summary.totalPermitFees + summary.totalEscortCost
 }
-
-// Re-export types
-export type { CargoSpecs, PermitRequirement, RoutePermitSummary, StatePermitData }

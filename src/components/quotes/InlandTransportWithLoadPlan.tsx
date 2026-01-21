@@ -135,12 +135,29 @@ export function InlandTransportWithLoadPlan({
     // Use setTimeout to avoid blocking UI
     setTimeout(() => {
       try {
+        // Convert LoadItem[] to ParsedLoad for selectTrucks and planLoads
+        const maxLength = Math.max(...validItems.map(i => i.length))
+        const maxWidth = Math.max(...validItems.map(i => i.width))
+        const maxHeight = Math.max(...validItems.map(i => i.height))
+        const maxWeight = Math.max(...validItems.map(i => i.weight * i.quantity))
+        const totalWeight = validItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
+
+        const parsedLoad = {
+          length: maxLength,
+          width: maxWidth,
+          height: maxHeight,
+          weight: maxWeight,
+          totalWeight,
+          items: validItems,
+          confidence: 100,
+        }
+
         // Get truck recommendations
-        const recs = selectTrucks(validItems)
+        const recs = selectTrucks(parsedLoad)
         setRecommendations(recs.slice(0, 5))
 
         // Calculate full load plan
-        const plan = planLoads(validItems)
+        const plan = planLoads(parsedLoad)
         setLoadPlan(plan)
 
         // Store load plan data in the quote for PDF generation

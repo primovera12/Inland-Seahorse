@@ -691,6 +691,3 @@ export function getLoadPlanSummary(plan: LoadPlan): string {
 
   return lines.join('\n')
 }
-
-// Re-export types for convenience
-export type { ItemPlacement, PlannedLoad, LoadPlan }
