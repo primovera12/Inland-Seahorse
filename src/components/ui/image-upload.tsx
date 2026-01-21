@@ -276,8 +276,13 @@ export function ImageUpload({
                 src={value}
                 alt={label}
                 className="absolute inset-0 w-full h-full object-contain"
-                onError={() => setImageError(true)}
+                onError={(e) => {
+                  console.error('Image load error:', value, e)
+                  setImageError(true)
+                }}
                 onLoad={() => setImageError(false)}
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
               />
             )}
           </div>
