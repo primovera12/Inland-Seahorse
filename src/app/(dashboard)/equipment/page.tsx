@@ -39,7 +39,38 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { trpc } from '@/lib/trpc/client'
-import { formatDimension, formatWeight, inchesToFtInInput, ftInInputToInches } from '@/lib/dimensions'
+import {
+  formatDimension,
+  formatWeight,
+  inchesToFtInInput,
+  ftInInputToInches,
+  parseDimensionToInches,
+  parseWeightToLbs,
+  type DimensionUnit,
+  type WeightUnit,
+} from '@/lib/dimensions'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+// Unit options for dimensions and weight
+const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
+  { value: 'ft-in', label: 'ft-in' },
+  { value: 'inches', label: 'in' },
+  { value: 'cm', label: 'cm' },
+  { value: 'mm', label: 'mm' },
+  { value: 'meters', label: 'm' },
+]
+
+const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
+  { value: 'lbs', label: 'lbs' },
+  { value: 'kg', label: 'kg' },
+  { value: 'ton', label: 'ton' },
+]
 import { Search, Package, ChevronRight, ImageIcon, ChevronDown, ChevronUp, Filter, X, Plus, Pencil, Trash2, DollarSign, Ruler, Save, Loader2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
@@ -944,6 +975,18 @@ function DimensionsEditor({
   const [weightLbs, setWeightLbs] = useState(dimensions?.weight_lbs || 0)
   const [hasChanges, setHasChanges] = useState(false)
 
+  // Unit selection state
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('ft-in')
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs')
+
+  // Local input state (in selected unit)
+  const [dimensionInputs, setDimensionInputs] = useState({
+    length: inchesToFtInInput(dimensions?.length_inches || 0),
+    width: inchesToFtInInput(dimensions?.width_inches || 0),
+    height: inchesToFtInInput(dimensions?.height_inches || 0),
+  })
+  const [weightInput, setWeightInput] = useState(String(dimensions?.weight_lbs || ''))
+
   const utils = trpc.useUtils()
 
   const upsertDimensionsMutation = trpc.equipment.upsertDimensions.useMutation({
@@ -967,66 +1010,151 @@ function DimensionsEditor({
     })
   }
 
-  const updateField = (field: 'length' | 'width' | 'height' | 'weight', value: number) => {
+  // Handle dimension input change
+  const handleDimensionInputChange = (field: 'length' | 'width' | 'height', value: string) => {
+    setDimensionInputs(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Handle dimension blur - parse and convert to inches
+  const handleDimensionBlur = (field: 'length' | 'width' | 'height') => {
+    const inputValue = dimensionInputs[field]
+    const inches = parseDimensionToInches(inputValue, dimensionUnit)
+
+    // Update internal state
     setHasChanges(true)
     switch (field) {
-      case 'length': setLengthInches(value); break
-      case 'width': setWidthInches(value); break
-      case 'height': setHeightInches(value); break
-      case 'weight': setWeightLbs(value); break
+      case 'length': setLengthInches(inches); break
+      case 'width': setWidthInches(inches); break
+      case 'height': setHeightInches(inches); break
     }
+
+    // Normalize display for ft-in
+    if (dimensionUnit === 'ft-in') {
+      setDimensionInputs(prev => ({ ...prev, [field]: inchesToFtInInput(inches) }))
+    }
+  }
+
+  // Handle weight input change
+  const handleWeightInputChange = (value: string) => {
+    setWeightInput(value)
+  }
+
+  // Handle weight blur - parse and convert to lbs
+  const handleWeightBlur = () => {
+    const lbs = parseWeightToLbs(weightInput, weightUnit)
+    setHasChanges(true)
+    setWeightLbs(lbs)
+  }
+
+  // Handle dimension unit change
+  const handleDimensionUnitChange = (newUnit: DimensionUnit) => {
+    setDimensionUnit(newUnit)
+    if (newUnit === 'ft-in') {
+      setDimensionInputs({
+        length: inchesToFtInInput(lengthInches),
+        width: inchesToFtInInput(widthInches),
+        height: inchesToFtInInput(heightInches),
+      })
+    } else {
+      // Clear inputs - user will re-enter in new unit
+      setDimensionInputs({ length: '', width: '', height: '' })
+    }
+  }
+
+  // Handle weight unit change
+  const handleWeightUnitChange = (newUnit: WeightUnit) => {
+    setWeightUnit(newUnit)
+    setWeightInput('')
   }
 
   return (
     <div className="space-y-6">
+      {/* Unit Selectors */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">Dimensions:</Label>
+          <Select value={dimensionUnit} onValueChange={(v) => handleDimensionUnitChange(v as DimensionUnit)}>
+            <SelectTrigger className="h-8 w-24 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DIMENSION_UNITS.map((unit) => (
+                <SelectItem key={unit.value} value={unit.value} className="text-xs">
+                  {unit.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">Weight:</Label>
+          <Select value={weightUnit} onValueChange={(v) => handleWeightUnitChange(v as WeightUnit)}>
+            <SelectTrigger className="h-8 w-24 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WEIGHT_UNITS.map((unit) => (
+                <SelectItem key={unit.value} value={unit.value} className="text-xs">
+                  {unit.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Dimensions Form */}
       <div className="grid gap-4 md:grid-cols-4">
         <div className="space-y-2">
-          <Label>Length (ft-in)</Label>
+          <Label>Length ({dimensionUnit})</Label>
           <Input
             type="text"
-            placeholder="e.g., 30-4"
-            value={inchesToFtInInput(lengthInches)}
-            onChange={(e) => updateField('length', ftInInputToInches(e.target.value))}
+            placeholder={dimensionUnit === 'ft-in' ? 'e.g., 30-4' : '0'}
+            value={dimensionInputs.length}
+            onChange={(e) => handleDimensionInputChange('length', e.target.value)}
+            onBlur={() => handleDimensionBlur('length')}
           />
           <p className="text-xs text-muted-foreground">
-            {lengthInches > 0 ? `${lengthInches}" total` : ''}
+            {lengthInches > 0 ? formatDimension(lengthInches) : ''}
           </p>
         </div>
         <div className="space-y-2">
-          <Label>Width (ft-in)</Label>
+          <Label>Width ({dimensionUnit})</Label>
           <Input
             type="text"
-            placeholder="e.g., 10-4"
-            value={inchesToFtInInput(widthInches)}
-            onChange={(e) => updateField('width', ftInInputToInches(e.target.value))}
+            placeholder={dimensionUnit === 'ft-in' ? 'e.g., 10-4' : '0'}
+            value={dimensionInputs.width}
+            onChange={(e) => handleDimensionInputChange('width', e.target.value)}
+            onBlur={() => handleDimensionBlur('width')}
           />
           <p className="text-xs text-muted-foreground">
-            {widthInches > 0 ? `${widthInches}" total` : ''}
+            {widthInches > 0 ? formatDimension(widthInches) : ''}
           </p>
         </div>
         <div className="space-y-2">
-          <Label>Height (ft-in)</Label>
+          <Label>Height ({dimensionUnit})</Label>
           <Input
             type="text"
-            placeholder="e.g., 10-10"
-            value={inchesToFtInInput(heightInches)}
-            onChange={(e) => updateField('height', ftInInputToInches(e.target.value))}
+            placeholder={dimensionUnit === 'ft-in' ? 'e.g., 10-10' : '0'}
+            value={dimensionInputs.height}
+            onChange={(e) => handleDimensionInputChange('height', e.target.value)}
+            onBlur={() => handleDimensionBlur('height')}
           />
           <p className="text-xs text-muted-foreground">
-            {heightInches > 0 ? `${heightInches}" total` : ''}
+            {heightInches > 0 ? formatDimension(heightInches) : ''}
           </p>
         </div>
         <div className="space-y-2">
-          <Label>Weight (lbs)</Label>
+          <Label>Weight ({weightUnit})</Label>
           <Input
-            type="number"
-            min={0}
-            value={weightLbs}
-            onChange={(e) => updateField('weight', parseInt(e.target.value) || 0)}
+            type="text"
+            placeholder="0"
+            value={weightInput}
+            onChange={(e) => handleWeightInputChange(e.target.value)}
+            onBlur={handleWeightBlur}
           />
           <p className="text-xs text-muted-foreground">
-            {formatWeight(weightLbs)}
+            {weightLbs > 0 ? formatWeight(weightLbs) : ''}
           </p>
         </div>
       </div>

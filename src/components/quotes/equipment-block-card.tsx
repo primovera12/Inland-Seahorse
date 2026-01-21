@@ -21,7 +21,31 @@ import {
 } from '@/components/ui/collapsible'
 import { trpc } from '@/lib/trpc/client'
 import { formatWholeDollars, parseWholeDollarsToCents } from '@/lib/utils'
-import { formatDimension, formatWeight, inchesToFtInInput, ftInInputToInches } from '@/lib/dimensions'
+import {
+  formatDimension,
+  formatWeight,
+  inchesToFtInInput,
+  ftInInputToInches,
+  parseDimensionToInches,
+  parseWeightToLbs,
+  type DimensionUnit,
+  type WeightUnit,
+} from '@/lib/dimensions'
+
+// Unit options for dimensions and weight
+const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
+  { value: 'ft-in', label: 'ft-in' },
+  { value: 'inches', label: 'in' },
+  { value: 'cm', label: 'cm' },
+  { value: 'mm', label: 'mm' },
+  { value: 'meters', label: 'm' },
+]
+
+const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
+  { value: 'lbs', label: 'lbs' },
+  { value: 'kg', label: 'kg' },
+  { value: 'ton', label: 'ton' },
+]
 import { LOCATIONS, COST_FIELDS, type LocationName, type CostField } from '@/types/equipment'
 import type { EquipmentBlock, MiscellaneousFee } from '@/types/quotes'
 import { MiscFeesList, calculateMiscFeesTotal } from './misc-fees-list'
@@ -169,13 +193,17 @@ export function EquipmentBlockCard({
     weight_lbs: block.weight_lbs || 0,
   })
 
-  // Local state for ft-in display strings (what user sees/types)
+  // Local state for display strings (what user sees/types)
   const [dimensionInputs, setDimensionInputs] = useState({
     length: inchesToFtInInput(block.length_inches || 0),
     width: inchesToFtInInput(block.width_inches || 0),
     height: inchesToFtInInput(block.height_inches || 0),
     weight: String(block.weight_lbs || ''),
   })
+
+  // Unit selection state
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>('ft-in')
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs')
 
 
   // Sync local dimensions when block dimensions change (e.g., from database load)
@@ -201,16 +229,18 @@ export function EquipmentBlockCard({
     setDimensionInputs(prev => ({ ...prev, [field]: value }))
   }, [])
 
-  // Handle dimension blur (when leaving field - parse and convert)
+  // Handle dimension blur (when leaving field - parse and convert based on unit)
   const handleDimensionBlur = useCallback((field: 'length' | 'width' | 'height') => {
     const inputValue = dimensionInputs[field]
     const inchesField = `${field}_inches` as keyof typeof localDimensions
 
-    // Smart parse: ftInInputToInches handles "30-4", "30.4", "30 4", or plain numbers
-    const inches = ftInInputToInches(inputValue)
+    // Parse value based on selected unit
+    const inches = parseDimensionToInches(inputValue, dimensionUnit)
 
-    // Update the display to the normalized ft-in format
-    setDimensionInputs(prev => ({ ...prev, [field]: inchesToFtInInput(inches) }))
+    // Update the display to normalized format for ft-in
+    if (dimensionUnit === 'ft-in') {
+      setDimensionInputs(prev => ({ ...prev, [field]: inchesToFtInInput(inches) }))
+    }
 
     // Update local dimensions
     const newDimensions = { ...localDimensions, [inchesField]: inches }
@@ -218,19 +248,45 @@ export function EquipmentBlockCard({
 
     // Update block immediately for UI (dimensions saved with quote, not auto-saved to model)
     onUpdate({ ...block, [inchesField]: inches })
-  }, [dimensionInputs, localDimensions, block, onUpdate])
+  }, [dimensionInputs, dimensionUnit, localDimensions, block, onUpdate])
 
-  // Handle weight change (numbers only)
-  const handleWeightChange = useCallback((value: string) => {
+  // Handle weight input change (just update display)
+  const handleWeightInputChange = useCallback((value: string) => {
     setDimensionInputs(prev => ({ ...prev, weight: value }))
-    const weightLbs = parseInt(value) || 0
+  }, [])
 
-    const newDimensions = { ...localDimensions, weight_lbs: weightLbs }
+  // Handle weight blur (parse and convert based on unit)
+  const handleWeightBlur = useCallback(() => {
+    const lbs = parseWeightToLbs(dimensionInputs.weight, weightUnit)
+
+    const newDimensions = { ...localDimensions, weight_lbs: lbs }
     setLocalDimensions(newDimensions)
 
     // Update block immediately for UI (dimensions saved with quote, not auto-saved to model)
-    onUpdate({ ...block, weight_lbs: weightLbs })
-  }, [localDimensions, block, onUpdate])
+    onUpdate({ ...block, weight_lbs: lbs })
+  }, [dimensionInputs.weight, weightUnit, localDimensions, block, onUpdate])
+
+  // Handle dimension unit change
+  const handleDimensionUnitChange = useCallback((newUnit: DimensionUnit) => {
+    setDimensionUnit(newUnit)
+    if (newUnit === 'ft-in') {
+      setDimensionInputs(prev => ({
+        ...prev,
+        length: inchesToFtInInput(localDimensions.length_inches),
+        width: inchesToFtInInput(localDimensions.width_inches),
+        height: inchesToFtInInput(localDimensions.height_inches),
+      }))
+    } else {
+      // Clear inputs - user will re-enter in new unit
+      setDimensionInputs(prev => ({ ...prev, length: '', width: '', height: '' }))
+    }
+  }, [localDimensions])
+
+  // Handle weight unit change
+  const handleWeightUnitChange = useCallback((newUnit: WeightUnit) => {
+    setWeightUnit(newUnit)
+    setDimensionInputs(prev => ({ ...prev, weight: '' }))
+  }, [])
 
 
   // Update costs when rates change - uses refs to avoid stale closure
@@ -581,57 +637,91 @@ export function EquipmentBlockCard({
             {/* Dimensions */}
             {selectedModelId && (
               <div className="rounded-lg border p-4 bg-muted/30">
-                <h4 className="font-medium mb-3">Dimensions</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Dimensions</h4>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground">Dimensions:</Label>
+                      <Select value={dimensionUnit} onValueChange={(v) => handleDimensionUnitChange(v as DimensionUnit)}>
+                        <SelectTrigger className="h-7 w-20 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DIMENSION_UNITS.map((unit) => (
+                            <SelectItem key={unit.value} value={unit.value} className="text-xs">
+                              {unit.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground">Weight:</Label>
+                      <Select value={weightUnit} onValueChange={(v) => handleWeightUnitChange(v as WeightUnit)}>
+                        <SelectTrigger className="h-7 w-20 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WEIGHT_UNITS.map((unit) => (
+                            <SelectItem key={unit.value} value={unit.value} className="text-xs">
+                              {unit.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
                 <div className="grid gap-4 md:grid-cols-4">
                   <div className="space-y-1">
-                    <Label className="text-sm text-muted-foreground">Length (ft-in)</Label>
+                    <Label className="text-sm text-muted-foreground">Length ({dimensionUnit})</Label>
                     <Input
                       type="text"
                       value={dimensionInputs.length}
                       onChange={(e) => handleDimensionInputChange('length', e.target.value)}
                       onBlur={() => handleDimensionBlur('length')}
-                      placeholder="e.g., 30-4"
+                      placeholder={dimensionUnit === 'ft-in' ? 'e.g., 30-4' : '0'}
                       className="font-mono"
                     />
                     {localDimensions.length_inches > 0 && (
-                      <p className="text-xs text-muted-foreground">{localDimensions.length_inches}" total</p>
+                      <p className="text-xs text-muted-foreground">{formatDimension(localDimensions.length_inches)}</p>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm text-muted-foreground">Width (ft-in)</Label>
+                    <Label className="text-sm text-muted-foreground">Width ({dimensionUnit})</Label>
                     <Input
                       type="text"
                       value={dimensionInputs.width}
                       onChange={(e) => handleDimensionInputChange('width', e.target.value)}
                       onBlur={() => handleDimensionBlur('width')}
-                      placeholder="e.g., 10-6"
+                      placeholder={dimensionUnit === 'ft-in' ? 'e.g., 10-6' : '0'}
                       className="font-mono"
                     />
                     {localDimensions.width_inches > 0 && (
-                      <p className="text-xs text-muted-foreground">{localDimensions.width_inches}" total</p>
+                      <p className="text-xs text-muted-foreground">{formatDimension(localDimensions.width_inches)}</p>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm text-muted-foreground">Height (ft-in)</Label>
+                    <Label className="text-sm text-muted-foreground">Height ({dimensionUnit})</Label>
                     <Input
                       type="text"
                       value={dimensionInputs.height}
                       onChange={(e) => handleDimensionInputChange('height', e.target.value)}
                       onBlur={() => handleDimensionBlur('height')}
-                      placeholder="e.g., 10-10"
+                      placeholder={dimensionUnit === 'ft-in' ? 'e.g., 10-10' : '0'}
                       className="font-mono"
                     />
                     {localDimensions.height_inches > 0 && (
-                      <p className="text-xs text-muted-foreground">{localDimensions.height_inches}" total</p>
+                      <p className="text-xs text-muted-foreground">{formatDimension(localDimensions.height_inches)}</p>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm text-muted-foreground">Weight (lbs)</Label>
+                    <Label className="text-sm text-muted-foreground">Weight ({weightUnit})</Label>
                     <Input
-                      type="number"
-                      min="0"
+                      type="text"
                       value={dimensionInputs.weight}
-                      onChange={(e) => handleWeightChange(e.target.value)}
+                      onChange={(e) => handleWeightInputChange(e.target.value)}
+                      onBlur={handleWeightBlur}
                       placeholder="0"
                       className="font-mono"
                     />
