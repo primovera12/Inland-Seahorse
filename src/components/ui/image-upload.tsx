@@ -281,8 +281,6 @@ export function ImageUpload({
                   setImageError(true)
                 }}
                 onLoad={() => setImageError(false)}
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
               />
             )}
           </div>
