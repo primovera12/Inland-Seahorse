@@ -882,6 +882,583 @@ export const trucks: TruckType[] = [
     ],
     loadingMethod: 'crane',
   },
+
+  // ===========================
+  // ADDITIONAL FLATBED VARIANTS
+  // ===========================
+  {
+    id: 'flatbed-moffett',
+    name: 'Flatbed with Moffett',
+    category: 'FLATBED',
+    description: 'Standard flatbed with mounted Moffett forklift for self-unloading at delivery sites without dock access.',
+    deckHeight: 5.0,
+    deckLength: 48,
+    deckWidth: 8.5,
+    maxCargoWeight: 42000, // Reduced due to forklift weight
+    tareWeight: 21000, // Includes Moffett weight (~6000 lbs)
+    maxLegalCargoHeight: 8.5,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Mounted Moffett forklift',
+      'Self-unloading capability',
+      'No dock required at delivery',
+      'Forklift capacity 5,000-8,000 lbs',
+    ],
+    bestFor: [
+      'Building materials to job sites',
+      'Deliveries without forklift access',
+      'Roofing materials',
+      'Lumber yards',
+      'Multi-stop deliveries',
+    ],
+    loadingMethod: 'forklift',
+  },
+  {
+    id: 'flatbed-piggyback',
+    name: 'Flatbed with Piggyback',
+    category: 'FLATBED',
+    description: 'Flatbed with attachable/detachable forklift. More flexible than Moffett.',
+    deckHeight: 5.0,
+    deckLength: 48,
+    deckWidth: 8.5,
+    maxCargoWeight: 44000,
+    tareWeight: 19000,
+    maxLegalCargoHeight: 8.5,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Detachable piggyback forklift',
+      'More cargo capacity when forklift not needed',
+      'Versatile delivery options',
+      'Can be left at job site',
+    ],
+    bestFor: [
+      'Flexible delivery requirements',
+      'When forklift may or may not be needed',
+      'Construction sites',
+      'Agricultural deliveries',
+    ],
+    loadingMethod: 'forklift',
+  },
+  {
+    id: 'aluminum-flatbed',
+    name: 'Aluminum Flatbed',
+    category: 'FLATBED',
+    description: 'Lightweight aluminum construction for maximum payload capacity.',
+    deckHeight: 5.0,
+    deckLength: 48,
+    deckWidth: 8.5,
+    maxCargoWeight: 52000, // Higher due to lighter tare
+    tareWeight: 11000, // ~4000 lbs lighter than steel
+    maxLegalCargoHeight: 8.5,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Lightweight aluminum construction',
+      'Maximum payload capacity',
+      'Corrosion resistant',
+      'Better fuel economy',
+    ],
+    bestFor: [
+      'Maximum weight loads',
+      'Heavy commodities',
+      'Steel coils (maximizing payload)',
+      'When every pound counts',
+    ],
+    loadingMethod: 'crane',
+  },
+  {
+    id: 'combo-flatbed',
+    name: 'Combo Flatbed/Step Deck',
+    category: 'FLATBED',
+    description: 'Convertible trailer that works as flatbed or step deck. Flip-down front section.',
+    deckHeight: 5.0, // As flatbed
+    deckLength: 48,
+    deckWidth: 8.5,
+    wellLength: 37, // When converted to step deck
+    maxCargoWeight: 45000,
+    tareWeight: 17000,
+    maxLegalCargoHeight: 8.5, // As flatbed; 10.0 as step deck
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Converts from flatbed to step deck',
+      'Flip-down front section',
+      'Maximum versatility',
+      'Two trailers in one',
+    ],
+    bestFor: [
+      'Mixed cargo requirements',
+      'Varying height loads',
+      'Maximum fleet flexibility',
+      'Owner-operators',
+    ],
+    loadingMethod: 'crane',
+  },
+
+  // ===========================
+  // ADDITIONAL STEP DECK VARIANTS
+  // ===========================
+  {
+    id: 'step-deck-ramps',
+    name: 'Step Deck with Ramps',
+    category: 'STEP_DECK',
+    description: 'Step deck with heavy-duty built-in ramps for drive-on loading.',
+    deckHeight: 3.5,
+    deckLength: 48,
+    deckWidth: 8.5,
+    wellLength: 37,
+    maxCargoWeight: 46000,
+    tareWeight: 18000,
+    maxLegalCargoHeight: 10.0,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Heavy-duty built-in ramps',
+      'Drive-on loading standard',
+      'Ramps rated for 30,000+ lbs',
+      'Spring-assist ramp lift',
+    ],
+    bestFor: [
+      'Self-propelled equipment',
+      'Forklifts and telehandlers',
+      'Agricultural equipment',
+      'Rolling stock',
+    ],
+    loadingMethod: 'drive-on',
+  },
+  {
+    id: 'drop-deck-combo',
+    name: 'Drop Deck Combo',
+    category: 'STEP_DECK',
+    description: 'Adjustable deck height step deck with removable upper deck section.',
+    deckHeight: 3.0, // Adjustable 3.0-3.5
+    deckLength: 48,
+    deckWidth: 8.5,
+    wellLength: 40,
+    maxCargoWeight: 44000,
+    tareWeight: 18000,
+    maxLegalCargoHeight: 10.5,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Removable upper deck section',
+      'Adjustable deck height',
+      'Extended well length when converted',
+      'Multiple configuration options',
+    ],
+    bestFor: [
+      'Variable height cargo',
+      'Maximizing well length',
+      'Mixed loads',
+      'Versatile operations',
+    ],
+    loadingMethod: 'drive-on',
+  },
+
+  // ===========================
+  // ADDITIONAL RGN VARIANTS
+  // ===========================
+  {
+    id: 'mini-rgn',
+    name: 'Mini RGN',
+    category: 'RGN',
+    description: 'Compact removable gooseneck for smaller equipment. Perfect for skid steers and mini excavators.',
+    deckHeight: 1.5,
+    deckLength: 35,
+    deckWidth: 8.5,
+    wellLength: 20,
+    wellHeight: 1.5,
+    maxCargoWeight: 25000,
+    tareWeight: 12000,
+    maxLegalCargoHeight: 12.0,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Compact size',
+      'Very low deck height',
+      'Detachable gooseneck',
+      'Perfect for compact equipment',
+    ],
+    bestFor: [
+      'Compact excavators',
+      'Skid steers',
+      'Mini loaders',
+      'Small tracked equipment',
+      'Compact track loaders (CTL)',
+    ],
+    loadingMethod: 'drive-on',
+  },
+
+  // ===========================
+  // ADDITIONAL LOWBOY VARIANTS
+  // ===========================
+  {
+    id: 'hydraulic-lowboy',
+    name: 'Hydraulic Lowboy',
+    category: 'LOWBOY',
+    description: 'Lowboy with hydraulic deck raise/lower for flexible loading and dock access.',
+    deckHeight: 1.5, // Can raise to 3.0
+    deckLength: 48,
+    deckWidth: 8.5,
+    wellLength: 28,
+    wellHeight: 1.5,
+    maxCargoWeight: 48000,
+    tareWeight: 26000,
+    maxLegalCargoHeight: 12.0,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Hydraulic deck raise/lower',
+      'Can adjust from 1.5\' to 3.0\'',
+      'Dock loading capability',
+      'Maximum flexibility',
+    ],
+    bestFor: [
+      'Variable height requirements',
+      'Dock loading situations',
+      'When height adjustment needed',
+      'Multi-purpose operations',
+    ],
+    loadingMethod: 'crane',
+  },
+
+  // ===========================
+  // ADDITIONAL DOUBLE DROP VARIANTS
+  // ===========================
+  {
+    id: 'double-drop-beavertail',
+    name: 'Double Drop with Beavertail',
+    category: 'DOUBLE_DROP',
+    description: 'Double drop with beavertail ramp for drive-on loading of self-propelled equipment.',
+    deckHeight: 2.0,
+    deckLength: 48,
+    deckWidth: 8.5,
+    wellLength: 25,
+    wellHeight: 2.0,
+    maxCargoWeight: 43000,
+    tareWeight: 19000,
+    maxLegalCargoHeight: 11.5,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Beavertail rear ramp',
+      'Drive-on loading',
+      'Low center well',
+      'Self-propelled equipment capable',
+    ],
+    bestFor: [
+      'Self-propelled equipment',
+      'Rolling stock',
+      'Tall wheeled machinery',
+      'When crane not available',
+    ],
+    loadingMethod: 'drive-on',
+  },
+
+  // ===========================
+  // ADDITIONAL MULTI-AXLE HEAVY HAUL
+  // ===========================
+  {
+    id: 'multi-axle-9',
+    name: 'Multi-Axle 9-Line',
+    category: 'MULTI_AXLE',
+    description: '9-axle heavy haul trailer for superloads. Bridge between standard and extreme heavy haul.',
+    deckHeight: 2.5,
+    deckLength: 50,
+    deckWidth: 10.0,
+    wellLength: 35,
+    wellHeight: 2.5,
+    maxCargoWeight: 120000,
+    tareWeight: 45000,
+    maxLegalCargoHeight: 11.0,
+    maxLegalCargoWidth: 10.0,
+    features: [
+      '9 axle lines',
+      'Heavy haul capacity',
+      'Hydraulic steering',
+      'Police escort typically required',
+    ],
+    bestFor: [
+      'Heavy industrial equipment',
+      'Medium transformers',
+      'Large machinery',
+      'Mining equipment',
+    ],
+    loadingMethod: 'crane',
+  },
+
+  // ===========================
+  // SPECIALIZED TRAILERS (NEW)
+  // ===========================
+  {
+    id: 'tower-trailer',
+    name: 'Tower Section Trailer',
+    category: 'SPECIALIZED',
+    description: 'Specialized trailer for wind turbine tower sections and large cylindrical loads.',
+    deckHeight: 3.0,
+    deckLength: 60,
+    deckWidth: 12.0,
+    maxCargoWeight: 80000,
+    tareWeight: 30000,
+    maxLegalCargoHeight: 10.5,
+    maxLegalCargoWidth: 12.0,
+    features: [
+      'Tower section cradles',
+      'Wide deck for cylindrical loads',
+      'Heavy-duty tie-downs',
+      'Oversize permits typically required',
+    ],
+    bestFor: [
+      'Wind turbine tower sections',
+      'Large pipe',
+      'Cylindrical tanks',
+      'Large diameter loads',
+    ],
+    loadingMethod: 'crane',
+  },
+  {
+    id: 'nacelle-trailer',
+    name: 'Nacelle Trailer',
+    category: 'SPECIALIZED',
+    description: 'Purpose-built trailer for wind turbine nacelles and generator housings.',
+    deckHeight: 3.5,
+    deckLength: 45,
+    deckWidth: 12.0,
+    maxCargoWeight: 100000,
+    tareWeight: 35000,
+    maxLegalCargoHeight: 10.0,
+    maxLegalCargoWidth: 12.0,
+    features: [
+      'Nacelle-specific mounting',
+      'Extra-wide deck',
+      'Heavy-duty capacity',
+      'Specialized securing points',
+    ],
+    bestFor: [
+      'Wind turbine nacelles',
+      'Generator housings',
+      'Large rectangular loads',
+      'Heavy equipment housings',
+    ],
+    loadingMethod: 'crane',
+  },
+
+  // ===========================
+  // ADDITIONAL DRY VAN/REEFER
+  // ===========================
+  {
+    id: 'dry-van-48',
+    name: "Dry Van 48'",
+    category: 'DRY_VAN',
+    description: 'Standard enclosed 48-foot trailer. Common for general freight.',
+    deckHeight: 4.0,
+    deckLength: 48,
+    deckWidth: 8.0, // Interior width
+    maxCargoWeight: 44000,
+    tareWeight: 14000,
+    maxLegalCargoHeight: 9.0, // Interior height
+    maxLegalCargoWidth: 8.0,
+    features: [
+      'Fully enclosed',
+      'Weather protection',
+      'Secure from theft',
+      'Rear door loading',
+    ],
+    bestFor: [
+      'General freight',
+      'Palletized goods',
+      'Consumer products',
+      'Retail merchandise',
+    ],
+    loadingMethod: 'forklift',
+  },
+  {
+    id: 'reefer-48',
+    name: "Reefer 48' (Refrigerated)",
+    category: 'REEFER',
+    description: 'Temperature-controlled 48-foot trailer for perishable goods.',
+    deckHeight: 4.0,
+    deckLength: 48,
+    deckWidth: 8.0,
+    maxCargoWeight: 42000,
+    tareWeight: 16000,
+    maxLegalCargoHeight: 8.5,
+    maxLegalCargoWidth: 8.0,
+    features: [
+      'Temperature controlled',
+      'Multi-temp capability',
+      'GPS temperature monitoring',
+      'Insulated walls',
+    ],
+    bestFor: [
+      'Frozen foods',
+      'Fresh produce',
+      'Pharmaceuticals',
+      'Temperature-sensitive chemicals',
+    ],
+    loadingMethod: 'forklift',
+  },
+
+  // ===========================
+  // ADDITIONAL LANDOLL
+  // ===========================
+  {
+    id: 'landoll-50',
+    name: "Landoll 50' (Extended)",
+    category: 'LANDOLL',
+    description: "Extended 50-foot Landoll tilt bed for longer cargo that doesn't require crane loading.",
+    deckHeight: 2.5,
+    deckLength: 50,
+    deckWidth: 8.5,
+    maxCargoWeight: 48000,
+    tareWeight: 20000,
+    maxLegalCargoHeight: 11.0,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Extended 50\' deck',
+      'Self-loading capability',
+      'Tilts to ground level',
+      'No external equipment needed',
+    ],
+    bestFor: [
+      'Long containers',
+      'Extended equipment',
+      'Remote locations',
+      'Long loads without crane',
+    ],
+    loadingMethod: 'tilt',
+  },
+
+  // ===========================
+  // TANKER TRAILERS (NEW CATEGORY)
+  // ===========================
+  {
+    id: 'tanker-liquid',
+    name: 'Liquid Tanker',
+    category: 'TANKER',
+    description: 'Standard tanker for liquid commodities including fuel, chemicals, and food-grade liquids.',
+    deckHeight: 8.0, // Cylindrical height
+    deckLength: 42,
+    deckWidth: 8.0,
+    maxCargoWeight: 50000,
+    tareWeight: 12000,
+    maxLegalCargoHeight: 5.5, // Ground clearance effective
+    maxLegalCargoWidth: 8.0,
+    features: [
+      'Liquid cargo transport',
+      'Multiple compartments available',
+      'Food-grade options',
+      'Hazmat certified options',
+    ],
+    bestFor: [
+      'Fuel transport',
+      'Chemicals',
+      'Food-grade liquids',
+      'Industrial liquids',
+    ],
+    loadingMethod: 'pump',
+  },
+  {
+    id: 'pneumatic-tanker',
+    name: 'Pneumatic Tanker',
+    category: 'TANKER',
+    description: 'Pressurized tanker for dry bulk commodities that discharge via air pressure.',
+    deckHeight: 10.0,
+    deckLength: 42,
+    deckWidth: 8.0,
+    maxCargoWeight: 48000,
+    tareWeight: 14000,
+    maxLegalCargoHeight: 3.5,
+    maxLegalCargoWidth: 8.0,
+    features: [
+      'Pneumatic discharge',
+      'Sealed transport',
+      'Food-grade options',
+      'Rapid unloading',
+    ],
+    bestFor: [
+      'Cement',
+      'Flour',
+      'Plastic pellets',
+      'Dry bulk commodities',
+    ],
+    loadingMethod: 'pneumatic',
+  },
+
+  // ===========================
+  // HOPPER TRAILERS (NEW CATEGORY)
+  // ===========================
+  {
+    id: 'hopper-bottom',
+    name: 'Hopper Bottom',
+    category: 'HOPPER',
+    description: 'Gravity-discharge trailer for agricultural products and bulk materials.',
+    deckHeight: 10.0,
+    deckLength: 42,
+    deckWidth: 8.0,
+    maxCargoWeight: 55000,
+    tareWeight: 13000,
+    maxLegalCargoHeight: 3.5,
+    maxLegalCargoWidth: 8.0,
+    features: [
+      'Gravity discharge',
+      'Double or triple hopper',
+      'Easy unloading',
+      'Agricultural standard',
+    ],
+    bestFor: [
+      'Grain',
+      'Sand',
+      'Gravel',
+      'Agricultural products',
+    ],
+    loadingMethod: 'gravity',
+  },
+  {
+    id: 'end-dump',
+    name: 'End Dump Trailer',
+    category: 'HOPPER',
+    description: 'Hydraulic dump trailer for bulk materials and construction debris.',
+    deckHeight: 6.0,
+    deckLength: 38,
+    deckWidth: 8.0,
+    maxCargoWeight: 50000,
+    tareWeight: 15000,
+    maxLegalCargoHeight: 7.5,
+    maxLegalCargoWidth: 8.0,
+    features: [
+      'Hydraulic dump',
+      'Rapid unloading',
+      'Heavy-duty construction',
+      'High sides available',
+    ],
+    bestFor: [
+      'Construction debris',
+      'Aggregates',
+      'Scrap metal',
+      'Demolition materials',
+    ],
+    loadingMethod: 'dump',
+  },
+  {
+    id: 'side-dump',
+    name: 'Side Dump Trailer',
+    category: 'HOPPER',
+    description: 'Hydraulic side-dumping trailer for materials requiring lateral discharge.',
+    deckHeight: 5.5,
+    deckLength: 40,
+    deckWidth: 8.5,
+    maxCargoWeight: 52000,
+    tareWeight: 14000,
+    maxLegalCargoHeight: 8.0,
+    maxLegalCargoWidth: 8.5,
+    features: [
+      'Side-dumping capability',
+      'Faster unloading than end dump',
+      'Can dump while moving',
+      'Better stability than end dump',
+    ],
+    bestFor: [
+      'Road construction',
+      'Mining operations',
+      'Aggregates',
+      'Large stockpile building',
+    ],
+    loadingMethod: 'dump',
+  },
 ]
 
 /**

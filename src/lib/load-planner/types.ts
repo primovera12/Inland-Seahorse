@@ -28,6 +28,9 @@ export type TrailerCategory =
   | 'PERIMETER'
   | 'STEERABLE'
   | 'BLADE'
+  | 'TANKER'
+  | 'HOPPER'
+  | 'SPECIALIZED'
 
 export interface TruckType {
   id: string
@@ -52,7 +55,7 @@ export interface TruckType {
   // Best suited for
   bestFor: string[]
   // Loading method
-  loadingMethod: 'crane' | 'drive-on' | 'forklift' | 'ramp' | 'tilt'
+  loadingMethod: 'crane' | 'drive-on' | 'forklift' | 'ramp' | 'tilt' | 'pump' | 'pneumatic' | 'gravity' | 'dump'
   // Image/icon
   imageUrl?: string
 }

@@ -19,6 +19,7 @@ import { analyticsRouter } from './analytics'
 import { rateCardsRouter } from './rateCards'
 import { crmRouter } from './crm'
 import { permissionsRouter } from './permissions'
+import { loadPlannerRouter } from './load-planner'
 
 export const appRouter = router({
   user: userRouter,
@@ -42,6 +43,7 @@ export const appRouter = router({
   rateCards: rateCardsRouter,
   crm: crmRouter,
   permissions: permissionsRouter,
+  loadPlanner: loadPlannerRouter,
 })
 
 export type AppRouter = typeof appRouter

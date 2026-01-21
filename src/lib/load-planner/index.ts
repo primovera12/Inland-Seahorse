@@ -125,3 +125,77 @@ export {
   getAllStateCodes,
   getStatesRequiringEscort,
 } from './state-permits'
+
+// =============================================================================
+// BACKWARD COMPATIBILITY - FEET <-> INCHES CONVERSION
+// =============================================================================
+
+import type { LoadItem } from './types'
+
+/**
+ * Legacy cargo item format (dimensions in inches)
+ * Used by existing inland transport forms
+ */
+export interface LegacyCargoItem {
+  id: string
+  description: string
+  quantity: number
+  length_inches: number
+  width_inches: number
+  height_inches: number
+  weight_lbs: number
+  is_oversize?: boolean
+  is_overweight?: boolean
+}
+
+/**
+ * Convert a LoadItem (feet) to legacy format (inches)
+ */
+export function toLegacyFormat(item: LoadItem): LegacyCargoItem {
+  return {
+    id: item.id,
+    description: item.description,
+    quantity: item.quantity,
+    length_inches: item.length * 12,
+    width_inches: item.width * 12,
+    height_inches: item.height * 12,
+    weight_lbs: item.weight,
+    is_oversize: item.width > 8.5 || item.height > 10, // 8.5ft width or 10ft cargo height
+    is_overweight: item.weight > 48000, // Typical legal weight limit per item
+  }
+}
+
+/**
+ * Convert a legacy cargo item (inches) to LoadItem format (feet)
+ */
+export function fromLegacyFormat(legacy: LegacyCargoItem): LoadItem {
+  return {
+    id: legacy.id,
+    description: legacy.description,
+    quantity: legacy.quantity,
+    length: legacy.length_inches / 12,
+    width: legacy.width_inches / 12,
+    height: legacy.height_inches / 12,
+    weight: legacy.weight_lbs,
+    stackable: false,
+    fragile: false,
+    hazmat: false,
+  }
+}
+
+/**
+ * Convert an array of legacy cargo items to LoadItems
+ */
+export function convertLegacyCargoItems(legacyItems: LegacyCargoItem[]): LoadItem[] {
+  return legacyItems.map(fromLegacyFormat)
+}
+
+/**
+ * Convert an array of LoadItems to legacy format
+ */
+export function convertToLegacyFormat(items: LoadItem[]): LegacyCargoItem[] {
+  return items.map(toLegacyFormat)
+}
+
+// Alias for backward compatibility
+export const convertLegacyCargoItem = fromLegacyFormat

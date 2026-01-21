@@ -1,0 +1,229 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import type { TruckType, TrailerCategory } from '@/lib/load-planner/types'
+import { trucks } from '@/lib/load-planner/trucks'
+import { ChevronDown, Check, AlertTriangle } from 'lucide-react'
+
+interface TruckSelectorProps {
+  currentTruck: TruckType
+  onChange: (truck: TruckType) => void
+  itemsWeight: number
+  maxItemLength: number
+  maxItemWidth: number
+  maxItemHeight: number
+}
+
+export function TruckSelector({
+  currentTruck,
+  onChange,
+  itemsWeight,
+  maxItemLength,
+  maxItemWidth,
+  maxItemHeight
+}: TruckSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  // Categorize and sort trucks
+  const categorizedTrucks = useMemo(() => {
+    const categories: Record<string, TruckType[]> = {}
+
+    trucks.forEach(truck => {
+      const category = truck.category
+      if (!categories[category]) {
+        categories[category] = []
+      }
+      categories[category].push(truck)
+    })
+
+    // Sort by deck length within each category
+    Object.keys(categories).forEach(cat => {
+      categories[cat].sort((a, b) => a.deckLength - b.deckLength)
+    })
+
+    return categories
+  }, [])
+
+  // Check if truck can handle the cargo
+  const canHandle = (truck: TruckType) => {
+    const fitsWeight = itemsWeight <= truck.maxCargoWeight
+    const fitsLength = maxItemLength <= truck.deckLength
+    const fitsWidth = maxItemWidth <= truck.deckWidth
+    const fitsHeight = maxItemHeight <= truck.maxLegalCargoHeight
+
+    return {
+      fits: fitsWeight && fitsLength && fitsWidth && fitsHeight,
+      fitsWeight,
+      fitsLength,
+      fitsWidth,
+      fitsHeight
+    }
+  }
+
+  // Category display names
+  const categoryNames: Record<TrailerCategory, string> = {
+    'FLATBED': 'Flatbed Trailers',
+    'STEP_DECK': 'Step Deck Trailers',
+    'RGN': 'RGN (Removable Gooseneck)',
+    'LOWBOY': 'Lowboy Trailers',
+    'DOUBLE_DROP': 'Double Drop Trailers',
+    'LANDOLL': 'Landoll / Tilt Trailers',
+    'CONESTOGA': 'Conestoga (Covered Flatbed)',
+    'DRY_VAN': 'Dry Van',
+    'REEFER': 'Refrigerated',
+    'CURTAIN_SIDE': 'Curtain Side',
+    'MULTI_AXLE': 'Multi-Axle Heavy Haul',
+    'SCHNABEL': 'Schnabel',
+    'PERIMETER': 'Perimeter Trailers',
+    'STEERABLE': 'Steerable Trailers',
+    'BLADE': 'Blade Trailers',
+    'TANKER': 'Tank Trailers',
+    'HOPPER': 'Hopper Trailers',
+    'SPECIALIZED': 'Specialized Trailers'
+  }
+
+  // Category order (most common first)
+  const categoryOrder: TrailerCategory[] = [
+    'FLATBED',
+    'STEP_DECK',
+    'RGN',
+    'LOWBOY',
+    'DOUBLE_DROP',
+    'MULTI_AXLE',
+    'LANDOLL',
+    'CONESTOGA',
+    'DRY_VAN',
+    'REEFER',
+    'CURTAIN_SIDE',
+    'SCHNABEL',
+    'PERIMETER',
+    'STEERABLE',
+    'BLADE',
+    'TANKER',
+    'HOPPER',
+    'SPECIALIZED'
+  ]
+
+  const currentFit = canHandle(currentTruck)
+
+  return (
+    <div className="relative">
+      {/* Selected Truck Display */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          w-full flex items-center justify-between px-4 py-3 rounded-lg border
+          transition-colors text-left
+          ${!currentFit.fits
+            ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100'
+            : 'border-gray-300 bg-white hover:bg-gray-50'}
+        `}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`
+            w-8 h-8 rounded-lg flex items-center justify-center
+            ${!currentFit.fits ? 'bg-yellow-200 text-yellow-800' : 'bg-blue-100 text-blue-800'}
+          `}>
+            {!currentFit.fits ? <AlertTriangle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{currentTruck.name}</div>
+            <div className="text-xs text-gray-500">
+              {currentTruck.deckLength}' x {currentTruck.deckWidth}' &bull; {(currentTruck.maxCargoWeight / 1000).toFixed(0)}k lbs max
+            </div>
+          </div>
+        </div>
+        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Fit Warnings */}
+      {!currentFit.fits && (
+        <div className="mt-2 text-xs text-yellow-700 space-y-0.5">
+          {!currentFit.fitsWeight && <div>• Weight exceeds capacity ({(itemsWeight / 1000).toFixed(1)}k lbs &gt; {(currentTruck.maxCargoWeight / 1000).toFixed(0)}k lbs)</div>}
+          {!currentFit.fitsLength && <div>• Item too long ({maxItemLength.toFixed(1)}' &gt; {currentTruck.deckLength}')</div>}
+          {!currentFit.fitsWidth && <div>• Item too wide ({maxItemWidth.toFixed(1)}' &gt; {currentTruck.deckWidth}')</div>}
+          {!currentFit.fitsHeight && <div>• Item too tall ({maxItemHeight.toFixed(1)}' &gt; {currentTruck.maxLegalCargoHeight}')</div>}
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Dropdown Panel */}
+          <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+            {categoryOrder.map(category => {
+              const trucksInCategory = categorizedTrucks[category]
+              if (!trucksInCategory || trucksInCategory.length === 0) return null
+
+              return (
+                <div key={category}>
+                  <div className="sticky top-0 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                    {categoryNames[category] || category}
+                  </div>
+                  {trucksInCategory.map(truck => {
+                    const fit = canHandle(truck)
+                    const isSelected = truck.id === currentTruck.id
+
+                    return (
+                      <button
+                        key={truck.id}
+                        type="button"
+                        onClick={() => {
+                          onChange(truck)
+                          setIsOpen(false)
+                        }}
+                        className={`
+                          w-full flex items-center justify-between px-4 py-2 text-left
+                          transition-colors
+                          ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                          ${!fit.fits ? 'opacity-75' : ''}
+                        `}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`
+                            w-6 h-6 rounded flex items-center justify-center text-xs
+                            ${isSelected
+                              ? 'bg-blue-500 text-white'
+                              : fit.fits
+                                ? 'bg-green-100 text-green-600'
+                                : 'bg-yellow-100 text-yellow-600'}
+                          `}>
+                            {isSelected ? <Check className="w-4 h-4" /> : fit.fits ? '✓' : '!'}
+                          </div>
+                          <div>
+                            <div className={`text-sm ${isSelected ? 'font-medium text-blue-900' : 'text-gray-900'}`}>
+                              {truck.name}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {truck.deckLength}' x {truck.deckWidth}' x {truck.maxLegalCargoHeight}'
+                              &bull; {(truck.maxCargoWeight / 1000).toFixed(0)}k lbs
+                            </div>
+                          </div>
+                        </div>
+                        {!fit.fits && (
+                          <div className="text-xs text-yellow-600">
+                            {!fit.fitsWeight && 'Weight '}
+                            {!fit.fitsLength && 'Length '}
+                            {!fit.fitsWidth && 'Width '}
+                            {!fit.fitsHeight && 'Height'}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
