@@ -8,9 +8,11 @@
  * - ExtractedItemsList: Editable cargo item list
  * - TruckSelector: Truck selection dropdown with fit analysis
  * - LoadPlanPDFRenderer: SVG rendering functions for PDF generation
+ * - AICargoParser: AI-powered cargo parsing with confidence preview (Phase 7)
  */
 
 export { UniversalDropzone } from './UniversalDropzone'
+export { AICargoParser } from './AICargoParser'
 export { TrailerDiagram } from './TrailerDiagram'
 export { LoadPlanVisualizer, getItemColor } from './LoadPlanVisualizer'
 export { ExtractedItemsList } from './ExtractedItemsList'
