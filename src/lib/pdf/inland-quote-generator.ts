@@ -254,11 +254,80 @@ async function generateInlandQuotePDFWithLoadPlan(
 
     y += 30
 
-    // Load blocks (service items)
+    // Load blocks (cargo items and service items)
     for (const loadBlock of block.load_blocks) {
       if (y > 250) {
         doc.addPage()
         y = 20
+      }
+
+      // Cargo items table (if any)
+      if (loadBlock.cargo_items && loadBlock.cargo_items.length > 0) {
+        const cargoData: string[][] = []
+
+        loadBlock.cargo_items.forEach((cargo) => {
+          // Determine cargo type name
+          let cargoTypeName = cargo.description || 'Cargo'
+          if (cargo.is_equipment) {
+            if (cargo.is_custom_equipment) {
+              cargoTypeName = [cargo.custom_make_name, cargo.custom_model_name].filter(Boolean).join(' ') || 'Equipment'
+            } else {
+              cargoTypeName = [cargo.equipment_make_name, cargo.equipment_model_name].filter(Boolean).join(' ') || 'Equipment'
+            }
+          }
+
+          // Add quantity to name if > 1
+          if (cargo.quantity > 1) {
+            cargoTypeName += ` (Qty: ${cargo.quantity})`
+          }
+
+          // Add oversize/overweight indicators
+          const badges: string[] = []
+          if (cargo.is_oversize) badges.push('OVERSIZE')
+          if (cargo.is_overweight) badges.push('OVERWEIGHT')
+          if (badges.length > 0) {
+            cargoTypeName += ` [${badges.join(', ')}]`
+          }
+
+          cargoData.push([
+            cargoTypeName,
+            formatDimension(cargo.length_inches),
+            formatDimension(cargo.width_inches),
+            formatDimension(cargo.height_inches),
+            formatWeight(cargo.weight_lbs),
+          ])
+        })
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Cargo Details', 'Length', 'Width', 'Height', 'Weight']],
+          body: cargoData,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [241, 245, 249], // Light slate background like preview
+            textColor: [100, 116, 139], // Slate text
+            fontStyle: 'bold',
+            fontSize: 8,
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto', fontStyle: 'bold' },
+            1: { cellWidth: 28, halign: 'center' },
+            2: { cellWidth: 28, halign: 'center' },
+            3: { cellWidth: 28, halign: 'center' },
+            4: { cellWidth: 32, halign: 'right' },
+          },
+          margin: { left: margin, right: margin },
+          styles: {
+            fontSize: 9,
+            cellPadding: 4,
+            textColor: [51, 65, 85], // Slate-700
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252],
+          },
+        })
+
+        y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
       }
 
       const serviceData: string[][] = []
@@ -593,6 +662,75 @@ function generateInlandQuotePDFWithLogo(data: InlandQuotePDFData, logoBase64: st
       if (y > 250) {
         doc.addPage()
         y = 20
+      }
+
+      // Cargo items table (if any)
+      if (loadBlock.cargo_items && loadBlock.cargo_items.length > 0) {
+        const cargoData: string[][] = []
+
+        loadBlock.cargo_items.forEach((cargo) => {
+          // Determine cargo type name
+          let cargoTypeName = cargo.description || 'Cargo'
+          if (cargo.is_equipment) {
+            if (cargo.is_custom_equipment) {
+              cargoTypeName = [cargo.custom_make_name, cargo.custom_model_name].filter(Boolean).join(' ') || 'Equipment'
+            } else {
+              cargoTypeName = [cargo.equipment_make_name, cargo.equipment_model_name].filter(Boolean).join(' ') || 'Equipment'
+            }
+          }
+
+          // Add quantity to name if > 1
+          if (cargo.quantity > 1) {
+            cargoTypeName += ` (Qty: ${cargo.quantity})`
+          }
+
+          // Add oversize/overweight indicators
+          const badges: string[] = []
+          if (cargo.is_oversize) badges.push('OVERSIZE')
+          if (cargo.is_overweight) badges.push('OVERWEIGHT')
+          if (badges.length > 0) {
+            cargoTypeName += ` [${badges.join(', ')}]`
+          }
+
+          cargoData.push([
+            cargoTypeName,
+            formatDimension(cargo.length_inches),
+            formatDimension(cargo.width_inches),
+            formatDimension(cargo.height_inches),
+            formatWeight(cargo.weight_lbs),
+          ])
+        })
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Cargo Details', 'Length', 'Width', 'Height', 'Weight']],
+          body: cargoData,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [241, 245, 249], // Light slate background like preview
+            textColor: [100, 116, 139], // Slate text
+            fontStyle: 'bold',
+            fontSize: 8,
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto', fontStyle: 'bold' },
+            1: { cellWidth: 28, halign: 'center' },
+            2: { cellWidth: 28, halign: 'center' },
+            3: { cellWidth: 28, halign: 'center' },
+            4: { cellWidth: 32, halign: 'right' },
+          },
+          margin: { left: margin, right: margin },
+          styles: {
+            fontSize: 9,
+            cellPadding: 4,
+            textColor: [51, 65, 85], // Slate-700
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252],
+          },
+        })
+
+        y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
       }
 
       // Service items table
