@@ -596,6 +596,19 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
           <p class="location-name">${distanceMiles ? `${Math.round(distanceMiles).toLocaleString()} miles` : '-'}</p>
         </div>
       </div>
+      ${data.inlandTransport!.static_map_url ? `
+        <div style="padding: 32px; border-bottom: 1px solid #f1f5f9;">
+          <h3 class="section-title" style="color: ${primaryColor}; margin-bottom: 16px;">
+            <svg style="width: 16px; height: 16px; margin-right: 8px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            Route Preview
+          </h3>
+          <div style="border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <img src="${data.inlandTransport!.static_map_url}" alt="Route map" style="width: 100%; height: auto; max-height: 250px; object-fit: cover; display: block;" />
+          </div>
+        </div>
+      ` : ''}
     `
   }
 
@@ -657,6 +670,19 @@ function renderLocationSection(data: UnifiedPDFData, primaryColor: string): stri
           <p class="location-name">${distanceMiles ? `${Math.round(distanceMiles).toLocaleString()} miles` : '-'}</p>
         </div>
       </div>
+      ${data.inlandTransport!.static_map_url ? `
+        <div style="padding: 32px; border-bottom: 1px solid #f1f5f9;">
+          <h3 class="section-title" style="color: ${primaryColor}; margin-bottom: 16px;">
+            <svg style="width: 16px; height: 16px; margin-right: 8px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            Route Preview
+          </h3>
+          <div style="border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <img src="${data.inlandTransport!.static_map_url}" alt="Route map" style="width: 100%; height: auto; max-height: 250px; object-fit: cover; display: block;" />
+          </div>
+        </div>
+      ` : ''}
     `
   }
 
