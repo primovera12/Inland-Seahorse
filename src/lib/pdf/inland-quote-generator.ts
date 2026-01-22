@@ -254,11 +254,102 @@ async function generateInlandQuotePDFWithLoadPlan(
 
     y += 30
 
-    // Load blocks (service items)
+    // Load blocks (cargo items and service items)
     for (const loadBlock of block.load_blocks) {
       if (y > 250) {
         doc.addPage()
         y = 20
+      }
+
+      // Load block header with truck type
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b)
+      doc.text(`Load - ${loadBlock.truck_type_name}`, margin, y)
+      y += 8
+
+      // Cargo Details Section
+      if (loadBlock.cargo_items && loadBlock.cargo_items.length > 0) {
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(100, 100, 100)
+        doc.text('Cargo Details:', margin, y)
+        y += 6
+
+        for (const cargo of loadBlock.cargo_items) {
+          if (y > 260) {
+            doc.addPage()
+            y = 20
+          }
+
+          // Determine cargo name/description
+          let cargoName = cargo.description
+          if (cargo.is_equipment) {
+            const makeName = cargo.equipment_make_name || cargo.custom_make_name || ''
+            const modelName = cargo.equipment_model_name || cargo.custom_model_name || ''
+            if (makeName || modelName) {
+              cargoName = `${makeName} ${modelName}`.trim()
+            }
+          }
+
+          // Draw cargo item box
+          doc.setFillColor(248, 250, 252)
+          doc.roundedRect(margin, y, pageWidth - margin * 2, 22, 2, 2, 'F')
+
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(0, 0, 0)
+          doc.text(cargoName, margin + 4, y + 6)
+
+          // Quantity badge if > 1
+          if (cargo.quantity > 1) {
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(100, 100, 100)
+            doc.text(`(Qty: ${cargo.quantity})`, margin + 4 + doc.getTextWidth(cargoName) + 3, y + 6)
+          }
+
+          // Cargo type badge (Equipment vs Standard Cargo)
+          const cargoTypeLabel = cargo.is_equipment ? 'Equipment' : 'Cargo'
+          const cargoTypeBadgeX = pageWidth - margin - 45
+          doc.setFillColor(cargo.is_equipment ? 59 : 99, cargo.is_equipment ? 130 : 102, cargo.is_equipment ? 246 : 241)
+          doc.roundedRect(cargoTypeBadgeX, y + 2, 40, 6, 1, 1, 'F')
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(255, 255, 255)
+          doc.text(cargoTypeLabel, cargoTypeBadgeX + 20, y + 6, { align: 'center' })
+
+          // Dimensions and Weight row
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(100, 100, 100)
+          const dimensionsText = `L: ${formatDimension(cargo.length_inches)} × W: ${formatDimension(cargo.width_inches)} × H: ${formatDimension(cargo.height_inches)}`
+          const weightText = `Weight: ${formatWeight(cargo.weight_lbs)}`
+          doc.text(dimensionsText, margin + 4, y + 14)
+          doc.text(weightText, margin + 4, y + 19)
+
+          // Oversize/Overweight badges
+          let badgeX = margin + 4 + doc.getTextWidth(weightText) + 5
+          if (cargo.is_oversize) {
+            doc.setFillColor(255, 237, 213)
+            doc.roundedRect(badgeX, y + 15, 22, 5, 1, 1, 'F')
+            doc.setFontSize(6)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(194, 65, 12)
+            doc.text('OVERSIZE', badgeX + 11, y + 18.5, { align: 'center' })
+            badgeX += 25
+          }
+          if (cargo.is_overweight) {
+            doc.setFillColor(254, 226, 226)
+            doc.roundedRect(badgeX, y + 15, 28, 5, 1, 1, 'F')
+            doc.setFontSize(6)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(185, 28, 28)
+            doc.text('OVERWEIGHT', badgeX + 14, y + 18.5, { align: 'center' })
+          }
+
+          y += 26
+        }
+        y += 4
       }
 
       const serviceData: string[][] = []
@@ -588,11 +679,102 @@ function generateInlandQuotePDFWithLogo(data: InlandQuotePDFData, logoBase64: st
 
     y += 30
 
-    // Load blocks
+    // Load blocks (cargo items and service items)
     block.load_blocks.forEach((loadBlock) => {
       if (y > 250) {
         doc.addPage()
         y = 20
+      }
+
+      // Load block header with truck type
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b)
+      doc.text(`Load - ${loadBlock.truck_type_name}`, margin, y)
+      y += 8
+
+      // Cargo Details Section
+      if (loadBlock.cargo_items && loadBlock.cargo_items.length > 0) {
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(100, 100, 100)
+        doc.text('Cargo Details:', margin, y)
+        y += 6
+
+        for (const cargo of loadBlock.cargo_items) {
+          if (y > 260) {
+            doc.addPage()
+            y = 20
+          }
+
+          // Determine cargo name/description
+          let cargoName = cargo.description
+          if (cargo.is_equipment) {
+            const makeName = cargo.equipment_make_name || cargo.custom_make_name || ''
+            const modelName = cargo.equipment_model_name || cargo.custom_model_name || ''
+            if (makeName || modelName) {
+              cargoName = `${makeName} ${modelName}`.trim()
+            }
+          }
+
+          // Draw cargo item box
+          doc.setFillColor(248, 250, 252)
+          doc.roundedRect(margin, y, pageWidth - margin * 2, 22, 2, 2, 'F')
+
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(0, 0, 0)
+          doc.text(cargoName, margin + 4, y + 6)
+
+          // Quantity badge if > 1
+          if (cargo.quantity > 1) {
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(100, 100, 100)
+            doc.text(`(Qty: ${cargo.quantity})`, margin + 4 + doc.getTextWidth(cargoName) + 3, y + 6)
+          }
+
+          // Cargo type badge (Equipment vs Standard Cargo)
+          const cargoTypeLabel = cargo.is_equipment ? 'Equipment' : 'Cargo'
+          const cargoTypeBadgeX = pageWidth - margin - 45
+          doc.setFillColor(cargo.is_equipment ? 59 : 99, cargo.is_equipment ? 130 : 102, cargo.is_equipment ? 246 : 241)
+          doc.roundedRect(cargoTypeBadgeX, y + 2, 40, 6, 1, 1, 'F')
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(255, 255, 255)
+          doc.text(cargoTypeLabel, cargoTypeBadgeX + 20, y + 6, { align: 'center' })
+
+          // Dimensions and Weight row
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(100, 100, 100)
+          const dimensionsText = `L: ${formatDimension(cargo.length_inches)} × W: ${formatDimension(cargo.width_inches)} × H: ${formatDimension(cargo.height_inches)}`
+          const weightText = `Weight: ${formatWeight(cargo.weight_lbs)}`
+          doc.text(dimensionsText, margin + 4, y + 14)
+          doc.text(weightText, margin + 4, y + 19)
+
+          // Oversize/Overweight badges
+          let badgeX = margin + 4 + doc.getTextWidth(weightText) + 5
+          if (cargo.is_oversize) {
+            doc.setFillColor(255, 237, 213)
+            doc.roundedRect(badgeX, y + 15, 22, 5, 1, 1, 'F')
+            doc.setFontSize(6)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(194, 65, 12)
+            doc.text('OVERSIZE', badgeX + 11, y + 18.5, { align: 'center' })
+            badgeX += 25
+          }
+          if (cargo.is_overweight) {
+            doc.setFillColor(254, 226, 226)
+            doc.roundedRect(badgeX, y + 15, 28, 5, 1, 1, 'F')
+            doc.setFontSize(6)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(185, 28, 28)
+            doc.text('OVERWEIGHT', badgeX + 14, y + 18.5, { align: 'center' })
+          }
+
+          y += 26
+        }
+        y += 4
       }
 
       // Service items table
