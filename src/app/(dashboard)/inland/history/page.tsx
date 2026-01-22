@@ -789,6 +789,9 @@ function DownloadQuoteMenuItem({ quoteId }: { quoteId: string }) {
     { enabled: false }
   )
 
+  // Track PDF downloads in activity history
+  const recordDownload = trpc.activity.recordPdfDownload.useMutation()
+
   const downloadQuote = async () => {
     setIsDownloading(true)
     try {
@@ -1048,6 +1051,14 @@ function DownloadQuoteMenuItem({ quoteId }: { quoteId: string }) {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
+
+      // Record the download in activity history
+      recordDownload.mutate({
+        quote_type: 'inland',
+        quote_id: quoteId,
+        quote_number: quote.quote_number || '',
+        customer_name: quote.customer_name || undefined,
+      })
 
       toast.success('Quote downloaded!')
     } catch (error) {
