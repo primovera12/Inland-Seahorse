@@ -149,7 +149,7 @@ export function AddressAutocomplete({
       autocompleteServiceRef.current?.getPlacePredictions(
         {
           input,
-          componentRestrictions: { country: 'us' },
+          componentRestrictions: { country: ['us', 'ca'] },
           types: ['geocode', 'establishment'],
           sessionToken: sessionTokenRef.current!,
         },
