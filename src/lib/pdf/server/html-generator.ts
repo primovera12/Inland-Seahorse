@@ -993,10 +993,10 @@ function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: strin
 
   let loadBlocksHtml = ''
   inlandTransport.load_blocks.forEach((block, blockIndex) => {
-    // Cargo items section
+    // Cargo items section - matches preview layout with cargo name as title, then dimensions below
     let cargoItemsHtml = ''
     if (block.cargo_items && block.cargo_items.length > 0) {
-      const cargoRows = block.cargo_items.map(cargo => {
+      const cargoItems = block.cargo_items.map(cargo => {
         // Determine cargo type name
         let cargoTypeName = cargo.description || 'Cargo'
         if (cargo.is_equipment) {
@@ -1006,9 +1006,6 @@ function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: strin
             cargoTypeName = [cargo.equipment_make_name, cargo.equipment_model_name].filter(Boolean).join(' ') || 'Equipment'
           }
         }
-
-        // Add quantity to name if > 1
-        const qtyDisplay = cargo.quantity > 1 ? ` <span style="font-weight: 400; color: #64748b;">(Qty: ${cargo.quantity})</span>` : ''
 
         // Add oversize/overweight badges
         let badges = ''
@@ -1020,37 +1017,42 @@ function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: strin
         }
 
         return `
-          <tr>
-            <td style="padding: 12px 16px; font-size: 14px; font-weight: 700; color: #0f172a;">${cargoTypeName}${qtyDisplay}${badges}</td>
-            <td style="padding: 12px 16px; font-size: 14px; text-align: center; color: #334155;">${formatDimension(cargo.length_inches)}</td>
-            <td style="padding: 12px 16px; font-size: 14px; text-align: center; color: #334155;">${formatDimension(cargo.width_inches)}</td>
-            <td style="padding: 12px 16px; font-size: 14px; text-align: center; color: #334155;">${formatDimension(cargo.height_inches)}</td>
-            <td style="padding: 12px 16px; font-size: 14px; text-align: right; color: #334155;">${formatWeight(cargo.weight_lbs)}</td>
-          </tr>
+          <div style="padding: 16px 24px; border-bottom: 1px solid #f1f5f9;">
+            <!-- Cargo Title -->
+            <p style="font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 12px 0;">
+              ${cargoTypeName}${cargo.quantity > 1 ? `<span style="font-weight: 400; color: #64748b; margin-left: 8px;">(Qty: ${cargo.quantity})</span>` : ''}${badges}
+            </p>
+            <!-- Dimensions Grid -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+              <div>
+                <span style="font-size: 12px; color: #64748b; display: block;">Length</span>
+                <p style="font-size: 14px; font-weight: 500; color: #334155; margin: 4px 0 0 0;">${formatDimension(cargo.length_inches)}</p>
+              </div>
+              <div>
+                <span style="font-size: 12px; color: #64748b; display: block;">Width</span>
+                <p style="font-size: 14px; font-weight: 500; color: #334155; margin: 4px 0 0 0;">${formatDimension(cargo.width_inches)}</p>
+              </div>
+              <div>
+                <span style="font-size: 12px; color: #64748b; display: block;">Height</span>
+                <p style="font-size: 14px; font-weight: 500; color: #334155; margin: 4px 0 0 0;">${formatDimension(cargo.height_inches)}</p>
+              </div>
+              <div>
+                <span style="font-size: 12px; color: #64748b; display: block;">Weight</span>
+                <p style="font-size: 14px; font-weight: 500; color: #334155; margin: 4px 0 0 0;">${formatWeight(cargo.weight_lbs)}</p>
+              </div>
+            </div>
+          </div>
         `
       }).join('')
 
       cargoItemsHtml = `
         <div style="margin-bottom: 16px; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
-          <div style="padding: 12px 16px; background: #f1f5f9;">
+          <div style="padding: 12px 24px; background: #f1f5f9;">
             <h4 style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin: 0;">
               Cargo Details
             </h4>
           </div>
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: #f8fafc;">
-                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: left;">Cargo Type</th>
-                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: center;">Length</th>
-                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: center;">Width</th>
-                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: center;">Height</th>
-                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: right;">Weight</th>
-              </tr>
-            </thead>
-            <tbody style="border-top: 1px solid #e2e8f0;">
-              ${cargoRows}
-            </tbody>
-          </table>
+          ${cargoItems}
         </div>
       `
     }
