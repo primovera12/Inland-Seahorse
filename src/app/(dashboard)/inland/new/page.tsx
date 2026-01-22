@@ -204,6 +204,7 @@ export default function NewInlandQuotePage() {
               is_oversize: cargo.is_oversize,
               is_overweight: cargo.is_overweight,
               is_equipment: cargo.is_equipment,
+              is_custom_equipment: cargo.is_custom_equipment,
               equipment_make_name: cargo.equipment_make_name,
               equipment_model_name: cargo.equipment_model_name,
               custom_make_name: cargo.custom_make_name,

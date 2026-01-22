@@ -159,6 +159,7 @@ export interface InlandCargoItem {
   is_overweight?: boolean
   // Equipment fields
   is_equipment?: boolean
+  is_custom_equipment?: boolean // True when manually entering equipment not in database
   equipment_make_name?: string
   equipment_model_name?: string
   custom_make_name?: string
@@ -466,6 +467,27 @@ export function buildUnifiedPDFData(params: {
       pickup?: { address: string; city: string; state: string; zip: string }
       dropoff?: { address: string; city: string; state: string; zip: string }
       use_custom_locations?: boolean
+      cargo_items?: Array<{
+        id: string
+        description: string
+        quantity: number
+        length_inches: number
+        width_inches: number
+        height_inches: number
+        weight_lbs: number
+        is_oversize?: boolean
+        is_overweight?: boolean
+        is_equipment?: boolean
+        is_custom_equipment?: boolean
+        equipment_make_name?: string
+        equipment_model_name?: string
+        custom_make_name?: string
+        custom_model_name?: string
+        image_url?: string
+        image_url_2?: string
+        front_image_url?: string
+        side_image_url?: string
+      }>
       service_items: Array<{
         id: string
         name: string
@@ -626,6 +648,7 @@ export function buildUnifiedPDFData(params: {
             pickup: block.pickup,
             dropoff: block.dropoff,
             use_custom_locations: block.use_custom_locations,
+            cargo_items: block.cargo_items,
             service_items: block.service_items,
             accessorial_charges: block.accessorial_charges,
             subtotal: block.subtotal,
