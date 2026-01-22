@@ -967,6 +967,68 @@ function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: strin
 
   let loadBlocksHtml = ''
   inlandTransport.load_blocks.forEach((block, blockIndex) => {
+    // Cargo items section
+    let cargoItemsHtml = ''
+    if (block.cargo_items && block.cargo_items.length > 0) {
+      const cargoRows = block.cargo_items.map(cargo => {
+        // Determine cargo type name
+        let cargoTypeName = cargo.description || 'Cargo'
+        if (cargo.is_equipment) {
+          if (cargo.is_custom_equipment) {
+            cargoTypeName = [cargo.custom_make_name, cargo.custom_model_name].filter(Boolean).join(' ') || 'Equipment'
+          } else {
+            cargoTypeName = [cargo.equipment_make_name, cargo.equipment_model_name].filter(Boolean).join(' ') || 'Equipment'
+          }
+        }
+
+        // Add quantity to name if > 1
+        const qtyDisplay = cargo.quantity > 1 ? ` <span style="font-weight: 400; color: #64748b;">(Qty: ${cargo.quantity})</span>` : ''
+
+        // Add oversize/overweight badges
+        let badges = ''
+        if (cargo.is_oversize) {
+          badges += `<span style="display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #ffedd5; color: #c2410c; text-transform: uppercase; margin-left: 8px;">Oversize</span>`
+        }
+        if (cargo.is_overweight) {
+          badges += `<span style="display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #fee2e2; color: #dc2626; text-transform: uppercase; margin-left: 8px;">Overweight</span>`
+        }
+
+        return `
+          <tr>
+            <td style="padding: 12px 16px; font-size: 14px; font-weight: 700; color: #0f172a;">${cargoTypeName}${qtyDisplay}${badges}</td>
+            <td style="padding: 12px 16px; font-size: 14px; text-align: center; color: #334155;">${formatDimension(cargo.length_inches)}</td>
+            <td style="padding: 12px 16px; font-size: 14px; text-align: center; color: #334155;">${formatDimension(cargo.width_inches)}</td>
+            <td style="padding: 12px 16px; font-size: 14px; text-align: center; color: #334155;">${formatDimension(cargo.height_inches)}</td>
+            <td style="padding: 12px 16px; font-size: 14px; text-align: right; color: #334155;">${formatWeight(cargo.weight_lbs)}</td>
+          </tr>
+        `
+      }).join('')
+
+      cargoItemsHtml = `
+        <div style="margin-bottom: 16px; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
+          <div style="padding: 12px 16px; background: #f1f5f9;">
+            <h4 style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin: 0;">
+              Cargo Details
+            </h4>
+          </div>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8fafc;">
+                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: left;">Cargo Type</th>
+                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: center;">Length</th>
+                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: center;">Width</th>
+                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: center;">Height</th>
+                <th style="padding: 8px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: right;">Weight</th>
+              </tr>
+            </thead>
+            <tbody style="border-top: 1px solid #e2e8f0;">
+              ${cargoRows}
+            </tbody>
+          </table>
+        </div>
+      `
+    }
+
     // Service items table
     let serviceItemsHtml = ''
     if (block.service_items.length > 0) {
@@ -1057,6 +1119,7 @@ function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: strin
           </div>
           <span style="font-size: 14px; font-weight: 700; color: ${primaryColor};">${formatCurrency(block.subtotal)}</span>
         </div>
+        ${cargoItemsHtml}
         ${serviceItemsHtml}
         ${accessorialsHtml}
       </div>
