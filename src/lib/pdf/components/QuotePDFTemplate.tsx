@@ -65,7 +65,7 @@ function HeaderSection({ data }: { data: UnifiedPDFData }) {
       {/* Quote Info */}
       <div className="text-right">
         <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>
-          {data.quoteType === 'dismantle' ? 'QUOTATION' : 'INLAND QUOTATION'}
+          QUOTATION
         </h1>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <span className="text-slate-500 font-medium">Quote ID</span>

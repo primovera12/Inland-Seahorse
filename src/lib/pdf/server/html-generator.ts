@@ -490,7 +490,7 @@ function renderHeader(data: UnifiedPDFData, primaryColor: string): string {
         </div>
       </div>
       <div class="quote-info">
-        <h1 class="quote-title">${data.quoteType === 'dismantle' ? 'QUOTATION' : 'INLAND QUOTATION'}</h1>
+        <h1 class="quote-title">QUOTATION</h1>
         <div class="quote-details">
           <span class="label">Quote ID</span>
           <span class="value">#${data.quoteNumber}</span>

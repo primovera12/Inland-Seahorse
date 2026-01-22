@@ -109,7 +109,7 @@ export function getLocationInfo(location: string): { name: string; address: stri
 
 // Generate quote title based on type
 export function getQuoteTitle(quoteType: 'dismantle' | 'inland'): string {
-  return quoteType === 'dismantle' ? 'QUOTATION' : 'INLAND QUOTATION'
+  return 'QUOTATION'
 }
 
 // Default primary color (navy blue from template)
