@@ -3,14 +3,17 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
 import { CustomerForm, type CustomerAddress } from '@/components/quotes/customer-form'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { trpc } from '@/lib/trpc/client'
-import { generateInlandQuoteNumber, formatCurrency, formatDate } from '@/lib/utils'
+import { generateInlandQuoteNumber, formatCurrency, formatDate, formatWholeDollars, parseWholeDollarsToCents } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   MapPin,
@@ -25,7 +28,6 @@ import {
   Trash2,
   FileText,
   FileWarning,
-  Settings,
   ClipboardCheck,
 } from 'lucide-react'
 
@@ -37,17 +39,53 @@ import { TruckSelector } from '@/components/load-planner/TruckSelector'
 import { RouteIntelligence } from '@/components/load-planner/RouteIntelligence'
 import {
   planLoads,
-  selectTrucks,
   type LoadItem,
   type LoadPlan,
   type TruckType,
   type CargoSpecs,
 } from '@/lib/load-planner'
 import type { RouteResult } from '@/lib/load-planner/route-calculator'
-import { ServicesSelector, DEFAULT_SERVICES, calculateServicesTotal, type AccessorialServices } from '@/components/inland-quote/ServicesSelector'
+import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
 import { QuoteReview } from '@/components/inland-quote/QuoteReview'
-import { PDFPreview } from '@/components/inland-quote/PDFPreview'
+import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
 import { useRouter } from 'next/navigation'
+
+// Predefined service types for inland transportation
+const PREDEFINED_SERVICES = [
+  { value: 'line_haul', label: 'Line Haul' },
+  { value: 'fuel_surcharge', label: 'Fuel Surcharge' },
+  { value: 'driver_assist', label: 'Driver Assist' },
+  { value: 'tarp', label: 'Tarp' },
+  { value: 'oversize_permit', label: 'Oversize Permit' },
+  { value: 'overweight_permit', label: 'Overweight Permit' },
+  { value: 'escort', label: 'Escort Service' },
+  { value: 'detention', label: 'Detention' },
+  { value: 'layover', label: 'Layover' },
+  { value: 'stop_off', label: 'Stop Off' },
+  { value: 'loading', label: 'Loading' },
+  { value: 'unloading', label: 'Unloading' },
+  { value: 'rigging', label: 'Rigging' },
+  { value: 'crane', label: 'Crane Service' },
+  { value: 'forklift', label: 'Forklift Service' },
+  { value: 'storage', label: 'Storage' },
+  { value: 'expedited', label: 'Expedited Service' },
+  { value: 'team_drivers', label: 'Team Drivers' },
+  { value: 'weekend_delivery', label: 'Weekend Delivery' },
+  { value: 'after_hours', label: 'After Hours Delivery' },
+  { value: 'inside_delivery', label: 'Inside Delivery' },
+  { value: 'liftgate', label: 'Liftgate' },
+  { value: 'residential', label: 'Residential Delivery' },
+  { value: 'custom', label: 'Custom Service' },
+]
+
+interface ServiceItem {
+  id: string
+  name: string
+  rate: number // in cents
+  quantity: number
+  total: number // in cents
+  truckIndex?: number // optional - for per-truck pricing
+}
 
 export default function NewInlandQuoteV2Page() {
   const router = useRouter()
@@ -72,6 +110,8 @@ export default function NewInlandQuoteV2Page() {
   const [dropoffLat, setDropoffLat] = useState<number>()
   const [dropoffLng, setDropoffLng] = useState<number>()
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null)
+  const [durationMinutes, setDurationMinutes] = useState<number | null>(null)
+  const [routePolyline, setRoutePolyline] = useState<string>('')
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
 
   // Cargo state (NEW - using feet, AI-parsed)
@@ -99,14 +139,13 @@ export default function NewInlandQuoteV2Page() {
   const [internalNotes, setInternalNotes] = useState('')
   const [quoteNotes, setQuoteNotes] = useState('')
 
-  // Pricing
-  const [lineHaulRate, setLineHaulRate] = useState(0)
-  const [fuelSurcharge, setFuelSurcharge] = useState(0)
-  const [accessorialFees, setAccessorialFees] = useState(0)
+  // Services/Pricing (merged)
+  const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
+  const [pricingPerTruck, setPricingPerTruck] = useState(false)
 
-  // Services/Accessorials
-  const [services, setServices] = useState<AccessorialServices>(DEFAULT_SERVICES)
-  const servicesTotal = useMemo(() => calculateServicesTotal(services), [services])
+  // Fetch settings for PDF and service types
+  const { data: settings } = trpc.settings.get.useQuery()
+  const { data: serviceTypes } = trpc.inland.getServiceTypes.useQuery()
 
   // Generate quote number on mount
   useEffect(() => {
@@ -152,12 +191,56 @@ export default function NewInlandQuoteV2Page() {
     setLoadPlan(plan)
   }, [cargoItems])
 
-  // Calculate totals
-  const subtotal = useMemo(() => {
-    return lineHaulRate + fuelSurcharge + accessorialFees
-  }, [lineHaulRate, fuelSurcharge, accessorialFees])
+  // Calculate totals from service items
+  const grandTotal = useMemo(() => {
+    return serviceItems.reduce((sum, s) => sum + s.total, 0)
+  }, [serviceItems])
 
-  const total = subtotal
+  // Service item functions
+  const addServiceItem = (truckIndex?: number) => {
+    const newService: ServiceItem = {
+      id: crypto.randomUUID(),
+      name: 'Line Haul',
+      rate: 0,
+      quantity: 1,
+      total: 0,
+      truckIndex: pricingPerTruck ? truckIndex : undefined,
+    }
+    setServiceItems([...serviceItems, newService])
+  }
+
+  const updateServiceItem = (index: number, field: keyof ServiceItem, value: string | number) => {
+    const newServices = [...serviceItems]
+    const service = { ...newServices[index] }
+
+    if (field === 'rate') {
+      service.rate = typeof value === 'number' ? value : parseWholeDollarsToCents(String(value))
+      service.total = service.rate * service.quantity
+    } else if (field === 'quantity') {
+      service.quantity = typeof value === 'number' ? value : parseInt(String(value)) || 1
+      service.total = service.rate * service.quantity
+    } else if (field === 'name') {
+      service.name = String(value)
+    }
+
+    newServices[index] = service
+    setServiceItems(newServices)
+  }
+
+  const removeServiceItem = (index: number) => {
+    setServiceItems(serviceItems.filter((_, i) => i !== index))
+  }
+
+  // Service options from database or fallback
+  const serviceOptions = useMemo(() => {
+    if (serviceTypes && serviceTypes.length > 0) {
+      return [
+        ...serviceTypes.map(s => ({ value: s.id, label: s.name })),
+        { value: 'custom', label: 'Custom Service' }
+      ]
+    }
+    return PREDEFINED_SERVICES
+  }, [serviceTypes])
 
   // Calculate cargo specs for permit calculation
   const cargoSpecs: CargoSpecs | null = useMemo(() => {
@@ -247,6 +330,41 @@ export default function NewInlandQuoteV2Page() {
     })
   }
 
+  // Reset form function
+  const resetForm = useCallback(() => {
+    setQuoteNumber(generateInlandQuoteNumber())
+    setPickupAddress('')
+    setPickupCity('')
+    setPickupState('')
+    setPickupZip('')
+    setPickupLat(undefined)
+    setPickupLng(undefined)
+    setDropoffAddress('')
+    setDropoffCity('')
+    setDropoffState('')
+    setDropoffZip('')
+    setDropoffLat(undefined)
+    setDropoffLng(undefined)
+    setDistanceMiles(null)
+    setDurationMinutes(null)
+    setRoutePolyline('')
+    setRouteResult(null)
+    setCargoItems([])
+    setLoadPlan(null)
+    setCustomerName('')
+    setCustomerEmail('')
+    setCustomerPhone('')
+    setCustomerCompany('')
+    setCustomerAddress({ address: '', city: '', state: '', zip: '' })
+    setSelectedCompanyId(null)
+    setInternalNotes('')
+    setQuoteNotes('')
+    setServiceItems([])
+    setPricingPerTruck(false)
+    setActiveTab('customer')
+    toast.success('Quote cleared')
+  }, [])
+
   // TRPC utils
   const utils = trpc.useUtils()
 
@@ -293,8 +411,8 @@ export default function NewInlandQuoteV2Page() {
       customer_phone: customerPhone || undefined,
       customer_company: customerCompany || undefined,
       company_id: selectedCompanyId || undefined,
-      subtotal: subtotal * 100, // Convert to cents
-      total: total * 100,
+      subtotal: grandTotal,
+      total: grandTotal,
       quote_data: {
         version: 2, // Mark as v2 quote with load planner
         pickup: {
@@ -314,6 +432,8 @@ export default function NewInlandQuoteV2Page() {
           lng: dropoffLng,
         },
         distance_miles: distanceMiles,
+        duration_minutes: durationMinutes,
+        route_polyline: routePolyline,
         cargo_items: legacyCargoItems,
         load_plan: loadPlan
           ? {
@@ -335,17 +455,147 @@ export default function NewInlandQuoteV2Page() {
               warnings: loadPlan.warnings,
             }
           : null,
-        pricing: {
-          lineHaulRate,
-          fuelSurcharge,
-          accessorialFees,
-        },
+        service_items: serviceItems,
+        pricing_per_truck: pricingPerTruck,
         internalNotes,
         quoteNotes,
         customerAddress,
       },
     })
   }
+
+  // Build PDF data for automatic preview
+  const pdfData: UnifiedPDFData | null = useMemo(() => {
+    if (!settings) return null
+
+    return {
+      quoteType: 'inland' as const,
+      quoteNumber,
+      issueDate: formatDate(new Date()),
+      validUntil: (() => {
+        const date = new Date()
+        date.setDate(date.getDate() + (settings.quote_validity_days || 30))
+        return formatDate(date)
+      })(),
+      company: {
+        name: settings.company_name,
+        address: [settings.company_address, settings.company_city, settings.company_state, settings.company_zip].filter(Boolean).join(', ') || undefined,
+        phone: settings.company_phone,
+        email: settings.company_email,
+        website: settings.company_website,
+        logoUrl: settings.company_logo_url,
+        logoSizePercentage: settings.logo_size_percentage || 100,
+        primaryColor: settings.primary_color || '#1e3a8a',
+        secondaryColor: settings.secondary_color,
+      },
+      customer: {
+        name: customerName || 'N/A',
+        company: customerCompany || undefined,
+        email: customerEmail || undefined,
+        phone: customerPhone || undefined,
+      },
+      equipment: [],
+      isMultiEquipment: false,
+      inlandTransport: {
+        enabled: true,
+        pickup: {
+          address: pickupAddress,
+          city: pickupCity,
+          state: pickupState,
+          zip: pickupZip,
+        },
+        dropoff: {
+          address: dropoffAddress,
+          city: dropoffCity,
+          state: dropoffState,
+          zip: dropoffZip,
+        },
+        total: grandTotal,
+        destinationBlocks: [{
+          id: 'main',
+          label: 'A',
+          pickup_address: pickupAddress,
+          pickup_city: pickupCity,
+          pickup_state: pickupState,
+          pickup_zip: pickupZip,
+          dropoff_address: dropoffAddress,
+          dropoff_city: dropoffCity,
+          dropoff_state: dropoffState,
+          dropoff_zip: dropoffZip,
+          distance_miles: distanceMiles || undefined,
+          duration_minutes: durationMinutes || undefined,
+          route_polyline: routePolyline || undefined,
+          load_blocks: loadPlan?.loads.map(load => ({
+            id: load.id,
+            truck_type_id: load.recommendedTruck.id,
+            truck_type_name: load.recommendedTruck.name,
+            cargo_items: load.items.map(item => ({
+              id: item.id,
+              description: item.description,
+              quantity: item.quantity,
+              length_inches: item.length * 12,
+              width_inches: item.width * 12,
+              height_inches: item.height * 12,
+              weight_lbs: item.weight,
+              is_oversize: item.width > 8.5 || item.height > 10,
+              is_overweight: item.weight > 48000,
+            })),
+            service_items: serviceItems
+              .filter(s => !pricingPerTruck || s.truckIndex === loadPlan?.loads.indexOf(load))
+              .map(s => ({
+                id: s.id,
+                name: s.name,
+                rate: s.rate,
+                quantity: s.quantity,
+                total: s.total,
+              })),
+            accessorial_charges: [],
+            subtotal: serviceItems
+              .filter(s => !pricingPerTruck || s.truckIndex === loadPlan?.loads.indexOf(load))
+              .reduce((sum, s) => sum + s.total, 0),
+            accessorials_total: 0,
+          })) || [],
+          subtotal: grandTotal,
+        }],
+        load_blocks: loadPlan?.loads.map(load => ({
+          id: load.id,
+          truck_type_id: load.recommendedTruck.id,
+          truck_type_name: load.recommendedTruck.name,
+          cargo_items: load.items.map(item => ({
+            id: item.id,
+            description: item.description,
+            quantity: item.quantity,
+            length_inches: item.length * 12,
+            width_inches: item.width * 12,
+            height_inches: item.height * 12,
+            weight_lbs: item.weight,
+            is_oversize: item.width > 8.5 || item.height > 10,
+            is_overweight: item.weight > 48000,
+          })),
+          service_items: serviceItems.map(s => ({
+            id: s.id,
+            name: s.name,
+            rate: s.rate,
+            quantity: s.quantity,
+            total: s.total,
+          })),
+          accessorial_charges: [],
+          subtotal: grandTotal,
+          accessorials_total: 0,
+        })) || [],
+        distance_miles: distanceMiles || undefined,
+        duration_minutes: durationMinutes || undefined,
+        static_map_url: pickupLat && pickupLng && dropoffLat && dropoffLng
+          ? `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${pickupLat},${pickupLng}&markers=color:red|label:B|${dropoffLat},${dropoffLng}${routePolyline ? `&path=color:0x4285F4|weight:4|enc:${encodeURIComponent(routePolyline)}` : ''}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+          : undefined,
+      },
+      equipmentSubtotal: 0,
+      miscFeesTotal: 0,
+      inlandTotal: grandTotal,
+      grandTotal: grandTotal,
+      customerNotes: quoteNotes || undefined,
+    }
+  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, pricingPerTruck, grandTotal, quoteNotes])
 
   return (
     <div className="space-y-6">
@@ -361,10 +611,16 @@ export default function NewInlandQuoteV2Page() {
             </div>
             <p className="text-sm sm:text-base text-muted-foreground">Quote #{quoteNumber}</p>
           </div>
-          <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
-            <Save className="h-4 w-4 mr-2" />
-            {createQuote.isPending ? 'Saving...' : 'Save Quote'}
-          </Button>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
+              <Save className="h-4 w-4 mr-2" />
+              {createQuote.isPending ? 'Saving...' : 'Save Quote'}
+            </Button>
+            <Button variant="outline" onClick={resetForm}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear Quote
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -395,10 +651,6 @@ export default function NewInlandQuoteV2Page() {
               <TabsTrigger value="permits" className="flex items-center gap-1 flex-shrink-0">
                 <FileWarning className="h-4 w-4" />
                 <span className="hidden sm:inline">Permits</span>
-              </TabsTrigger>
-              <TabsTrigger value="services" className="flex items-center gap-1 flex-shrink-0">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Services</span>
               </TabsTrigger>
               <TabsTrigger value="review" className="flex items-center gap-1 flex-shrink-0">
                 <ClipboardCheck className="h-4 w-4" />
@@ -514,6 +766,17 @@ export default function NewInlandQuoteV2Page() {
                 </CardContent>
               </Card>
 
+              {/* Route Map with Calculate button */}
+              <SimpleRouteMap
+                origin={pickupAddress}
+                destination={dropoffAddress}
+                onRouteCalculated={(data) => {
+                  setDistanceMiles(data.distanceMiles)
+                  setDurationMinutes(data.durationMinutes)
+                  setRoutePolyline(data.polyline)
+                }}
+              />
+
               <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setActiveTab('customer')}>
                   Back
@@ -608,67 +871,229 @@ export default function NewInlandQuoteV2Page() {
             </TabsContent>
 
             {/* Pricing Tab */}
+            {/* Pricing Tab (with merged Services) */}
             <TabsContent value="pricing" className="space-y-4 mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Pricing</CardTitle>
-                  <CardDescription>Enter transportation rates and fees</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Line Haul Rate</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          className="flex h-10 w-full rounded-md border border-input bg-background pl-7 pr-3 py-2 text-sm font-mono"
-                          value={lineHaulRate || ''}
-                          onChange={(e) => setLineHaulRate(parseFloat(e.target.value) || 0)}
-                          placeholder="0"
-                        />
-                      </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5" />
+                        Services & Pricing
+                      </CardTitle>
+                      <CardDescription>Add services and set pricing for this quote</CardDescription>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Fuel Surcharge</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          className="flex h-10 w-full rounded-md border border-input bg-background pl-7 pr-3 py-2 text-sm font-mono"
-                          value={fuelSurcharge || ''}
-                          onChange={(e) => setFuelSurcharge(parseFloat(e.target.value) || 0)}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Accessorial Fees</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          className="flex h-10 w-full rounded-md border border-input bg-background pl-7 pr-3 py-2 text-sm font-mono"
-                          value={accessorialFees || ''}
-                          onChange={(e) => setAccessorialFees(parseFloat(e.target.value) || 0)}
-                          placeholder="0"
-                        />
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="per-truck-pricing" className="text-sm">Price per truck</Label>
+                      <Switch
+                        id="per-truck-pricing"
+                        checked={pricingPerTruck}
+                        onCheckedChange={setPricingPerTruck}
+                      />
                     </div>
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!pricingPerTruck ? (
+                    // Regular pricing - all services together
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Services</Label>
+                        <Button variant="outline" size="sm" onClick={() => addServiceItem()}>
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Service
+                        </Button>
+                      </div>
+
+                      {serviceItems.length === 0 ? (
+                        <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg bg-muted/30">
+                          No services added. Click &quot;Add Service&quot; to add line haul, fuel surcharge, and other charges.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {serviceItems.map((service, index) => {
+                            const matchedService = serviceOptions.find(s => s.label === service.name)
+                            const isCustomService = !matchedService || matchedService.value === 'custom'
+                            const dropdownValue = matchedService?.value || 'custom'
+
+                            return (
+                              <div key={service.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30">
+                                <SearchableSelect
+                                  value={dropdownValue}
+                                  onChange={(value) => {
+                                    const selected = serviceOptions.find(s => s.value === value)
+                                    if (selected) {
+                                      updateServiceItem(index, 'name', selected.label)
+                                      if (serviceTypes && value !== 'custom') {
+                                        const dbService = serviceTypes.find(s => s.id === value)
+                                        if (dbService && dbService.default_rate_cents > 0) {
+                                          updateServiceItem(index, 'rate', dbService.default_rate_cents)
+                                        }
+                                      }
+                                    }
+                                  }}
+                                  options={serviceOptions.map((s): SearchableSelectOption => ({
+                                    value: s.value,
+                                    label: s.label,
+                                  }))}
+                                  placeholder="Select service"
+                                  searchPlaceholder="Search services..."
+                                  className="w-full sm:w-[180px]"
+                                />
+                                {isCustomService && (
+                                  <Input
+                                    className="flex-1 min-w-[120px]"
+                                    placeholder="Enter custom service name"
+                                    value={service.name === 'Custom Service' ? '' : service.name}
+                                    onChange={(e) => updateServiceItem(index, 'name', e.target.value || 'Custom Service')}
+                                  />
+                                )}
+                                <Input
+                                  className="w-16 sm:w-20"
+                                  type="number"
+                                  min={1}
+                                  value={service.quantity}
+                                  onChange={(e) => updateServiceItem(index, 'quantity', e.target.value)}
+                                  placeholder="Qty"
+                                />
+                                <div className="relative w-24 sm:w-28">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                                  <Input
+                                    className="pl-5 text-right font-mono"
+                                    placeholder="0"
+                                    value={formatWholeDollars(service.rate)}
+                                    onChange={(e) => updateServiceItem(index, 'rate', e.target.value)}
+                                  />
+                                </div>
+                                <span className="w-20 sm:w-24 text-right font-mono text-sm">
+                                  ${formatWholeDollars(service.total)}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeServiceItem(index)}
+                                  className="shrink-0"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Per-truck pricing
+                    <div className="space-y-6">
+                      {loadPlan && loadPlan.loads.length > 0 ? (
+                        loadPlan.loads.map((load, truckIndex) => (
+                          <div key={load.id} className="space-y-3 p-4 border rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                                  {truckIndex + 1}
+                                </div>
+                                <Label className="font-medium">{load.recommendedTruck.name}</Label>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={() => addServiceItem(truckIndex)}>
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add
+                              </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                              {serviceItems
+                                .map((service, index) => ({ service, index }))
+                                .filter(({ service }) => service.truckIndex === truckIndex)
+                                .map(({ service, index }) => {
+                                  const matchedService = serviceOptions.find(s => s.label === service.name)
+                                  const isCustomService = !matchedService || matchedService.value === 'custom'
+                                  const dropdownValue = matchedService?.value || 'custom'
+
+                                  return (
+                                    <div key={service.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30">
+                                      <SearchableSelect
+                                        value={dropdownValue}
+                                        onChange={(value) => {
+                                          const selected = serviceOptions.find(s => s.value === value)
+                                          if (selected) {
+                                            updateServiceItem(index, 'name', selected.label)
+                                            if (serviceTypes && value !== 'custom') {
+                                              const dbService = serviceTypes.find(s => s.id === value)
+                                              if (dbService && dbService.default_rate_cents > 0) {
+                                                updateServiceItem(index, 'rate', dbService.default_rate_cents)
+                                              }
+                                            }
+                                          }
+                                        }}
+                                        options={serviceOptions.map((s): SearchableSelectOption => ({
+                                          value: s.value,
+                                          label: s.label,
+                                        }))}
+                                        placeholder="Select service"
+                                        searchPlaceholder="Search services..."
+                                        className="w-full sm:w-[180px]"
+                                      />
+                                      {isCustomService && (
+                                        <Input
+                                          className="flex-1 min-w-[120px]"
+                                          placeholder="Custom service name"
+                                          value={service.name === 'Custom Service' ? '' : service.name}
+                                          onChange={(e) => updateServiceItem(index, 'name', e.target.value || 'Custom Service')}
+                                        />
+                                      )}
+                                      <Input
+                                        className="w-16"
+                                        type="number"
+                                        min={1}
+                                        value={service.quantity}
+                                        onChange={(e) => updateServiceItem(index, 'quantity', e.target.value)}
+                                      />
+                                      <div className="relative w-24">
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                                        <Input
+                                          className="pl-5 text-right font-mono"
+                                          value={formatWholeDollars(service.rate)}
+                                          onChange={(e) => updateServiceItem(index, 'rate', e.target.value)}
+                                        />
+                                      </div>
+                                      <span className="w-20 text-right font-mono text-sm">
+                                        ${formatWholeDollars(service.total)}
+                                      </span>
+                                      <Button variant="ghost" size="icon" onClick={() => removeServiceItem(index)}>
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )
+                                })}
+                            </div>
+
+                            <div className="flex justify-between text-sm pt-2 border-t">
+                              <span>Truck {truckIndex + 1} Total</span>
+                              <span className="font-mono font-medium">
+                                {formatCurrency(
+                                  serviceItems
+                                    .filter(s => s.truckIndex === truckIndex)
+                                    .reduce((sum, s) => sum + s.total, 0)
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg bg-muted/30">
+                          Add cargo and trucks first to enable per-truck pricing.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <Separator />
 
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-lg font-medium">Total</span>
+                    <span className="text-lg font-medium">Grand Total</span>
                     <span className="text-2xl font-bold font-mono text-primary">
-                      {formatCurrency(total * 100)}
+                      {formatCurrency(grandTotal)}
                     </span>
                   </div>
                 </CardContent>
@@ -879,30 +1304,14 @@ export default function NewInlandQuoteV2Page() {
                 <Button variant="outline" onClick={() => setActiveTab('pricing')}>
                   Back
                 </Button>
-                <Button onClick={() => setActiveTab('services')} className="flex-1">
-                  Continue to Services
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* Services Tab - NEW */}
-            <TabsContent value="services" className="space-y-4 mt-4">
-              <ServicesSelector
-                services={services}
-                onServicesChange={setServices}
-              />
-
-              <div className="flex gap-4">
-                <Button variant="outline" onClick={() => setActiveTab('permits')}>
-                  Back
-                </Button>
                 <Button onClick={() => setActiveTab('review')} className="flex-1">
                   Continue to Review
                 </Button>
               </div>
             </TabsContent>
 
-            {/* Review Tab - NEW */}
+            {/* Services Tab - NEW */}
+            {/* Review Tab */}
             <TabsContent value="review" className="space-y-4 mt-4">
               <QuoteReview
                 customerName={customerName}
@@ -918,10 +1327,31 @@ export default function NewInlandQuoteV2Page() {
                 distanceMiles={distanceMiles}
                 cargoItems={cargoItems}
                 loadPlan={loadPlan}
-                lineHaulRate={lineHaulRate}
-                fuelSurcharge={fuelSurcharge}
-                servicesTotal={servicesTotal}
-                services={services}
+                lineHaulRate={serviceItems.find(s => s.name === 'Line Haul')?.total ? serviceItems.find(s => s.name === 'Line Haul')!.total / 100 : 0}
+                fuelSurcharge={serviceItems.find(s => s.name === 'Fuel Surcharge')?.total ? serviceItems.find(s => s.name === 'Fuel Surcharge')!.total / 100 : 0}
+                servicesTotal={grandTotal / 100}
+                services={{
+                  insidePickup: false,
+                  liftgatePickup: false,
+                  residentialPickup: false,
+                  limitedAccessPickup: false,
+                  appointmentPickup: false,
+                  insideDelivery: serviceItems.some(s => s.name === 'Inside Delivery'),
+                  liftgateDelivery: serviceItems.some(s => s.name === 'Liftgate'),
+                  residentialDelivery: serviceItems.some(s => s.name === 'Residential Delivery'),
+                  limitedAccessDelivery: false,
+                  appointmentDelivery: false,
+                  tarpService: serviceItems.some(s => s.name === 'Tarp'),
+                  chainStrapService: false,
+                  driverAssist: serviceItems.some(s => s.name === 'Driver Assist'),
+                  hazmatHandling: false,
+                  detentionHours: 0,
+                  detentionRate: 75,
+                  layoverDays: 0,
+                  layoverRate: 350,
+                  storageDays: 0,
+                  storageRate: 50,
+                }}
                 quoteNotes={quoteNotes}
                 internalNotes={internalNotes}
                 onEditSection={(section) => setActiveTab(section)}
@@ -934,7 +1364,7 @@ export default function NewInlandQuoteV2Page() {
               />
 
               <div className="flex gap-4">
-                <Button variant="outline" onClick={() => setActiveTab('services')}>
+                <Button variant="outline" onClick={() => setActiveTab('permits')}>
                   Back
                 </Button>
                 <Button onClick={() => setActiveTab('pdf')} className="flex-1">
@@ -943,12 +1373,18 @@ export default function NewInlandQuoteV2Page() {
               </div>
             </TabsContent>
 
-            {/* PDF Preview Tab - NEW */}
+            {/* PDF Preview Tab - Automatic */}
             <TabsContent value="pdf" className="space-y-4 mt-4">
-              <PDFPreview
-                quoteNumber={quoteNumber}
-                isReady={!!customerName && !!pickupAddress && !!dropoffAddress && cargoItems.length > 0}
-              />
+              {pdfData ? (
+                <QuotePDFPreview data={pdfData} />
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-center py-10 text-muted-foreground">
+                    <FileText className="h-12 w-12 mb-4 opacity-50" />
+                    <p className="text-center">Loading PDF preview...</p>
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setActiveTab('review')}>
@@ -1015,25 +1451,21 @@ export default function NewInlandQuoteV2Page() {
                 </>
               )}
 
-              {/* Pricing Summary */}
-              {subtotal > 0 && (
+              {/* Services Summary */}
+              {serviceItems.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Line Haul</span>
-                      <span className="font-mono">{formatCurrency(lineHaulRate * 100)}</span>
-                    </div>
-                    {fuelSurcharge > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span>Fuel Surcharge</span>
-                        <span className="font-mono">{formatCurrency(fuelSurcharge * 100)}</span>
+                    <div className="text-sm font-medium">Services ({serviceItems.length})</div>
+                    {serviceItems.slice(0, 4).map((s) => (
+                      <div key={s.id} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{s.name}</span>
+                        <span className="font-mono">{formatCurrency(s.total)}</span>
                       </div>
-                    )}
-                    {accessorialFees > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span>Accessorials</span>
-                        <span className="font-mono">{formatCurrency(accessorialFees * 100)}</span>
+                    ))}
+                    {serviceItems.length > 4 && (
+                      <div className="text-sm text-muted-foreground">
+                        +{serviceItems.length - 4} more...
                       </div>
                     )}
                   </div>
@@ -1045,7 +1477,7 @@ export default function NewInlandQuoteV2Page() {
               <div className="flex justify-between items-center">
                 <span className="font-medium">Total</span>
                 <span className="text-xl font-bold font-mono text-primary">
-                  {formatCurrency(total * 100)}
+                  {formatCurrency(grandTotal)}
                 </span>
               </div>
 
