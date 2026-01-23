@@ -511,6 +511,7 @@ export default function NewInlandQuoteV2Page() {
           zip: dropoffZip,
         },
         total: grandTotal,
+        // Destination blocks - cargo only (no services per truck)
         destinationBlocks: [{
           id: 'main',
           label: 'A',
@@ -525,6 +526,7 @@ export default function NewInlandQuoteV2Page() {
           distance_miles: distanceMiles || undefined,
           duration_minutes: durationMinutes || undefined,
           route_polyline: routePolyline || undefined,
+          // Load blocks contain ONLY cargo items - no services
           load_blocks: loadPlan?.loads.map(load => ({
             id: load.id,
             truck_type_id: load.recommendedTruck.id,
@@ -540,23 +542,23 @@ export default function NewInlandQuoteV2Page() {
               is_oversize: item.width > 8.5 || item.height > 10,
               is_overweight: item.weight > 48000,
             })),
-            service_items: serviceItems
-              .filter(s => !pricingPerTruck || s.truckIndex === loadPlan?.loads.indexOf(load))
-              .map(s => ({
-                id: s.id,
-                name: s.name,
-                rate: s.rate,
-                quantity: s.quantity,
-                total: s.total,
-              })),
+            // Empty service_items - services are at transport level instead
+            service_items: [],
             accessorial_charges: [],
-            subtotal: serviceItems
-              .filter(s => !pricingPerTruck || s.truckIndex === loadPlan?.loads.indexOf(load))
-              .reduce((sum, s) => sum + s.total, 0),
+            subtotal: 0,
             accessorials_total: 0,
           })) || [],
+          // Services at destination level (consolidated)
+          service_items: serviceItems.map(s => ({
+            id: s.id,
+            name: s.name,
+            rate: s.rate,
+            quantity: s.quantity,
+            total: s.total,
+          })),
           subtotal: grandTotal,
         }],
+        // Top-level load blocks for backward compatibility - cargo only
         load_blocks: loadPlan?.loads.map(load => ({
           id: load.id,
           truck_type_id: load.recommendedTruck.id,
@@ -572,21 +574,16 @@ export default function NewInlandQuoteV2Page() {
             is_oversize: item.width > 8.5 || item.height > 10,
             is_overweight: item.weight > 48000,
           })),
-          service_items: serviceItems.map(s => ({
-            id: s.id,
-            name: s.name,
-            rate: s.rate,
-            quantity: s.quantity,
-            total: s.total,
-          })),
+          // Empty - services consolidated at destination level
+          service_items: [],
           accessorial_charges: [],
-          subtotal: grandTotal,
+          subtotal: 0,
           accessorials_total: 0,
         })) || [],
         distance_miles: distanceMiles || undefined,
         duration_minutes: durationMinutes || undefined,
         static_map_url: pickupLat && pickupLng && dropoffLat && dropoffLng
-          ? `https://maps.googleapis.com/maps/api/staticmap?size=800x300&maptype=roadmap&markers=color:green|label:A|${pickupLat},${pickupLng}&markers=color:red|label:B|${dropoffLat},${dropoffLng}${routePolyline ? `&path=color:0x4285F4|weight:4|enc:${encodeURIComponent(routePolyline)}` : ''}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+          ? `https://maps.googleapis.com/maps/api/staticmap?size=800x400&maptype=roadmap&markers=color:green|label:A|${pickupLat},${pickupLng}&markers=color:red|label:B|${dropoffLat},${dropoffLng}${routePolyline ? `&path=color:0x4285F4|weight:4|enc:${encodeURIComponent(routePolyline)}` : ''}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
           : undefined,
       },
       equipmentSubtotal: 0,
@@ -770,6 +767,9 @@ export default function NewInlandQuoteV2Page() {
               <SimpleRouteMap
                 origin={pickupAddress}
                 destination={dropoffAddress}
+                existingDistanceMiles={distanceMiles}
+                existingDurationMinutes={durationMinutes}
+                existingPolyline={routePolyline}
                 onRouteCalculated={(data) => {
                   setDistanceMiles(data.distanceMiles)
                   setDurationMinutes(data.durationMinutes)
@@ -1277,6 +1277,16 @@ export default function NewInlandQuoteV2Page() {
                     </Button>
                   </CardContent>
                 </Card>
+              ) : !distanceMiles ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center py-10 text-muted-foreground">
+                    <MapPin className="h-12 w-12 mb-4 opacity-50" />
+                    <p className="text-center">Calculate the route first to see permit requirements</p>
+                    <Button variant="outline" className="mt-4" onClick={() => setActiveTab('route')}>
+                      Go to Route
+                    </Button>
+                  </CardContent>
+                </Card>
               ) : !cargoSpecs ? (
                 <Card>
                   <CardContent className="flex flex-col items-center py-10 text-muted-foreground">
@@ -1295,7 +1305,10 @@ export default function NewInlandQuoteV2Page() {
                   routeData={routeResult || undefined}
                   onRouteCalculated={(result) => {
                     setRouteResult(result)
-                    setDistanceMiles(result.totalDistanceMiles)
+                    // Only update distance if not already set from SimpleRouteMap
+                    if (!distanceMiles) {
+                      setDistanceMiles(result.totalDistanceMiles)
+                    }
                   }}
                 />
               )}

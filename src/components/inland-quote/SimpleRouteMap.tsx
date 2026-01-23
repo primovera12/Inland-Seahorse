@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useRef } from 'react'
+import { useCallback, useState, useRef, useEffect } from 'react'
 import {
   GoogleMap,
   useJsApiLoader,
@@ -9,7 +9,7 @@ import {
 import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_API_KEY } from '@/lib/google-maps'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, MapPin, Route, Maximize2, Minimize2 } from 'lucide-react'
+import { Loader2, MapPin, Route, Maximize2, Minimize2, CheckCircle2 } from 'lucide-react'
 
 const containerStyle = {
   width: '100%',
@@ -39,6 +39,10 @@ interface SimpleRouteMapProps {
   origin: string
   destination: string
   className?: string
+  // Existing calculated data from parent (to persist across tab changes)
+  existingDistanceMiles?: number | null
+  existingDurationMinutes?: number | null
+  existingPolyline?: string
   onRouteCalculated?: (data: RouteData) => void
 }
 
@@ -46,6 +50,9 @@ export function SimpleRouteMap({
   origin,
   destination,
   className,
+  existingDistanceMiles,
+  existingDurationMinutes,
+  existingPolyline,
   onRouteCalculated,
 }: SimpleRouteMapProps) {
   const [map, setMap] = useState<google.maps.Map | null>(null)
@@ -53,7 +60,11 @@ export function SimpleRouteMap({
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isCalculating, setIsCalculating] = useState(false)
+
+  // Track what origin/destination combination was last calculated
   const lastCalculatedRef = useRef<string>('')
+  // Track if we've initialized from existing data
+  const initializedFromExistingRef = useRef(false)
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
@@ -62,10 +73,48 @@ export function SimpleRouteMap({
 
   const hasValidAddresses = origin.trim() && destination.trim()
   const currentHash = `${origin}|${destination}`
-  const needsRecalculation = hasValidAddresses && currentHash !== lastCalculatedRef.current
+
+  // Check if we have existing data that matches current addresses
+  const hasExistingData = existingDistanceMiles && existingDistanceMiles > 0
+
+  // Initialize routeInfo from existing data on mount or when existing data changes
+  useEffect(() => {
+    if (hasExistingData && existingDurationMinutes && !initializedFromExistingRef.current) {
+      // Format the existing data for display
+      const hours = Math.floor(existingDurationMinutes / 60)
+      const mins = existingDurationMinutes % 60
+      const durationStr = hours > 0 ? `${hours} hr ${mins} min` : `${mins} min`
+
+      setRouteInfo({
+        distance: `${existingDistanceMiles.toLocaleString()} mi`,
+        duration: durationStr,
+      })
+
+      // Mark that we've been calculated for this route
+      lastCalculatedRef.current = currentHash
+      initializedFromExistingRef.current = true
+    }
+  }, [hasExistingData, existingDistanceMiles, existingDurationMinutes, currentHash])
+
+  // Reset initialized flag when addresses change significantly
+  useEffect(() => {
+    if (lastCalculatedRef.current && lastCalculatedRef.current !== currentHash) {
+      initializedFromExistingRef.current = false
+    }
+  }, [currentHash])
+
+  // Whether the route needs to be (re)calculated
+  const needsCalculation = hasValidAddresses && lastCalculatedRef.current !== currentHash && !hasExistingData
+  const needsRecalculation = hasValidAddresses && lastCalculatedRef.current !== currentHash && hasExistingData
 
   const calculateRoute = useCallback(async () => {
     if (!isLoaded || !hasValidAddresses) return
+
+    // IMPORTANT: Prevent duplicate API calls
+    if (lastCalculatedRef.current === currentHash && !needsRecalculation) {
+      console.log('Route already calculated for these addresses, skipping API call')
+      return
+    }
 
     setIsCalculating(true)
     const directionsService = new google.maps.DirectionsService()
@@ -119,7 +168,7 @@ export function SimpleRouteMap({
     } finally {
       setIsCalculating(false)
     }
-  }, [isLoaded, hasValidAddresses, origin, destination, currentHash, map, onRouteCalculated])
+  }, [isLoaded, hasValidAddresses, origin, destination, currentHash, map, onRouteCalculated, needsRecalculation])
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map)
@@ -132,7 +181,7 @@ export function SimpleRouteMap({
   if (loadError) {
     return (
       <Card className={className}>
-        <CardContent className="flex items-center justify-center h-[300px] text-muted-foreground">
+        <CardContent className="flex items-center justify-center h-[390px] text-muted-foreground">
           <p>Failed to load Google Maps</p>
         </CardContent>
       </Card>
@@ -142,13 +191,18 @@ export function SimpleRouteMap({
   if (!isLoaded) {
     return (
       <Card className={className}>
-        <CardContent className="flex items-center justify-center h-[300px]">
+        <CardContent className="flex items-center justify-center h-[390px]">
           <Loader2 className="h-6 w-6 animate-spin mr-2" />
           <span>Loading map...</span>
         </CardContent>
       </Card>
     )
   }
+
+  // Determine what to show based on state
+  const showCalculatePrompt = hasValidAddresses && !routeInfo && !isCalculating
+  const showMap = hasValidAddresses && (routeInfo || isCalculating || directions)
+  const isRouteCalculated = routeInfo && !needsCalculation
 
   return (
     <Card className={className}>
@@ -157,6 +211,9 @@ export function SimpleRouteMap({
           <span className="flex items-center gap-2">
             <Route className="h-4 w-4" />
             Route Map
+            {isRouteCalculated && (
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            )}
           </span>
           <div className="flex items-center gap-2">
             {isCalculating && (
@@ -180,14 +237,15 @@ export function SimpleRouteMap({
           </div>
         </CardTitle>
       </CardHeader>
-      <div className={isExpanded ? 'h-[500px]' : 'h-[300px]'}>
+      {/* Increased height by 30%: 300 -> 390, 500 -> 650 */}
+      <div className={isExpanded ? 'h-[650px]' : 'h-[390px]'}>
         {!hasValidAddresses ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-muted/30">
             <MapPin className="h-8 w-8 mb-2 opacity-50" />
             <p className="text-sm">Enter pickup and dropoff addresses</p>
             <p className="text-xs">to see the route on the map</p>
           </div>
-        ) : !directions && !isCalculating ? (
+        ) : showCalculatePrompt ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-muted/30">
             <Route className="h-8 w-8 mb-2 opacity-50" />
             <p className="text-sm">Click &quot;Calculate Route&quot; to show the route</p>
@@ -226,7 +284,7 @@ export function SimpleRouteMap({
           </GoogleMap>
         )}
       </div>
-      {/* Route info summary */}
+      {/* Route info summary - show if we have route info OR existing data */}
       {routeInfo && (
         <div className="p-3 border-t bg-muted/20">
           <div className="flex items-center justify-between text-sm">
@@ -237,8 +295,8 @@ export function SimpleRouteMap({
           </div>
         </div>
       )}
-      {/* Calculate Route button when route exists but needs recalculation */}
-      {needsRecalculation && directions && (
+      {/* Calculate Route button when addresses changed and need recalculation */}
+      {needsRecalculation && (
         <div className="p-3 border-t">
           <Button
             variant="outline"
