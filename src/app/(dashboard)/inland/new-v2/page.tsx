@@ -24,6 +24,9 @@ import {
   Plus,
   Trash2,
   FileText,
+  FileWarning,
+  Settings,
+  ClipboardCheck,
 } from 'lucide-react'
 
 // Load Planner Components
@@ -31,20 +34,26 @@ import { UniversalDropzone } from '@/components/load-planner/UniversalDropzone'
 import { ExtractedItemsList } from '@/components/load-planner/ExtractedItemsList'
 import { TrailerDiagram } from '@/components/load-planner/TrailerDiagram'
 import { TruckSelector } from '@/components/load-planner/TruckSelector'
+import { RouteIntelligence } from '@/components/load-planner/RouteIntelligence'
 import {
   planLoads,
   selectTrucks,
   type LoadItem,
   type LoadPlan,
   type TruckType,
+  type CargoSpecs,
 } from '@/lib/load-planner'
+import type { RouteResult } from '@/lib/load-planner/route-calculator'
+import { ServicesSelector, DEFAULT_SERVICES, calculateServicesTotal, type AccessorialServices } from '@/components/inland-quote/ServicesSelector'
+import { QuoteReview } from '@/components/inland-quote/QuoteReview'
+import { PDFPreview } from '@/components/inland-quote/PDFPreview'
 import { useRouter } from 'next/navigation'
 
 export default function NewInlandQuoteV2Page() {
   const router = useRouter()
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState('route')
+  // Tab state - Customer is first tab
+  const [activeTab, setActiveTab] = useState('customer')
 
   // Quote number
   const [quoteNumber, setQuoteNumber] = useState('')
@@ -63,6 +72,7 @@ export default function NewInlandQuoteV2Page() {
   const [dropoffLat, setDropoffLat] = useState<number>()
   const [dropoffLng, setDropoffLng] = useState<number>()
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null)
+  const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
 
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
@@ -93,6 +103,10 @@ export default function NewInlandQuoteV2Page() {
   const [lineHaulRate, setLineHaulRate] = useState(0)
   const [fuelSurcharge, setFuelSurcharge] = useState(0)
   const [accessorialFees, setAccessorialFees] = useState(0)
+
+  // Services/Accessorials
+  const [services, setServices] = useState<AccessorialServices>(DEFAULT_SERVICES)
+  const servicesTotal = useMemo(() => calculateServicesTotal(services), [services])
 
   // Generate quote number on mount
   useEffect(() => {
@@ -144,6 +158,31 @@ export default function NewInlandQuoteV2Page() {
   }, [lineHaulRate, fuelSurcharge, accessorialFees])
 
   const total = subtotal
+
+  // Calculate cargo specs for permit calculation
+  const cargoSpecs: CargoSpecs | null = useMemo(() => {
+    if (cargoItems.length === 0) return null
+
+    const maxLength = Math.max(...cargoItems.map(i => i.length))
+    const maxWidth = Math.max(...cargoItems.map(i => i.width))
+    const maxHeight = Math.max(...cargoItems.map(i => i.height))
+    const cargoWeight = cargoItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
+
+    // Add deck height from selected truck for total height
+    const deckHeight = loadPlan?.loads[0]?.recommendedTruck?.deckHeight || 0
+    const totalHeight = maxHeight + deckHeight
+
+    // Gross weight = cargo + truck/trailer tare weight (estimate ~20,000 lbs if not specified)
+    const tareWeight = loadPlan?.loads[0]?.recommendedTruck?.tareWeight || 20000
+    const grossWeight = cargoWeight + tareWeight
+
+    return {
+      length: maxLength,
+      width: maxWidth,
+      height: totalHeight, // Include deck height for permit calculation
+      grossWeight: grossWeight, // Total weight including truck/trailer
+    }
+  }, [cargoItems, loadPlan])
 
   // Handle file/text analysis
   const handleAnalyzed = (result: {
@@ -332,22 +371,42 @@ export default function NewInlandQuoteV2Page() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="route" className="flex items-center gap-1">
+            <TabsList className="flex w-full overflow-x-auto">
+              <TabsTrigger value="customer" className="flex items-center gap-1 flex-shrink-0">
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">Customer</span>
+              </TabsTrigger>
+              <TabsTrigger value="route" className="flex items-center gap-1 flex-shrink-0">
                 <MapPin className="h-4 w-4" />
                 <span className="hidden sm:inline">Route</span>
               </TabsTrigger>
-              <TabsTrigger value="cargo" className="flex items-center gap-1">
+              <TabsTrigger value="cargo" className="flex items-center gap-1 flex-shrink-0">
                 <Package className="h-4 w-4" />
                 <span className="hidden sm:inline">Cargo</span>
               </TabsTrigger>
-              <TabsTrigger value="pricing" className="flex items-center gap-1">
+              <TabsTrigger value="trucks" className="flex items-center gap-1 flex-shrink-0">
+                <Truck className="h-4 w-4" />
+                <span className="hidden sm:inline">Trucks</span>
+              </TabsTrigger>
+              <TabsTrigger value="pricing" className="flex items-center gap-1 flex-shrink-0">
                 <DollarSign className="h-4 w-4" />
                 <span className="hidden sm:inline">Pricing</span>
               </TabsTrigger>
-              <TabsTrigger value="customer" className="flex items-center gap-1">
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Customer</span>
+              <TabsTrigger value="permits" className="flex items-center gap-1 flex-shrink-0">
+                <FileWarning className="h-4 w-4" />
+                <span className="hidden sm:inline">Permits</span>
+              </TabsTrigger>
+              <TabsTrigger value="services" className="flex items-center gap-1 flex-shrink-0">
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Services</span>
+              </TabsTrigger>
+              <TabsTrigger value="review" className="flex items-center gap-1 flex-shrink-0">
+                <ClipboardCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Review</span>
+              </TabsTrigger>
+              <TabsTrigger value="pdf" className="flex items-center gap-1 flex-shrink-0">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">PDF</span>
               </TabsTrigger>
             </TabsList>
 
@@ -455,9 +514,14 @@ export default function NewInlandQuoteV2Page() {
                 </CardContent>
               </Card>
 
-              <Button onClick={() => setActiveTab('cargo')} className="w-full">
-                Continue to Cargo
-              </Button>
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setActiveTab('customer')}>
+                  Back
+                </Button>
+                <Button onClick={() => setActiveTab('cargo')} className="flex-1">
+                  Continue to Cargo
+                </Button>
+              </div>
             </TabsContent>
 
             {/* Cargo Tab */}
@@ -503,73 +567,32 @@ export default function NewInlandQuoteV2Page() {
                 </Card>
               )}
 
-              {/* Load Plan Visualization */}
+              {/* Load Plan Summary - Links to Trucks tab for details */}
               {loadPlan && loadPlan.loads.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Truck className="h-5 w-5" />
-                      Load Plan
-                    </CardTitle>
-                    <CardDescription>
-                      {loadPlan.totalTrucks} truck{loadPlan.totalTrucks > 1 ? 's' : ''} required for{' '}
-                      {loadPlan.totalItems} item{loadPlan.totalItems > 1 ? 's' : ''} ({(loadPlan.totalWeight / 1000).toFixed(1)}k lbs)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {loadPlan.warnings.length > 0 && (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <div className="flex items-center gap-2 text-yellow-800 mb-1">
-                          <AlertTriangle className="w-4 h-4" />
-                          <span className="text-sm font-medium">Warnings</span>
+                <Card className="border-l-4 border-l-blue-500">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Truck className="h-5 w-5 text-blue-500" />
+                        <div>
+                          <div className="font-medium">
+                            {loadPlan.totalTrucks} truck{loadPlan.totalTrucks > 1 ? 's' : ''} required
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {loadPlan.totalItems} items &bull; {(loadPlan.totalWeight / 1000).toFixed(1)}k lbs
+                          </div>
                         </div>
-                        <ul className="text-sm text-yellow-700 list-disc list-inside">
-                          {loadPlan.warnings.map((w, i) => (
-                            <li key={i}>{w}</li>
-                          ))}
-                        </ul>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setActiveTab('trucks')}>
+                        View Details
+                      </Button>
+                    </div>
+                    {loadPlan.warnings.length > 0 && (
+                      <div className="mt-3 flex items-center gap-2 text-yellow-600 text-sm">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span>{loadPlan.warnings.length} warning{loadPlan.warnings.length > 1 ? 's' : ''}</span>
                       </div>
                     )}
-
-                    {loadPlan.loads.map((load, index) => {
-                      // Skip loads without a valid truck
-                      if (!load.recommendedTruck) return null
-
-                      return (
-                        <Card key={load.id} className="border-l-4 border-l-blue-500">
-                          <CardHeader className="pb-2">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                                  {index + 1}
-                                </div>
-                                <div>
-                                  <div className="font-medium">{load.recommendedTruck.name}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {load.items.length} items &bull; {(load.weight / 1000).toFixed(1)}k lbs
-                                  </div>
-                                </div>
-                              </div>
-                              <TruckSelector
-                                currentTruck={load.recommendedTruck}
-                                onChange={(truck) => handleTruckChange(index, truck)}
-                                itemsWeight={load.weight}
-                                maxItemLength={Math.max(...load.items.map((i) => i.length), 0)}
-                                maxItemWidth={Math.max(...load.items.map((i) => i.width), 0)}
-                                maxItemHeight={Math.max(...load.items.map((i) => i.height), 0)}
-                              />
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <TrailerDiagram
-                              truck={load.recommendedTruck}
-                              items={load.items}
-                              placements={load.placements}
-                            />
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
                   </CardContent>
                 </Card>
               )}
@@ -578,8 +601,8 @@ export default function NewInlandQuoteV2Page() {
                 <Button variant="outline" onClick={() => setActiveTab('route')}>
                   Back
                 </Button>
-                <Button onClick={() => setActiveTab('pricing')} className="flex-1">
-                  Continue to Pricing
+                <Button onClick={() => setActiveTab('trucks')} className="flex-1">
+                  Continue to Trucks
                 </Button>
               </div>
             </TabsContent>
@@ -678,11 +701,11 @@ export default function NewInlandQuoteV2Page() {
               </Card>
 
               <div className="flex gap-4">
-                <Button variant="outline" onClick={() => setActiveTab('cargo')}>
+                <Button variant="outline" onClick={() => setActiveTab('trucks')}>
                   Back
                 </Button>
-                <Button onClick={() => setActiveTab('customer')} className="flex-1">
-                  Continue to Customer
+                <Button onClick={() => setActiveTab('permits')} className="flex-1">
+                  Continue to Permits
                 </Button>
               </div>
             </TabsContent>
@@ -717,15 +740,219 @@ export default function NewInlandQuoteV2Page() {
               </Card>
 
               <div className="flex gap-4">
+                <Button className="flex-1" onClick={() => setActiveTab('route')}>
+                  Continue to Route
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Trucks Tab - NEW */}
+            <TabsContent value="trucks" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Truck className="h-5 w-5" />
+                    Load Plan & Truck Selection
+                  </CardTitle>
+                  <CardDescription>
+                    Review recommended trucks and load placement
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {cargoItems.length === 0 ? (
+                    <div className="flex flex-col items-center py-10 text-muted-foreground">
+                      <Package className="h-12 w-12 mb-4 opacity-50" />
+                      <p>Add cargo items first to see truck recommendations</p>
+                      <Button variant="outline" className="mt-4" onClick={() => setActiveTab('cargo')}>
+                        Go to Cargo
+                      </Button>
+                    </div>
+                  ) : loadPlan && loadPlan.loads.length > 0 ? (
+                    <div className="space-y-4">
+                      {loadPlan.warnings.length > 0 && (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-center gap-2 text-yellow-800 mb-1">
+                            <AlertTriangle className="w-4 h-4" />
+                            <span className="text-sm font-medium">Warnings</span>
+                          </div>
+                          <ul className="text-sm text-yellow-700 list-disc list-inside">
+                            {loadPlan.warnings.map((w, i) => (
+                              <li key={i}>{w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {loadPlan.loads.map((load, index) => {
+                        if (!load.recommendedTruck) return null
+                        return (
+                          <Card key={load.id} className="border-l-4 border-l-blue-500">
+                            <CardHeader className="pb-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                                    {index + 1}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium">{load.recommendedTruck.name}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {load.items.length} items &bull; {(load.weight / 1000).toFixed(1)}k lbs
+                                    </div>
+                                  </div>
+                                </div>
+                                <TruckSelector
+                                  currentTruck={load.recommendedTruck}
+                                  onChange={(truck) => handleTruckChange(index, truck)}
+                                  itemsWeight={load.weight}
+                                  maxItemLength={Math.max(...load.items.map((i) => i.length), 0)}
+                                  maxItemWidth={Math.max(...load.items.map((i) => i.width), 0)}
+                                  maxItemHeight={Math.max(...load.items.map((i) => i.height), 0)}
+                                />
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <TrailerDiagram
+                                truck={load.recommendedTruck}
+                                items={load.items}
+                                placements={load.placements}
+                              />
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center py-10 text-muted-foreground">
+                      <Truck className="h-12 w-12 mb-4 opacity-50" />
+                      <p>No load plan available</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setActiveTab('cargo')}>
+                  Back
+                </Button>
+                <Button onClick={() => setActiveTab('pricing')} className="flex-1">
+                  Continue to Pricing
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Permits Tab - NEW */}
+            <TabsContent value="permits" className="space-y-4 mt-4">
+              {!pickupAddress || !dropoffAddress ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center py-10 text-muted-foreground">
+                    <MapPin className="h-12 w-12 mb-4 opacity-50" />
+                    <p className="text-center">Enter pickup and dropoff addresses first</p>
+                    <Button variant="outline" className="mt-4" onClick={() => setActiveTab('route')}>
+                      Go to Route
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : !cargoSpecs ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center py-10 text-muted-foreground">
+                    <Package className="h-12 w-12 mb-4 opacity-50" />
+                    <p className="text-center">Add cargo items to calculate permit requirements</p>
+                    <Button variant="outline" className="mt-4" onClick={() => setActiveTab('cargo')}>
+                      Go to Cargo
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <RouteIntelligence
+                  origin={pickupAddress}
+                  destination={dropoffAddress}
+                  cargoSpecs={cargoSpecs}
+                  routeData={routeResult || undefined}
+                  onRouteCalculated={(result) => {
+                    setRouteResult(result)
+                    setDistanceMiles(result.totalDistanceMiles)
+                  }}
+                />
+              )}
+
+              <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setActiveTab('pricing')}>
                   Back
                 </Button>
-                <Button
-                  onClick={handleSaveQuote}
-                  className="flex-1"
-                  disabled={createQuote.isPending}
-                >
-                  {createQuote.isPending ? 'Creating...' : 'Create Quote'}
+                <Button onClick={() => setActiveTab('services')} className="flex-1">
+                  Continue to Services
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Services Tab - NEW */}
+            <TabsContent value="services" className="space-y-4 mt-4">
+              <ServicesSelector
+                services={services}
+                onServicesChange={setServices}
+              />
+
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setActiveTab('permits')}>
+                  Back
+                </Button>
+                <Button onClick={() => setActiveTab('review')} className="flex-1">
+                  Continue to Review
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Review Tab - NEW */}
+            <TabsContent value="review" className="space-y-4 mt-4">
+              <QuoteReview
+                customerName={customerName}
+                customerEmail={customerEmail}
+                customerPhone={customerPhone}
+                customerCompany={customerCompany}
+                pickupAddress={pickupAddress}
+                pickupCity={pickupCity}
+                pickupState={pickupState}
+                dropoffAddress={dropoffAddress}
+                dropoffCity={dropoffCity}
+                dropoffState={dropoffState}
+                distanceMiles={distanceMiles}
+                cargoItems={cargoItems}
+                loadPlan={loadPlan}
+                lineHaulRate={lineHaulRate}
+                fuelSurcharge={fuelSurcharge}
+                servicesTotal={servicesTotal}
+                services={services}
+                quoteNotes={quoteNotes}
+                internalNotes={internalNotes}
+                onEditSection={(section) => setActiveTab(section)}
+                onSave={handleSaveQuote}
+                onSaveAndPDF={() => {
+                  handleSaveQuote()
+                  setActiveTab('pdf')
+                }}
+                isSaving={createQuote.isPending}
+              />
+
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setActiveTab('services')}>
+                  Back
+                </Button>
+                <Button onClick={() => setActiveTab('pdf')} className="flex-1">
+                  Continue to PDF Preview
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* PDF Preview Tab - NEW */}
+            <TabsContent value="pdf" className="space-y-4 mt-4">
+              <PDFPreview
+                quoteNumber={quoteNumber}
+                isReady={!!customerName && !!pickupAddress && !!dropoffAddress && cargoItems.length > 0}
+              />
+
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setActiveTab('review')}>
+                  Back to Review
                 </Button>
               </div>
             </TabsContent>
