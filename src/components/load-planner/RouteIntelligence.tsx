@@ -100,13 +100,21 @@ export function RouteIntelligence({
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
-      // Use existing route data if provided, otherwise calculate our own
+      // Use existing route data if provided, otherwise calculate via API
       let routeToAnalyze = routeData
 
       if (!routeToAnalyze) {
-        // Calculate the route ourselves
-        const { calculateRoute } = await import('@/lib/load-planner/route-calculator')
-        routeToAnalyze = await calculateRoute(origin, destination)
+        // Calculate the route via server-side API
+        const response = await fetch('/api/load-planner/calculate-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin, destination }),
+        })
+        const result = await response.json()
+        if (!result.success || !result.route) {
+          throw new Error(result.error || 'Failed to calculate route')
+        }
+        routeToAnalyze = result.route
       }
 
       if (routeToAnalyze) {

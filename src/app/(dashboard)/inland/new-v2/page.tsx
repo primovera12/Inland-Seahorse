@@ -1432,11 +1432,22 @@ export default function NewInlandQuoteV2Page() {
               setDurationMinutes(data.durationMinutes)
               setRoutePolyline(data.polyline)
 
-              // Also calculate full route data for permits (ONE API call here)
+              // Also calculate full route data for permits via API (server-side)
               try {
-                const { calculateRoute } = await import('@/lib/load-planner/route-calculator')
-                const fullRouteResult = await calculateRoute(pickupAddress, dropoffAddress)
-                setRouteResult(fullRouteResult)
+                const response = await fetch('/api/load-planner/calculate-route', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    origin: pickupAddress,
+                    destination: dropoffAddress,
+                  }),
+                })
+                const result = await response.json()
+                if (result.success && result.route) {
+                  setRouteResult(result.route)
+                } else {
+                  console.error('Route calculation failed:', result.error)
+                }
               } catch (err) {
                 console.error('Failed to calculate route for permits:', err)
               }
