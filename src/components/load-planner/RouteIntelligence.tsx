@@ -100,21 +100,28 @@ export function RouteIntelligence({
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
-      // Use the existing route data if provided, otherwise we'd call the API
-      // For now, we'll work with the provided routeData
-      if (routeData) {
+      // Use existing route data if provided, otherwise calculate our own
+      let routeToAnalyze = routeData
+
+      if (!routeToAnalyze) {
+        // Calculate the route ourselves
+        const { calculateRoute } = await import('@/lib/load-planner/route-calculator')
+        routeToAnalyze = await calculateRoute(origin, destination)
+      }
+
+      if (routeToAnalyze) {
         setState((prev) => ({
           ...prev,
           isLoading: false,
-          routeResult: routeData,
+          routeResult: routeToAnalyze,
         }))
 
         // Calculate permits for the route
         const { calculateRoutePermits } = await import('@/lib/load-planner/permit-calculator')
         const permitSummary = calculateRoutePermits(
-          routeData.statesTraversed,
+          routeToAnalyze.statesTraversed,
           cargoSpecs,
-          routeData.stateDistances
+          routeToAnalyze.stateDistances
         )
 
         // Check seasonal restrictions
@@ -122,14 +129,14 @@ export function RouteIntelligence({
           '@/lib/load-planner/seasonal-restrictions'
         )
         const seasonalWarnings = checkRouteSeasonalRestrictions(
-          routeData.statesTraversed,
+          routeToAnalyze.statesTraversed,
           shipDate
         )
 
         // Check bridge clearances
         const { checkRouteBridgeClearances } = await import('@/lib/load-planner/bridge-heights')
         const totalHeight = cargoSpecs.height // Already includes deck height if provided correctly
-        const bridgeWarnings = checkRouteBridgeClearances(routeData.waypoints, totalHeight)
+        const bridgeWarnings = checkRouteBridgeClearances(routeToAnalyze.waypoints, totalHeight)
 
         setState((prev) => ({
           ...prev,
@@ -138,7 +145,7 @@ export function RouteIntelligence({
           bridgeWarnings,
         }))
 
-        onRouteCalculated?.(routeData)
+        onRouteCalculated?.(routeToAnalyze)
       }
     } catch (err) {
       setState((prev) => ({
@@ -150,10 +157,13 @@ export function RouteIntelligence({
   }, [origin, destination, cargoSpecs, shipDate, routeData, onRouteCalculated])
 
   useEffect(() => {
-    if (routeData) {
+    // ONLY analyze when routeData is explicitly provided from parent
+    // Do NOT auto-calculate to prevent excessive API calls
+    // User must click "Calculate Permits" button to trigger analysis
+    if (routeData && routeData !== state.routeResult) {
       analyzeRoute()
     }
-  }, [routeData, analyzeRoute])
+  }, [routeData, state.routeResult, analyzeRoute])
 
   const hasWarnings =
     (state.seasonalWarnings?.hasRestrictions ?? false) ||
@@ -167,10 +177,30 @@ export function RouteIntelligence({
   if (!routeData && !state.routeResult) {
     return (
       <Card className={className}>
-        <CardContent className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+        <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
           <Route className="h-8 w-8 mb-2 opacity-50" />
-          <p className="text-sm">Calculate route to see intelligence</p>
-          <p className="text-xs">Enter origin and destination addresses</p>
+          <p className="text-sm font-medium">Permit Analysis</p>
+          <p className="text-xs mb-4">Calculate permits and route restrictions</p>
+          <Button
+            onClick={analyzeRoute}
+            disabled={!origin || !destination || state.isLoading}
+            size="sm"
+          >
+            {state.isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Route className="h-4 w-4 mr-2" />
+                Calculate Permits
+              </>
+            )}
+          </Button>
+          {(!origin || !destination) && (
+            <p className="text-xs mt-2 text-muted-foreground">Enter addresses first</p>
+          )}
         </CardContent>
       </Card>
     )

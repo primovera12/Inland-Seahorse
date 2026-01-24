@@ -28,7 +28,6 @@ import {
   Trash2,
   FileText,
   FileWarning,
-  ClipboardCheck,
 } from 'lucide-react'
 
 // Load Planner Components
@@ -46,7 +45,6 @@ import {
 } from '@/lib/load-planner'
 import type { RouteResult } from '@/lib/load-planner/route-calculator'
 import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
-import { QuoteReview } from '@/components/inland-quote/QuoteReview'
 import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
 import { useRouter } from 'next/navigation'
 
@@ -652,10 +650,6 @@ export default function NewInlandQuoteV2Page() {
               <TabsTrigger value="permits" className="flex items-center gap-1 flex-shrink-0">
                 <FileWarning className="h-4 w-4" />
                 <span className="hidden sm:inline">Permits</span>
-              </TabsTrigger>
-              <TabsTrigger value="review" className="flex items-center gap-1 flex-shrink-0">
-                <ClipboardCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">Review</span>
               </TabsTrigger>
               <TabsTrigger value="pdf" className="flex items-center gap-1 flex-shrink-0">
                 <FileText className="h-4 w-4" />
@@ -1305,71 +1299,8 @@ export default function NewInlandQuoteV2Page() {
                 <Button variant="outline" onClick={() => setActiveTab('pricing')}>
                   Back
                 </Button>
-                <Button onClick={() => setActiveTab('review')} className="flex-1">
-                  Continue to Review
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* Services Tab - NEW */}
-            {/* Review Tab */}
-            <TabsContent value="review" className="space-y-4 mt-4">
-              <QuoteReview
-                customerName={customerName}
-                customerEmail={customerEmail}
-                customerPhone={customerPhone}
-                customerCompany={customerCompany}
-                pickupAddress={pickupAddress}
-                pickupCity={pickupCity}
-                pickupState={pickupState}
-                dropoffAddress={dropoffAddress}
-                dropoffCity={dropoffCity}
-                dropoffState={dropoffState}
-                distanceMiles={distanceMiles}
-                cargoItems={cargoItems}
-                loadPlan={loadPlan}
-                lineHaulRate={serviceItems.find(s => s.name === 'Line Haul')?.total ? serviceItems.find(s => s.name === 'Line Haul')!.total / 100 : 0}
-                fuelSurcharge={serviceItems.find(s => s.name === 'Fuel Surcharge')?.total ? serviceItems.find(s => s.name === 'Fuel Surcharge')!.total / 100 : 0}
-                servicesTotal={grandTotal / 100}
-                services={{
-                  insidePickup: false,
-                  liftgatePickup: false,
-                  residentialPickup: false,
-                  limitedAccessPickup: false,
-                  appointmentPickup: false,
-                  insideDelivery: serviceItems.some(s => s.name === 'Inside Delivery'),
-                  liftgateDelivery: serviceItems.some(s => s.name === 'Liftgate'),
-                  residentialDelivery: serviceItems.some(s => s.name === 'Residential Delivery'),
-                  limitedAccessDelivery: false,
-                  appointmentDelivery: false,
-                  tarpService: serviceItems.some(s => s.name === 'Tarp'),
-                  chainStrapService: false,
-                  driverAssist: serviceItems.some(s => s.name === 'Driver Assist'),
-                  hazmatHandling: false,
-                  detentionHours: 0,
-                  detentionRate: 75,
-                  layoverDays: 0,
-                  layoverRate: 350,
-                  storageDays: 0,
-                  storageRate: 50,
-                }}
-                quoteNotes={quoteNotes}
-                internalNotes={internalNotes}
-                onEditSection={(section) => setActiveTab(section)}
-                onSave={handleSaveQuote}
-                onSaveAndPDF={() => {
-                  handleSaveQuote()
-                  setActiveTab('pdf')
-                }}
-                isSaving={createQuote.isPending}
-              />
-
-              <div className="flex gap-4">
-                <Button variant="outline" onClick={() => setActiveTab('permits')}>
-                  Back
-                </Button>
                 <Button onClick={() => setActiveTab('pdf')} className="flex-1">
-                  Continue to PDF Preview
+                  Continue to PDF
                 </Button>
               </div>
             </TabsContent>
@@ -1388,8 +1319,8 @@ export default function NewInlandQuoteV2Page() {
               )}
 
               <div className="flex gap-4">
-                <Button variant="outline" onClick={() => setActiveTab('review')}>
-                  Back to Review
+                <Button variant="outline" onClick={() => setActiveTab('permits')}>
+                  Back to Permits
                 </Button>
               </div>
             </TabsContent>
