@@ -155,10 +155,28 @@ export async function POST(request: NextRequest) {
           const spreadsheetText = convertSpreadsheetToText(arrayBuffer, fileName)
           console.log(`[analyze] Processing Excel with AI: ${fileName}`)
           console.log(`[analyze] Excel text length: ${spreadsheetText.length} chars`)
+          console.log(`[analyze] Excel text preview: ${spreadsheetText.substring(0, 500)}`)
           const result = await parseTextWithAI(spreadsheetText)
-          console.log(`[analyze] AI returned ${result.items.length} items from Excel`)
+          console.log(`[analyze] AI result success: ${result.success}, items: ${result.items.length}`)
+          if (result.error) {
+            console.error(`[analyze] AI error: ${result.error}`)
+          }
           if (result.warning) {
             console.log(`[analyze] AI warning: ${result.warning}`)
+          }
+          if (result.debugInfo) {
+            console.log(`[analyze] AI debug: raw=${result.debugInfo.rawItemCount}, filtered=${result.debugInfo.filteredItemCount}`)
+          }
+          if (!result.success && result.error) {
+            return NextResponse.json<AnalyzeResponse>(
+              {
+                success: false,
+                parsedLoad: createEmptyParsedLoad(),
+                recommendations: [],
+                error: result.error,
+              },
+              { status: 500 }
+            )
           }
           parsedLoad = aiResultToParsedLoad(result.items, 90)
           items = parsedLoad.items
@@ -368,12 +386,32 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error analyzing cargo:', error)
+    // Provide detailed error message
+    let errorMessage = 'Failed to analyze cargo. Please try again.'
+    if (error instanceof Error) {
+      errorMessage = error.message
+      // Add more context for common errors
+      if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        errorMessage = 'AI service authentication failed. Check ANTHROPIC_API_KEY.'
+      } else if (error.message.includes('429') || error.message.includes('rate limit')) {
+        errorMessage = 'AI service rate limit exceeded. Please wait a moment and try again.'
+      } else if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+        errorMessage = 'AI service request timed out. Try a smaller file.'
+      } else if (error.message.includes('ENOTFOUND') || error.message.includes('network')) {
+        errorMessage = 'Network error connecting to AI service.'
+      }
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n')
+      })
+    }
     return NextResponse.json<AnalyzeResponse>(
       {
         success: false,
         parsedLoad: createEmptyParsedLoad(),
         recommendations: [],
-        error: error instanceof Error ? error.message : 'Failed to analyze cargo. Please try again.',
+        error: errorMessage,
       },
       { status: 500 }
     )

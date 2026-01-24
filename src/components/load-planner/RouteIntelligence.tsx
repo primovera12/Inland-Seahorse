@@ -137,6 +137,7 @@ interface RouteIntelligenceProps {
   shipDate?: Date
   routeData?: RouteResult
   onRouteCalculated?: (result: RouteResult) => void
+  onPermitDataCalculated?: (permitData: DetailedRoutePermitSummary | null) => void
   className?: string
 }
 
@@ -179,6 +180,7 @@ export function RouteIntelligence({
   shipDate,
   routeData,
   onRouteCalculated,
+  onPermitDataCalculated,
   className,
 }: RouteIntelligenceProps) {
   const [state, setState] = useState<RouteIntelligenceState>({
@@ -359,6 +361,7 @@ export function RouteIntelligence({
         }))
 
         onRouteCalculated?.(routeToAnalyze)
+        onPermitDataCalculated?.(detailedPermitSummary)
       }
     } catch (err) {
       setState((prev) => ({
@@ -367,7 +370,7 @@ export function RouteIntelligence({
         error: err instanceof Error ? err.message : 'Failed to analyze route',
       }))
     }
-  }, [origin, destination, cargoSpecs, perTruckCargoSpecs, shipDate, routeData, onRouteCalculated])
+  }, [origin, destination, cargoSpecs, perTruckCargoSpecs, shipDate, routeData, onRouteCalculated, onPermitDataCalculated])
 
   useEffect(() => {
     // Auto-analyze when:

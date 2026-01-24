@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
-import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock, InlandServiceItem, InlandAccessorialCharge } from '../types'
+import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock, InlandServiceItem, InlandAccessorialCharge, PermitCostsSummary } from '../types'
 import { generateServiceLineItems, CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES } from '../types'
 import { renderTopViewSvg, renderSideViewSvg } from '@/components/load-planner/LoadPlanPDFRenderer'
 import type { TruckType, LoadItem, ItemPlacement } from '@/lib/load-planner/types'
@@ -1157,6 +1157,123 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   )
 }
 
+// Permit costs breakdown section
+function PermitCostsSection({ data }: { data: UnifiedPDFData }) {
+  const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const permitCosts = data.inlandTransport?.permit_costs
+
+  if (!permitCosts || permitCosts.items.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="border-b border-slate-100">
+      {/* Section Header */}
+      <div
+        className="px-8 py-4 border-b border-slate-100"
+        style={{ backgroundColor: 'rgb(248, 250, 252)' }}
+      >
+        <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-600">
+          Permit & Escort Costs
+        </h3>
+      </div>
+
+      {/* Permits Table */}
+      <div className="px-8 py-6">
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-0 bg-slate-50 border-b border-slate-200">
+            <div className="col-span-4 px-4 py-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                State
+              </span>
+            </div>
+            <div className="col-span-2 px-4 py-3 text-right">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Distance
+              </span>
+            </div>
+            <div className="col-span-3 px-4 py-3 text-right">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Permit Fee
+              </span>
+            </div>
+            <div className="col-span-3 px-4 py-3 text-right">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Escort Cost
+              </span>
+            </div>
+          </div>
+
+          {/* Table Body */}
+          <div className="divide-y divide-slate-100">
+            {permitCosts.items.map((item) => (
+              <div key={item.id} className="grid grid-cols-12 gap-0">
+                <div className="col-span-4 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                      {item.stateCode}
+                    </span>
+                    <span className="text-sm text-slate-700">{item.stateName}</span>
+                  </div>
+                  {item.notes && (
+                    <p className="text-xs text-slate-500 mt-1">{item.notes}</p>
+                  )}
+                </div>
+                <div className="col-span-2 px-4 py-3 text-right">
+                  <span className="text-sm text-slate-600">
+                    {item.distanceMiles ? `${item.distanceMiles.toFixed(0)} mi` : '-'}
+                  </span>
+                </div>
+                <div className="col-span-3 px-4 py-3 text-right">
+                  <span className="text-sm font-medium text-slate-700">
+                    {formatCurrency(item.permitFee)}
+                  </span>
+                </div>
+                <div className="col-span-3 px-4 py-3 text-right">
+                  <span className="text-sm font-medium text-slate-700">
+                    {formatCurrency(item.escortCost)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Table Footer - Totals */}
+          <div className="bg-slate-50 border-t border-slate-200">
+            <div className="grid grid-cols-12 gap-0">
+              <div className="col-span-6 px-4 py-3">
+                <span className="text-sm font-bold text-slate-700">Totals</span>
+              </div>
+              <div className="col-span-3 px-4 py-3 text-right">
+                <span className="text-sm font-bold" style={{ color: primaryColor }}>
+                  {formatCurrency(permitCosts.totalPermitFees)}
+                </span>
+              </div>
+              <div className="col-span-3 px-4 py-3 text-right">
+                <span className="text-sm font-bold" style={{ color: primaryColor }}>
+                  {formatCurrency(permitCosts.totalEscortCosts)}
+                </span>
+              </div>
+            </div>
+            {/* Grand Total Row */}
+            <div className="grid grid-cols-12 gap-0 border-t border-slate-200">
+              <div className="col-span-9 px-4 py-3 text-right">
+                <span className="text-sm font-bold text-slate-700">Permit & Escort Grand Total</span>
+              </div>
+              <div className="col-span-3 px-4 py-3 text-right">
+                <span className="text-base font-bold" style={{ color: primaryColor }}>
+                  {formatCurrency(permitCosts.grandTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Equipment showcase section
 function EquipmentSection({ equipment, primaryColor, showQuantity = false }: {
   equipment: UnifiedPDFData['equipment'][0]
@@ -1635,6 +1752,9 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
 
           {/* Inland Transport Services (if enabled) */}
           <InlandTransportServicesSection data={data} />
+
+          {/* Permit & Escort Costs (if available) */}
+          <PermitCostsSection data={data} />
 
           {/* Pricing Summary / Grand Total */}
           <PricingSummarySection data={data} lineItems={lineItems} />

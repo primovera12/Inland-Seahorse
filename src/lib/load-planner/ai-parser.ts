@@ -13,7 +13,12 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 let anthropic: Anthropic | null = null
 
 function getAnthropic() {
-  if (!anthropic && ANTHROPIC_API_KEY) {
+  if (!ANTHROPIC_API_KEY) {
+    console.error('[AI Parser] ANTHROPIC_API_KEY is not set in environment variables')
+    return null
+  }
+  if (!anthropic) {
+    console.log('[AI Parser] Creating Anthropic client with API key:', ANTHROPIC_API_KEY.substring(0, 10) + '...')
     anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
   }
   return anthropic
@@ -395,11 +400,28 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
       }
     }
   } catch (error) {
-    console.error('Claude parsing error:', error)
+    console.error('[parseTextWithAI] Claude API error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'AI text processing failed'
+    console.error('[parseTextWithAI] Error message:', errorMessage)
+    // Check for specific API errors
+    if (errorMessage.includes('401') || errorMessage.includes('authentication')) {
+      return {
+        success: false,
+        items: [],
+        error: 'Invalid API key. Please check ANTHROPIC_API_KEY in environment variables.',
+      }
+    }
+    if (errorMessage.includes('429')) {
+      return {
+        success: false,
+        items: [],
+        error: 'Rate limit exceeded. Please try again in a few moments.',
+      }
+    }
     return {
       success: false,
       items: [],
-      error: error instanceof Error ? error.message : 'AI text processing failed',
+      error: errorMessage,
     }
   }
 }

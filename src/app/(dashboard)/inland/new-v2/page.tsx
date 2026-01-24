@@ -44,6 +44,7 @@ import {
   type CargoSpecs,
 } from '@/lib/load-planner'
 import type { RouteResult } from '@/lib/load-planner/route-calculator'
+import type { DetailedRoutePermitSummary } from '@/lib/load-planner/types'
 import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
 import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
 import { useRouter } from 'next/navigation'
@@ -91,6 +92,20 @@ interface ServiceItem {
   truckIndex?: number // optional - for per-truck pricing
 }
 
+// Editable permit costs - allows user to override calculated values
+interface EditablePermitCost {
+  id: string
+  stateCode: string
+  stateName: string
+  permitFee: number // in cents (user-editable)
+  escortCost: number // in cents (user-editable)
+  notes?: string
+  // Calculated values for reference
+  calculatedPermitFee?: number // original calculated value in cents
+  calculatedEscortCost?: number // original calculated value in cents
+  distanceMiles?: number
+}
+
 export default function NewInlandQuoteV2Page() {
   const router = useRouter()
 
@@ -136,6 +151,7 @@ export default function NewInlandQuoteV2Page() {
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [parsingStatus, setParsingStatus] = useState<string>('')
 
   // Load plan state (automatically calculated)
   const [loadPlan, setLoadPlan] = useState<LoadPlan | null>(null)
@@ -163,6 +179,9 @@ export default function NewInlandQuoteV2Page() {
 
   // Accessorial charges
   const [accessorialItems, setAccessorialItems] = useState<AccessorialCharge[]>([])
+
+  // Editable permit costs - allows overriding calculated values
+  const [editablePermitCosts, setEditablePermitCosts] = useState<EditablePermitCost[]>([])
 
   // Fetch settings for PDF and service types
   const { data: settings } = trpc.settings.get.useQuery()
@@ -565,6 +584,59 @@ export default function NewInlandQuoteV2Page() {
     })
   }
 
+  // Handle permit data calculated from RouteIntelligence
+  const handlePermitDataCalculated = useCallback((permitData: DetailedRoutePermitSummary | null) => {
+    if (!permitData) {
+      setEditablePermitCosts([])
+      return
+    }
+
+    // Initialize editable permit costs from calculated data
+    const initialCosts: EditablePermitCost[] = permitData.statePermits.map((permit, index) => ({
+      id: `permit-${permit.stateCode}-${index}`,
+      stateCode: permit.stateCode,
+      stateName: permit.state,
+      permitFee: permit.estimatedFee, // Already in cents
+      escortCost: 0, // Escort costs are per-state from breakdown
+      calculatedPermitFee: permit.estimatedFee,
+      calculatedEscortCost: 0,
+      distanceMiles: permit.distanceInState,
+    }))
+
+    // If there's an escort breakdown, add per-state escort costs
+    if (permitData.escortBreakdown?.perState) {
+      permitData.escortBreakdown.perState.forEach(stateEscort => {
+        const existing = initialCosts.find(c => c.stateCode === stateEscort.stateCode)
+        if (existing) {
+          existing.escortCost = stateEscort.stateCost
+          existing.calculatedEscortCost = stateEscort.stateCost
+        }
+      })
+    }
+
+    setEditablePermitCosts(initialCosts)
+  }, [])
+
+  // Update a single permit cost field
+  const updatePermitCost = (id: string, field: 'permitFee' | 'escortCost' | 'notes', value: number | string) => {
+    setEditablePermitCosts(prev => prev.map(permit =>
+      permit.id === id
+        ? { ...permit, [field]: value }
+        : permit
+    ))
+  }
+
+  // Calculate permit totals from editable values
+  const permitTotals = useMemo(() => {
+    const totalPermitFees = editablePermitCosts.reduce((sum, p) => sum + p.permitFee, 0)
+    const totalEscortCosts = editablePermitCosts.reduce((sum, p) => sum + p.escortCost, 0)
+    return {
+      permits: totalPermitFees,
+      escorts: totalEscortCosts,
+      total: totalPermitFees + totalEscortCosts,
+    }
+  }, [editablePermitCosts])
+
   // Reset form function
   const resetForm = useCallback(() => {
     setQuoteNumber(generateInlandQuoteNumber())
@@ -596,6 +668,7 @@ export default function NewInlandQuoteV2Page() {
     setQuoteNotes('')
     setServiceItems([])
     setAccessorialItems([])
+    setEditablePermitCosts([])
     setPricingPerTruck(false)
     setActiveTab('customer')
     toast.success('Quote cleared')
@@ -869,6 +942,21 @@ export default function NewInlandQuoteV2Page() {
         static_map_url: pickupLat && pickupLng && dropoffLat && dropoffLng
           ? `https://maps.googleapis.com/maps/api/staticmap?size=800x400&maptype=roadmap&markers=color:green|label:A|${pickupLat},${pickupLng}&markers=color:red|label:B|${dropoffLat},${dropoffLng}${routePolyline ? `&path=color:0x4285F4|weight:4|enc:${encodeURIComponent(routePolyline)}` : ''}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
           : undefined,
+        // Permit costs breakdown
+        permit_costs: editablePermitCosts.length > 0 ? {
+          items: editablePermitCosts.map(p => ({
+            id: p.id,
+            stateCode: p.stateCode,
+            stateName: p.stateName,
+            permitFee: p.permitFee,
+            escortCost: p.escortCost,
+            distanceMiles: p.distanceMiles,
+            notes: p.notes,
+          })),
+          totalPermitFees: permitTotals.permits,
+          totalEscortCosts: permitTotals.escorts,
+          grandTotal: permitTotals.total,
+        } : undefined,
       },
       equipmentSubtotal: 0,
       miscFeesTotal: 0,
@@ -876,7 +964,7 @@ export default function NewInlandQuoteV2Page() {
       grandTotal: grandTotal,
       customerNotes: quoteNotes || undefined,
     }
-  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, accessorialItems, pricingPerTruck, grandTotal, servicesTotal, accessorialsTotal, quoteNotes])
+  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, accessorialItems, pricingPerTruck, grandTotal, servicesTotal, accessorialsTotal, quoteNotes, editablePermitCosts, permitTotals])
 
   return (
     <div className="space-y-6">
@@ -1110,9 +1198,27 @@ export default function NewInlandQuoteV2Page() {
                       onAnalyzed={handleAnalyzed}
                       onLoading={setIsAnalyzing}
                       onError={setAnalysisError}
+                      onStatusChange={setParsingStatus}
                     />
+                    {/* Parsing Status Indicator */}
+                    {isAnalyzing && parsingStatus && (
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-blue-700">Processing</p>
+                            <p className="text-sm text-blue-600">{parsingStatus}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {analysisError && (
-                      <p className="text-sm text-red-500 mt-2">{analysisError}</p>
+                      <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm font-medium text-red-700">Error</p>
+                        <p className="text-sm text-red-600">{analysisError}</p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -1868,7 +1974,91 @@ export default function NewInlandQuoteV2Page() {
                       setDistanceMiles(result.totalDistanceMiles)
                     }
                   }}
+                  onPermitDataCalculated={handlePermitDataCalculated}
                 />
+              )}
+
+              {/* Editable Permits & Escort Costs Table */}
+              {editablePermitCosts.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Permit & Escort Costs
+                    </CardTitle>
+                    <CardDescription>
+                      Edit the calculated costs as needed. These values will appear in the quote.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-2 font-medium">State</th>
+                            <th className="text-left py-2 px-2 font-medium">Distance</th>
+                            <th className="text-right py-2 px-2 font-medium">Permit Fee</th>
+                            <th className="text-right py-2 px-2 font-medium">Escort Cost</th>
+                            <th className="text-right py-2 px-2 font-medium">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editablePermitCosts.map((permit) => (
+                            <tr key={permit.id} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-2">
+                                <div className="font-medium">{permit.stateName}</div>
+                                <div className="text-xs text-muted-foreground">{permit.stateCode}</div>
+                              </td>
+                              <td className="py-2 px-2 text-muted-foreground">
+                                {permit.distanceMiles?.toFixed(0) || '—'} mi
+                              </td>
+                              <td className="py-2 px-2">
+                                <div className="relative w-28 ml-auto">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                  <Input
+                                    className="pl-5 text-right font-mono h-8 text-sm"
+                                    value={formatWholeDollars(permit.permitFee)}
+                                    onChange={(e) => updatePermitCost(permit.id, 'permitFee', parseWholeDollarsToCents(e.target.value))}
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-2 px-2">
+                                <div className="relative w-28 ml-auto">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                  <Input
+                                    className="pl-5 text-right font-mono h-8 text-sm"
+                                    value={formatWholeDollars(permit.escortCost)}
+                                    onChange={(e) => updatePermitCost(permit.id, 'escortCost', parseWholeDollarsToCents(e.target.value))}
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono font-medium">
+                                {formatCurrency(permit.permitFee + permit.escortCost)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 font-medium">
+                            <td colSpan={2} className="py-3 px-2">Total</td>
+                            <td className="py-3 px-2 text-right font-mono">
+                              {formatCurrency(permitTotals.permits)}
+                            </td>
+                            <td className="py-3 px-2 text-right font-mono">
+                              {formatCurrency(permitTotals.escorts)}
+                            </td>
+                            <td className="py-3 px-2 text-right font-mono text-primary">
+                              {formatCurrency(permitTotals.total)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Values are calculated estimates. Edit as needed to reflect actual costs.
+                    </p>
+                  </CardContent>
+                </Card>
               )}
 
               <div className="flex gap-4">

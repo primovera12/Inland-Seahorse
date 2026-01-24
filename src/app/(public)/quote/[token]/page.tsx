@@ -86,25 +86,26 @@ export default function PublicQuotePage() {
 
   // Transform quote data to UnifiedPDFData for rendering
   const pdfData = useMemo((): UnifiedPDFData | null => {
-    if (!quote || !quote.company_settings) return null
+    if (!quote) return null
 
-    const settings = quote.company_settings
+    // Use settings if available, otherwise use sensible defaults
+    const settings = quote.company_settings || {}
     const quoteData = quote.quote_data as Record<string, unknown> | null
 
-    // Build company info from settings
+    // Build company info from settings (with defaults)
     const companyInfo = settingsToCompanyInfo({
-      company_name: settings.company_name || 'Company',
-      company_logo_url: settings.company_logo_url,
-      logo_size_percentage: settings.logo_size_percentage,
-      company_address: settings.company_address,
-      company_city: settings.company_city,
-      company_state: settings.company_state,
-      company_zip: settings.company_zip,
-      company_phone: settings.company_phone,
-      company_email: settings.company_email,
-      company_website: settings.company_website,
-      primary_color: settings.primary_color,
-      secondary_color: settings.secondary_color,
+      company_name: settings.company_name || 'Company Name',
+      company_logo_url: settings.company_logo_url || null,
+      logo_size_percentage: settings.logo_size_percentage || 100,
+      company_address: settings.company_address || '',
+      company_city: settings.company_city || '',
+      company_state: settings.company_state || '',
+      company_zip: settings.company_zip || '',
+      company_phone: settings.company_phone || '',
+      company_email: settings.company_email || '',
+      company_website: settings.company_website || '',
+      primary_color: settings.primary_color || '#6366F1',
+      secondary_color: settings.secondary_color || null,
     })
 
     if (quoteType === 'inland') {
@@ -244,7 +245,7 @@ export default function PublicQuotePage() {
         inlandTotal: quote.total || 0,
         grandTotal: quote.total || 0,
         customerNotes: quoteData?.notes as string | undefined,
-        termsAndConditions: (settings as { quote_terms?: string }).quote_terms,
+        termsAndConditions: (settings as { quote_terms?: string }).quote_terms || '',
       }
     } else {
       // Dismantle quote transformation
@@ -329,20 +330,20 @@ export default function PublicQuotePage() {
         miscFeesTotal: quoteData?.miscFeesTotal as number | undefined,
         notes: quoteData?.notes as string | undefined,
         settings: {
-          company_name: settings.company_name || 'Company',
-          company_logo_url: settings.company_logo_url,
-          logo_size_percentage: settings.logo_size_percentage,
-          company_address: settings.company_address,
-          company_city: settings.company_city,
-          company_state: settings.company_state,
-          company_zip: settings.company_zip,
-          company_phone: settings.company_phone,
-          company_email: settings.company_email,
-          company_website: settings.company_website,
-          primary_color: settings.primary_color,
-          secondary_color: settings.secondary_color,
+          company_name: settings.company_name || 'Company Name',
+          company_logo_url: settings.company_logo_url || null,
+          logo_size_percentage: settings.logo_size_percentage || 100,
+          company_address: settings.company_address || '',
+          company_city: settings.company_city || '',
+          company_state: settings.company_state || '',
+          company_zip: settings.company_zip || '',
+          company_phone: settings.company_phone || '',
+          company_email: settings.company_email || '',
+          company_website: settings.company_website || '',
+          primary_color: settings.primary_color || '#6366F1',
+          secondary_color: settings.secondary_color || null,
           quote_validity_days: settings.quote_validity_days || 30,
-          terms_dismantle: (settings as { terms_dismantle?: string }).terms_dismantle,
+          terms_dismantle: (settings as { terms_dismantle?: string }).terms_dismantle || '',
         },
       })
 
@@ -461,7 +462,13 @@ export default function PublicQuotePage() {
         <div className="container max-w-4xl mx-auto py-8 px-4">
           <Card>
             <CardContent className="py-8 text-center">
-              <p className="text-muted-foreground">Unable to load quote details.</p>
+              <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-lg font-medium mb-2">Unable to load quote details</p>
+              <p className="text-muted-foreground text-sm">
+                {!quote?.company_settings
+                  ? 'Company settings are not configured. Please contact the sender.'
+                  : 'There was an error loading this quote. Please try again.'}
+              </p>
             </CardContent>
           </Card>
         </div>

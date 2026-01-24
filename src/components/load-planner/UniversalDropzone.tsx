@@ -59,23 +59,24 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
       let response: Response
 
       if (file) {
-        // Show file-specific status
+        // Show file-specific status with step numbers
         const fileName = file.name.toLowerCase()
-        updateStatus(`Reading ${file.name}...`)
+        const fileSize = (file.size / 1024).toFixed(1)
+        updateStatus(`Step 1/5: Reading ${file.name} (${fileSize} KB)...`)
         await new Promise(r => setTimeout(r, 300)) // Brief pause for UX
 
         if (fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-          updateStatus('Extracting data from spreadsheet...')
+          updateStatus('Step 2/5: Extracting rows from spreadsheet...')
         } else if (fileName.endsWith('.pdf')) {
-          updateStatus('Extracting text from PDF...')
+          updateStatus('Step 2/5: Extracting text and images from PDF...')
         } else if (fileName.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-          updateStatus('Processing image with AI vision...')
+          updateStatus('Step 2/5: Encoding image for parsing...')
         } else {
-          updateStatus('Reading file contents...')
+          updateStatus('Step 2/5: Reading file contents...')
         }
-        await new Promise(r => setTimeout(r, 500))
+        await new Promise(r => setTimeout(r, 400))
 
-        updateStatus('Analyzing with Claude Opus 4.5...')
+        updateStatus('Step 3/5: Parsing cargo data... (this may take 10-30 seconds)')
 
         const formData = new FormData()
         formData.append('file', file)
@@ -84,9 +85,9 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
           body: formData
         })
       } else if (text) {
-        updateStatus('Preparing text for analysis...')
+        updateStatus('Step 1/5: Preparing text for parsing...')
         await new Promise(r => setTimeout(r, 300))
-        updateStatus('Analyzing with Claude Opus 4.5...')
+        updateStatus('Step 2/5: Parsing cargo data... (this may take 10-30 seconds)')
 
         response = await fetch('/api/load-planner/analyze', {
           method: 'POST',
@@ -97,7 +98,7 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
         throw new Error('No input provided')
       }
 
-      updateStatus('Processing AI response...')
+      updateStatus('Step 4/5: Processing results...')
       const data = await response.json()
 
       if (!data.success) {
@@ -111,7 +112,7 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
         throw new Error('No cargo items could be extracted. Try a different format or add more details.')
       }
 
-      updateStatus(`Found ${items.length} items! Planning load across trucks...`)
+      updateStatus(`Step 5/5: Found ${items.length} items! Planning optimal truck loads...`)
       await new Promise(r => setTimeout(r, 400))
 
       // Get or generate load plan
@@ -147,7 +148,7 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
         loadPlan = generateBasicLoadPlan(items)
       }
 
-      updateStatus(`Done! Loaded onto ${loadPlan.totalTrucks} truck${loadPlan.totalTrucks > 1 ? 's' : ''}`)
+      updateStatus(`✓ Complete! Loaded ${items.length} items onto ${loadPlan.totalTrucks} truck${loadPlan.totalTrucks > 1 ? 's' : ''}`)
       await new Promise(r => setTimeout(r, 300))
 
       onAnalyzed({

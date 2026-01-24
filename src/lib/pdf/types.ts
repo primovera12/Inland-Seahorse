@@ -205,6 +205,25 @@ export interface InlandLoadBlock {
   truck_specs?: TruckSpecs // Truck dimensions for diagram rendering
 }
 
+// Permit cost item for PDF display
+export interface PermitCostItem {
+  id: string
+  stateCode: string
+  stateName: string
+  permitFee: number // in cents
+  escortCost: number // in cents
+  distanceMiles?: number
+  notes?: string
+}
+
+// Permit costs summary for PDF
+export interface PermitCostsSummary {
+  items: PermitCostItem[]
+  totalPermitFees: number // cents
+  totalEscortCosts: number // cents
+  grandTotal: number // cents
+}
+
 // Inland transport info for PDF
 export interface InlandTransportInfo {
   enabled: boolean
@@ -214,6 +233,7 @@ export interface InlandTransportInfo {
   load_blocks?: InlandLoadBlock[] // Detailed load blocks with services and accessorials
   total: number
   accessorials_total?: number // Total accessorial fees (if applicable)
+  permit_costs?: PermitCostsSummary // Permit and escort costs breakdown
   // Route info
   distance_miles?: number
   duration_minutes?: number
