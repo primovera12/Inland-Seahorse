@@ -124,12 +124,15 @@ CRITICAL CONVERSION RULES:
   * Tons → multiply by 2000
 - Look for unit hints in headers or metadata rows
 
-IMPORTANT:
-- Extract EVERY cargo item you can find
+CRITICAL REQUIREMENTS:
+- Extract EVERY SINGLE cargo item - do NOT stop early or summarize
+- Count the items in your output - if input has 47 items, output must have 47 items
+- NEVER truncate, summarize, or skip items due to length
 - If units aren't specified, assume inches for dimensions and pounds for weight
 - Stackable: true if "Yes"/"Y", false if "No"/"N"
-- Return ONLY the JSON array, no explanation
-- If no items found, return []`
+- Return ONLY the JSON array, no explanation or comments
+- If no items found, return []
+- IMPORTANT: Include ALL rows/items from the data - do not stop at any arbitrary limit`
 
 /**
  * Parse an image using AI vision to extract cargo information
@@ -195,7 +198,7 @@ export async function parseImageWithAI(
         jsonStr = jsonMatch[0]
       }
 
-      const items = JSON.parse(jsonStr) as Array<{
+      const rawItems = JSON.parse(jsonStr) as Array<{
         sku?: string
         description: string
         quantity: number
@@ -207,7 +210,10 @@ export async function parseImageWithAI(
         priority?: number
       }>
 
-      const parsedItems: ParsedItem[] = items
+      // Log raw item count from AI
+      console.log(`[parseImageWithAI] AI returned ${rawItems.length} raw items`)
+
+      const parsedItems: ParsedItem[] = rawItems
         .map((item, index) => ({
           id: `ai-${Date.now()}-${index}`,
           sku: item.sku,
@@ -224,6 +230,9 @@ export async function parseImageWithAI(
           item.length > 0 || item.width > 0 || item.height > 0 || item.weight > 0
         )
 
+      // Log filtered item count
+      console.log(`[parseImageWithAI] After filtering: ${parsedItems.length} items (filtered ${rawItems.length - parsedItems.length})`)
+
       // Check for truncation
       const potentiallyTruncated = detectTruncatedJSON(responseText)
 
@@ -234,8 +243,17 @@ export async function parseImageWithAI(
         warning: potentiallyTruncated
           ? 'Response may have been truncated. Some items might be missing.'
           : undefined,
+        debugInfo: {
+          rawItemCount: rawItems.length,
+          filteredItemCount: parsedItems.length,
+          sampleRawItem: rawItems[0],
+          potentiallyTruncated,
+        },
       }
-    } catch {
+    } catch (parseError) {
+      console.error('[parseImageWithAI] JSON parse error:', parseError)
+      console.error('[parseImageWithAI] Response text length:', responseText.length)
+      console.error('[parseImageWithAI] Response preview:', responseText.substring(0, 500))
       return {
         success: false,
         items: [],
@@ -293,7 +311,7 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
         jsonStr = jsonMatch[0]
       }
 
-      const items = JSON.parse(jsonStr) as Array<{
+      const rawItems = JSON.parse(jsonStr) as Array<{
         sku?: string
         description: string
         quantity: number
@@ -305,7 +323,11 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
         priority?: number
       }>
 
-      const parsedItems: ParsedItem[] = items
+      // Log raw item count from AI
+      console.log(`[parseTextWithAI] AI returned ${rawItems.length} raw items`)
+      console.log(`[parseTextWithAI] Response text length: ${responseText.length} chars`)
+
+      const parsedItems: ParsedItem[] = rawItems
         .map((item, index) => ({
           id: `ai-${Date.now()}-${index}`,
           sku: item.sku,
@@ -322,6 +344,9 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
           item.length > 0 || item.width > 0 || item.height > 0 || item.weight > 0
         )
 
+      // Log filtered item count
+      console.log(`[parseTextWithAI] After filtering: ${parsedItems.length} items (filtered out ${rawItems.length - parsedItems.length})`)
+
       return {
         success: parsedItems.length > 0,
         items: parsedItems,
@@ -330,14 +355,16 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
           ? 'Response may have been truncated. Some items might be missing.'
           : undefined,
         debugInfo: {
-          rawItemCount: items.length,
+          rawItemCount: rawItems.length,
           filteredItemCount: parsedItems.length,
-          sampleRawItem: items[0],
+          sampleRawItem: rawItems[0],
           potentiallyTruncated,
         },
       }
     } catch (parseError) {
-      console.error('JSON parse error:', parseError)
+      console.error('[parseTextWithAI] JSON parse error:', parseError)
+      console.error('[parseTextWithAI] Response text length:', responseText.length)
+      console.error('[parseTextWithAI] Response preview:', responseText.substring(0, 500))
       return {
         success: false,
         items: [],

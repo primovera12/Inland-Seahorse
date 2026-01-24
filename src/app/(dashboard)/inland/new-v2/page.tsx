@@ -317,10 +317,10 @@ export default function NewInlandQuoteV2Page() {
     return accessorialItems.reduce((sum, a) => sum + a.total, 0)
   }, [accessorialItems])
 
-  // Grand total = services + accessorials
+  // Grand total = services only (accessorials are "if applicable" and shown separately)
   const grandTotal = useMemo(() => {
-    return servicesTotal + accessorialsTotal
-  }, [servicesTotal, accessorialsTotal])
+    return servicesTotal
+  }, [servicesTotal])
 
   // Service item functions
   const addServiceItem = (truckIndex?: number) => {

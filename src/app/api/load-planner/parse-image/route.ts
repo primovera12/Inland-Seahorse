@@ -99,7 +99,15 @@ export async function POST(request: NextRequest) {
       warnings.push(`${incompleteItems.length} item(s) have incomplete dimensions`)
     }
 
-    return NextResponse.json<ParseImageResponse>({
+    // Add warning from AI parser if present (e.g., truncation warning)
+    if (result.warning) {
+      warnings.unshift(result.warning)
+    }
+
+    // Log item count for debugging
+    console.log(`[parse-image] Parsed ${items.length} items from image (AI returned ${result.items.length})`)
+
+    const response = NextResponse.json<ParseImageResponse>({
       success: true,
       items,
       confidence,
@@ -107,6 +115,12 @@ export async function POST(request: NextRequest) {
       errors: [],
       rawText: result.rawResponse
     })
+
+    // Prevent caching to ensure fresh AI responses
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+
+    return response
 
   } catch (error) {
     console.error('Error parsing image:', error)

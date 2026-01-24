@@ -107,7 +107,15 @@ export async function POST(request: NextRequest) {
       warnings.push('Some dimensions seem unusually large - verify unit conversion')
     }
 
-    return NextResponse.json<ParseTextResponse>({
+    // Add warning from AI parser if present (e.g., truncation warning)
+    if (result.warning) {
+      warnings.unshift(result.warning)
+    }
+
+    // Log item count for debugging
+    console.log(`[parse-text] Parsed ${items.length} items from text (AI returned ${result.items.length})`)
+
+    const response = NextResponse.json<ParseTextResponse>({
       success: true,
       items,
       confidence,
@@ -115,6 +123,12 @@ export async function POST(request: NextRequest) {
       errors: [],
       rawText: text
     })
+
+    // Prevent caching to ensure fresh AI responses
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+
+    return response
 
   } catch (error) {
     console.error('Error parsing text:', error)
