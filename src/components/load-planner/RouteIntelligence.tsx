@@ -159,15 +159,24 @@ export function RouteIntelligence({
   }, [origin, destination, cargoSpecs, shipDate, routeData, onRouteCalculated])
 
   useEffect(() => {
-    // Auto-analyze when routeData is provided from parent (e.g., after Calculate Route)
-    // Compare by distance to avoid reference equality issues
+    // Auto-analyze when:
+    // 1. routeData is provided from parent (pre-calculated)
+    // 2. OR we have origin/destination but haven't analyzed yet
     const routeDataDistance = routeData?.totalDistanceMiles
     const stateDistance = state.routeResult?.totalDistanceMiles
+    const hasAddresses = origin && destination
 
+    // If routeData provided and different from what we have, analyze it
     if (routeData && routeDataDistance !== stateDistance) {
       analyzeRoute()
+      return
     }
-  }, [routeData, state.routeResult?.totalDistanceMiles, analyzeRoute])
+
+    // If we have addresses but no route result yet, auto-calculate
+    if (hasAddresses && !state.routeResult && !state.isLoading && !state.error) {
+      analyzeRoute()
+    }
+  }, [routeData, state.routeResult?.totalDistanceMiles, origin, destination, state.isLoading, state.error, analyzeRoute])
 
   const hasWarnings =
     (state.seasonalWarnings?.hasRestrictions ?? false) ||
@@ -208,25 +217,27 @@ export function RouteIntelligence({
     )
   }
 
-  // Show calculate button if no route data yet
+  // Show waiting state if no route data yet
   if (!routeData && !state.routeResult) {
+    // If we have addresses, it will auto-calculate (show brief waiting message)
+    if (origin && destination) {
+      return (
+        <Card className={className}>
+          <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin mb-2" />
+            <p className="text-sm font-medium">Preparing Permit Analysis...</p>
+            <p className="text-xs mt-1">Will calculate automatically</p>
+          </CardContent>
+        </Card>
+      )
+    }
+    // No addresses yet
     return (
       <Card className={className}>
         <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
           <Route className="h-8 w-8 mb-2 opacity-50" />
           <p className="text-sm font-medium">Permit Analysis</p>
-          <p className="text-xs mb-4">Calculate permits and route restrictions</p>
-          <Button
-            onClick={analyzeRoute}
-            disabled={!origin || !destination}
-            size="sm"
-          >
-            <Route className="h-4 w-4 mr-2" />
-            Calculate Permits
-          </Button>
-          {(!origin || !destination) && (
-            <p className="text-xs mt-2 text-muted-foreground">Enter addresses first</p>
-          )}
+          <p className="text-xs">Enter pickup and dropoff addresses first</p>
         </CardContent>
       </Card>
     )
