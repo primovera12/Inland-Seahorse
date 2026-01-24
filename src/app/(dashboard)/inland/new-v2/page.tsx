@@ -1426,10 +1426,20 @@ export default function NewInlandQuoteV2Page() {
             existingDistanceMiles={distanceMiles}
             existingDurationMinutes={durationMinutes}
             existingPolyline={routePolyline}
-            onRouteCalculated={(data) => {
+            onRouteCalculated={async (data) => {
+              // Set basic route data from the map
               setDistanceMiles(data.distanceMiles)
               setDurationMinutes(data.durationMinutes)
               setRoutePolyline(data.polyline)
+
+              // Also calculate full route data for permits (ONE API call here)
+              try {
+                const { calculateRoute } = await import('@/lib/load-planner/route-calculator')
+                const fullRouteResult = await calculateRoute(pickupAddress, dropoffAddress)
+                setRouteResult(fullRouteResult)
+              } catch (err) {
+                console.error('Failed to calculate route for permits:', err)
+              }
             }}
           />
         </div>
