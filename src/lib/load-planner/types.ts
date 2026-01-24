@@ -478,3 +478,101 @@ export interface CargoSpecs {
   length: number // feet
   grossWeight: number // lbs (cargo + trailer + truck)
 }
+
+// =============================================================================
+// DETAILED PERMIT ANALYSIS TYPES
+// =============================================================================
+
+/**
+ * Detailed breakdown of how a permit fee was calculated
+ */
+export interface PermitCostBreakdown {
+  baseFee: number // Base permit fee in cents
+  dimensionSurcharges: {
+    width: { threshold: number; fee: number }[]
+    height: { threshold: number; fee: number }[]
+    length: { threshold: number; fee: number }[]
+  }
+  weightFees: {
+    baseFee: number
+    perMileFee?: number
+    tonMileFee?: number
+    bracketFee?: number
+  }
+  triggeringDimensions: {
+    width?: { value: number; limit: number; exceeded: boolean }
+    height?: { value: number; limit: number; exceeded: boolean }
+    length?: { value: number; limit: number; exceeded: boolean }
+    weight?: { value: number; limit: number; exceeded: boolean }
+  }
+  total: number // Total fee in cents
+}
+
+/**
+ * Detailed permit requirement with full breakdown and source info
+ */
+export interface DetailedPermitRequirement {
+  state: string                  // Full state name
+  stateCode: string              // 2-letter code
+  distanceInState: number        // Miles traveling through this state
+  oversizeRequired: boolean
+  overweightRequired: boolean
+  isSuperload: boolean
+  escortsRequired: number
+  poleCarRequired?: boolean
+  policeEscortRequired?: boolean
+  estimatedFee: number           // Total fee in cents
+  costBreakdown: PermitCostBreakdown
+  calculationDetails: string[]   // Human-readable calculation steps
+  source: {
+    agency: string               // e.g., "Texas DMV Oversize/Overweight Permits"
+    website: string              // Official website URL
+    phone: string                // Contact phone
+    lastUpdated: string          // When this data was last verified
+  }
+  travelRestrictions: string[]   // Time/weather restrictions
+  reasons: string[]              // Why permit is required
+}
+
+/**
+ * Summary of permits for an entire route
+ */
+export interface DetailedRoutePermitSummary {
+  statePermits: DetailedPermitRequirement[]
+  totalPermitCost: number        // Sum of all state permit fees
+  totalEscortCost: number        // Estimated escort/pilot car costs
+  totalCost: number              // permits + escorts
+  overallRestrictions: string[]  // Combined restrictions across all states
+  warnings: string[]
+}
+
+// =============================================================================
+// MULTIPLE ROUTE OPTIONS TYPES
+// =============================================================================
+
+/**
+ * A single route alternative with permit analysis
+ */
+export interface RouteAlternative {
+  id: string
+  name: string                   // e.g., "via I-40 W" or "Route A"
+  totalDistanceMiles: number
+  totalDurationMinutes: number
+  statesTraversed: string[]      // State codes in order
+  stateDistances: Record<string, number>  // Miles per state
+  routePolyline: string          // Encoded polyline for map display
+  permitSummary: DetailedRoutePermitSummary
+  estimatedCosts: {
+    permits: number              // Total permit fees
+    escorts: number              // Total escort costs
+    total: number                // Combined total
+  }
+}
+
+/**
+ * Result of calculating multiple route alternatives
+ */
+export interface MultiRouteResult {
+  routes: RouteAlternative[]     // Sorted by total cost (cheapest first)
+  selectedRouteId: string        // Currently selected route
+}

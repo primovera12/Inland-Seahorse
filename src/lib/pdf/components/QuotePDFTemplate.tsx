@@ -3,8 +3,10 @@
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
-import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock } from '../types'
+import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock, InlandServiceItem, InlandAccessorialCharge } from '../types'
 import { generateServiceLineItems, CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES } from '../types'
+import { renderTopViewSvg, renderSideViewSvg } from '@/components/load-planner/LoadPlanPDFRenderer'
+import type { TruckType, LoadItem, ItemPlacement } from '@/lib/load-planner/types'
 
 interface QuotePDFTemplateProps {
   data: UnifiedPDFData
@@ -257,7 +259,7 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
                 src={staticMapUrl}
                 alt="Route map"
                 className="w-full h-auto"
-                style={{ maxHeight: '250px', objectFit: 'cover' }}
+                style={{ maxHeight: '400px', objectFit: 'cover' }}
               />
             </div>
           </div>
@@ -376,7 +378,7 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
                   src={data.inlandTransport!.static_map_url}
                   alt="Route map"
                   className="w-full h-auto"
-                  style={{ maxHeight: '250px', objectFit: 'cover' }}
+                  style={{ maxHeight: '400px', objectFit: 'cover' }}
                 />
               </div>
             </div>
@@ -420,6 +422,22 @@ function isVariableBillingUnit(unit: string): boolean {
   return ['hour', 'day', 'week', 'month'].includes(unit)
 }
 
+// Helper to convert cargo items to LoadItem format for trailer diagram rendering
+function cargoToLoadItems(cargoItems: InlandLoadBlock['cargo_items']): LoadItem[] {
+  if (!cargoItems) return []
+  return cargoItems.map((cargo) => ({
+    id: cargo.id,
+    description: cargo.description,
+    quantity: cargo.quantity,
+    length: cargo.length_inches / 12, // Convert to feet
+    width: cargo.width_inches / 12,
+    height: cargo.height_inches / 12,
+    weight: cargo.weight_lbs,
+    stackable: false,
+    fragile: false,
+  }))
+}
+
 // Inland transport services and accessorials section
 function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
@@ -458,9 +476,12 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
               {block.truck_type_name}
             </span>
           </div>
-          <span className="text-sm font-bold" style={{ color: primaryColor }}>
-            {formatCurrency(block.subtotal)}
-          </span>
+          {/* Only show subtotal if this load block has services priced */}
+          {block.service_items.length > 0 && (
+            <span className="text-sm font-bold" style={{ color: primaryColor }}>
+              {formatCurrency(block.subtotal)}
+            </span>
+          )}
         </div>
       )}
 
@@ -706,6 +727,81 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
         </div>
       )}
 
+      {/* Trailer Diagrams - Show how cargo is loaded */}
+      {block.cargo_items && block.cargo_items.length > 0 && block.placements && block.placements.length > 0 && block.truck_specs && (
+        <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
+          <div className="px-6 py-3" style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+            <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+              Load Arrangement on {block.truck_type_name}
+            </h4>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 gap-4">
+              {/* Top View */}
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-widest mb-2">Top View</p>
+                <div
+                  className="bg-white rounded border border-slate-200"
+                  dangerouslySetInnerHTML={{
+                    __html: renderTopViewSvg(
+                      {
+                        id: block.truck_type_id,
+                        name: block.truck_type_name,
+                        category: 'FLATBED',
+                        description: 'Standard flatbed trailer',
+                        deckLength: block.truck_specs.deckLength,
+                        deckWidth: block.truck_specs.deckWidth,
+                        deckHeight: block.truck_specs.deckHeight,
+                        maxCargoWeight: block.truck_specs.maxWeight,
+                        maxLegalCargoHeight: 13.5 - block.truck_specs.deckHeight,
+                        maxLegalCargoWidth: 8.5,
+                        tareWeight: 15000,
+                        features: [],
+                        bestFor: [],
+                        loadingMethod: 'crane',
+                      } as TruckType,
+                      cargoToLoadItems(block.cargo_items),
+                      block.placements as ItemPlacement[],
+                      { width: 500, showLabels: true, showDimensions: true }
+                    )
+                  }}
+                />
+              </div>
+              {/* Side View */}
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-widest mb-2">Side View</p>
+                <div
+                  className="bg-white rounded border border-slate-200"
+                  dangerouslySetInnerHTML={{
+                    __html: renderSideViewSvg(
+                      {
+                        id: block.truck_type_id,
+                        name: block.truck_type_name,
+                        category: 'FLATBED',
+                        description: 'Standard flatbed trailer',
+                        deckLength: block.truck_specs.deckLength,
+                        deckWidth: block.truck_specs.deckWidth,
+                        deckHeight: block.truck_specs.deckHeight,
+                        maxCargoWeight: block.truck_specs.maxWeight,
+                        maxLegalCargoHeight: 13.5 - block.truck_specs.deckHeight,
+                        maxLegalCargoWidth: 8.5,
+                        tareWeight: 15000,
+                        features: [],
+                        bestFor: [],
+                        loadingMethod: 'crane',
+                      } as TruckType,
+                      cargoToLoadItems(block.cargo_items),
+                      block.placements as ItemPlacement[],
+                      { width: 500, showLabels: true }
+                    )
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Service Items Table */}
       {block.service_items.length > 0 && (
         <table className="w-full text-left border-collapse mb-4">
@@ -903,6 +999,106 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                   return renderLoadBlock(formattedBlock, loadIndex, dest.load_blocks.length > 1)
                 })}
               </div>
+
+              {/* Destination-level Services Table (v2 format) */}
+              {(dest as { service_items?: InlandServiceItem[] }).service_items && (dest as { service_items?: InlandServiceItem[] }).service_items!.length > 0 && (
+                <div className="px-8 pb-4">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+                        <th className="px-6 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                          Service Description
+                        </th>
+                        <th className="px-4 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
+                          Qty
+                        </th>
+                        <th className="px-4 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                          Unit Rate
+                        </th>
+                        <th className="px-6 py-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                          Line Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(dest as { service_items?: InlandServiceItem[] }).service_items!.map((item, index) => (
+                        <tr key={item.id} className={index % 2 === 1 ? 'bg-slate-50/50' : ''}>
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900">{item.name}</td>
+                          <td className="px-4 py-4 text-sm text-center font-medium">{item.quantity}</td>
+                          <td className="px-4 py-4 text-sm text-right font-medium">{formatCurrency(item.rate)}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-right text-slate-900">{formatCurrency(item.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
+                        <td colSpan={3} className="px-6 py-3 text-sm font-bold text-slate-700">
+                          Services Total
+                        </td>
+                        <td className="px-6 py-3 text-right text-base font-bold text-slate-900">
+                          {formatCurrency(dest.subtotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {/* Destination-level Accessorial Charges (v2 format) */}
+              {(dest as { accessorial_charges?: InlandAccessorialCharge[] }).accessorial_charges && (dest as { accessorial_charges?: InlandAccessorialCharge[] }).accessorial_charges!.length > 0 && (
+                <div className="px-8 pb-4">
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-3 flex items-center gap-2">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      Accessorial Fees (If Applicable)
+                    </h4>
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
+                            Fee Type
+                          </th>
+                          <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600">
+                            Unit
+                          </th>
+                          <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-center">
+                            Qty
+                          </th>
+                          <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
+                            Rate
+                          </th>
+                          <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-amber-600 text-right">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-200">
+                        {(dest as { accessorial_charges?: InlandAccessorialCharge[] }).accessorial_charges!.map((charge) => {
+                          const isVariable = isVariableBillingUnit(charge.billing_unit)
+                          const rateDisplay = `${formatCurrency(charge.rate)}${formatBillingUnit(charge.billing_unit)}`
+                          return (
+                            <tr key={charge.id}>
+                              <td className="px-3 py-2 text-xs font-medium text-amber-900">{charge.name}</td>
+                              <td className="px-3 py-2 text-xs text-amber-700">{formatBillingUnitLabel(charge.billing_unit)}</td>
+                              <td className="px-3 py-2 text-xs text-center text-amber-700">{charge.quantity}</td>
+                              <td className="px-3 py-2 text-xs text-right text-amber-700 font-medium">{rateDisplay}</td>
+                              <td className="px-3 py-2 text-xs font-bold text-right text-amber-900">
+                                {isVariable ? (
+                                  <span className="italic text-amber-600">Billed as used</span>
+                                ) : (
+                                  formatCurrency(charge.total)
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Destination Subtotal - Skip for single destination */}
               {!skipDestinationHeader && (

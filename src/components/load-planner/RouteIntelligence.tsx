@@ -22,7 +22,8 @@ import {
 import type { LatLng, StateSegment, RouteResult } from '@/lib/load-planner/route-calculator'
 import type { SeasonalRestriction } from '@/lib/load-planner/seasonal-restrictions'
 import type { LowClearanceBridge } from '@/lib/load-planner/bridge-heights'
-import type { CargoSpecs, RoutePermitSummary } from '@/lib/load-planner/types'
+import type { CargoSpecs, RoutePermitSummary, DetailedPermitRequirement, DetailedRoutePermitSummary } from '@/lib/load-planner/types'
+import { ExternalLink } from 'lucide-react'
 
 interface RouteIntelligenceProps {
   origin: string
@@ -39,6 +40,7 @@ interface RouteIntelligenceState {
   error: string | null
   routeResult: RouteResult | null
   permitSummary: RoutePermitSummary | null
+  detailedPermitSummary: DetailedRoutePermitSummary | null
   seasonalWarnings: {
     hasRestrictions: boolean
     affectedStates: SeasonalRestriction[]
@@ -75,12 +77,14 @@ export function RouteIntelligence({
     error: null,
     routeResult: null, // Don't initialize from routeData - let useEffect handle it
     permitSummary: null,
+    detailedPermitSummary: null,
     seasonalWarnings: null,
     bridgeWarnings: null,
   })
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['summary', 'states'])
   )
+  const [expandedPermits, setExpandedPermits] = useState<Set<string>>(new Set())
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => {
@@ -119,8 +123,15 @@ export function RouteIntelligence({
         }))
 
         // Calculate permits for the route
-        const { calculateRoutePermits } = await import('@/lib/load-planner/permit-calculator')
+        const { calculateRoutePermits, calculateDetailedRoutePermits } = await import('@/lib/load-planner/permit-calculator')
         const permitSummary = calculateRoutePermits(
+          routeToAnalyze.statesTraversed,
+          cargoSpecs,
+          routeToAnalyze.stateDistances
+        )
+
+        // Calculate detailed permit breakdown for expandable view
+        const detailedPermitSummary = calculateDetailedRoutePermits(
           routeToAnalyze.statesTraversed,
           cargoSpecs,
           routeToAnalyze.stateDistances
@@ -143,6 +154,7 @@ export function RouteIntelligence({
         setState((prev) => ({
           ...prev,
           permitSummary,
+          detailedPermitSummary,
           seasonalWarnings,
           bridgeWarnings,
         }))
@@ -326,8 +338,9 @@ export function RouteIntelligence({
               }
             />
             {expandedSections.has('permits') && (
-              <div className="pl-6 space-y-2">
-                <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="pl-6 space-y-3">
+                {/* Cost summary */}
+                <div className="grid grid-cols-2 gap-2 text-sm pb-2 border-b">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Permit Fees:</span>
                     <span className="font-medium">
@@ -341,6 +354,34 @@ export function RouteIntelligence({
                     </span>
                   </div>
                 </div>
+
+                {/* Per-state breakdown */}
+                {state.detailedPermitSummary?.statePermits && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Per-State Breakdown (click to expand):
+                    </div>
+                    {state.detailedPermitSummary.statePermits.map((permit) => (
+                      <PermitBreakdownCard
+                        key={permit.stateCode}
+                        permit={permit}
+                        isExpanded={expandedPermits.has(permit.stateCode)}
+                        onToggle={() => {
+                          setExpandedPermits((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(permit.stateCode)) {
+                              next.delete(permit.stateCode)
+                            } else {
+                              next.add(permit.stateCode)
+                            }
+                            return next
+                          })
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+
                 {state.permitSummary.estimatedEscortsPerDay > 0 && (
                   <div className="text-sm text-muted-foreground">
                     Escorts required: {state.permitSummary.estimatedEscortsPerDay} per day
@@ -548,6 +589,117 @@ function BridgeWarningCard({ bridge, clearanceResult }: BridgeWarningCardProps) 
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+interface PermitBreakdownCardProps {
+  permit: DetailedPermitRequirement
+  isExpanded: boolean
+  onToggle: () => void
+}
+
+function PermitBreakdownCard({ permit, isExpanded, onToggle }: PermitBreakdownCardProps) {
+  const hasPermitRequired = permit.oversizeRequired || permit.overweightRequired
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      {/* Header - always visible */}
+      <button
+        onClick={onToggle}
+        className="w-full flex justify-between items-center p-3 bg-slate-50 hover:bg-slate-100 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{permit.state}</span>
+          <span className="text-sm text-muted-foreground">
+            {permit.distanceInState > 0 ? `${permit.distanceInState.toFixed(0)} mi` : ''}
+          </span>
+          {!hasPermitRequired && (
+            <Badge variant="secondary" className="text-xs">No Permit</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {hasPermitRequired && (
+            <span className="font-bold text-green-600">${permit.estimatedFee}</span>
+          )}
+          {isExpanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {isExpanded && (
+        <div className="p-4 space-y-4 border-t bg-white">
+          {/* Why permit is required */}
+          {permit.reasons.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Why Permit Required</h4>
+              <ul className="text-sm text-slate-600 space-y-1">
+                {permit.reasons.map((reason, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Fee breakdown */}
+          {permit.calculationDetails.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Fee Breakdown</h4>
+              <ul className="text-sm space-y-1">
+                {permit.calculationDetails.map((detail, i) => (
+                  <li key={i} className="text-slate-600">{detail}</li>
+                ))}
+                <li className="font-bold border-t pt-1 mt-2">
+                  Total: ${permit.estimatedFee}
+                </li>
+              </ul>
+            </div>
+          )}
+
+          {/* Escort requirements */}
+          {permit.escortsRequired > 0 && (
+            <div className="text-sm text-slate-600">
+              <span className="font-medium">Escorts Required:</span> {permit.escortsRequired}
+              {permit.poleCarRequired && ' + Pole Car'}
+              {permit.policeEscortRequired && ' + Police Escort'}
+            </div>
+          )}
+
+          {/* Travel restrictions */}
+          {permit.travelRestrictions.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Travel Restrictions</h4>
+              <ul className="text-sm text-amber-700 bg-amber-50 p-2 rounded space-y-1">
+                {permit.travelRestrictions.map((r, i) => (
+                  <li key={i}>• {r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Source citation */}
+          <div className="text-xs text-slate-500 border-t pt-3">
+            <p><strong>Source:</strong> {permit.source.agency}</p>
+            <a
+              href={permit.source.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline inline-flex items-center gap-1"
+            >
+              Official Website <ExternalLink className="h-3 w-3" />
+            </a>
+            <p>Phone: {permit.source.phone}</p>
+            <p className="italic mt-1">Data last updated: {permit.source.lastUpdated}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

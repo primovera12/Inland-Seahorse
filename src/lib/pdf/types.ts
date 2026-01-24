@@ -171,6 +171,22 @@ export interface InlandCargoItem {
   side_image_url?: string // Equipment side view
 }
 
+// Placement info for cargo items on trailer
+export interface CargoPlacement {
+  itemId: string
+  x: number // feet from front
+  z: number // feet from left edge
+  rotated: boolean
+}
+
+// Truck specs for trailer diagram rendering
+export interface TruckSpecs {
+  deckLength: number // feet
+  deckWidth: number // feet
+  deckHeight: number // feet
+  maxWeight: number // lbs
+}
+
 // Load block for inland transport
 export interface InlandLoadBlock {
   id: string
@@ -184,6 +200,9 @@ export interface InlandLoadBlock {
   accessorial_charges: InlandAccessorialCharge[]
   subtotal: number // cents - services only
   accessorials_total: number // cents - accessorials (if applicable)
+  // Load plan diagram data
+  placements?: CargoPlacement[] // Placement of items on trailer
+  truck_specs?: TruckSpecs // Truck dimensions for diagram rendering
 }
 
 // Inland transport info for PDF
@@ -736,6 +755,31 @@ export function generateServiceLineItems(
 // ============================================
 
 import type { MultiEquipmentPDFData, EquipmentBlockPDF } from './quote-generator'
+
+// ============================================
+// Pricing Mode Types (for flexible pricing options)
+// ============================================
+
+/**
+ * Pricing mode determines how services are priced in the quote:
+ * - 'global': All services priced together at destination level (default)
+ * - 'per_truck': Each truck/load has its own pricing section
+ * - 'grouped': Trucks grouped together, priced by group
+ */
+export type PricingMode = 'global' | 'per_truck' | 'grouped'
+
+/**
+ * A group of trucks that share pricing
+ * Used when pricingMode is 'grouped'
+ */
+export interface TruckGroup {
+  id: string
+  name: string                           // User-defined group name (e.g., "Oversize Loads")
+  truckIndices: number[]                 // Indices into plannedLoads array
+  services: InlandServiceItem[]          // Services for this group
+  accessorials: InlandAccessorialCharge[] // Accessorials for this group
+  subtotal: number                       // Total for this group (cents)
+}
 
 export function unifiedPDFDataToMultiEquipmentPDF(data: UnifiedPDFData): MultiEquipmentPDFData {
   // Build customer address string

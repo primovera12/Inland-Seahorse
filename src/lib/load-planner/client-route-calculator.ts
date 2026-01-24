@@ -6,6 +6,8 @@
  */
 
 import type { RouteResult, LatLng, StateSegment } from './route-calculator'
+import type { RouteAlternative, MultiRouteResult, CargoSpecs, DetailedRoutePermitSummary } from './types'
+import { calculateDetailedRoutePermits } from './permit-calculator'
 
 // State name to code mapping
 const STATE_NAMES: Record<string, string> = {
@@ -367,5 +369,121 @@ export async function calculateRouteClientSide(
     routePolyline,
     waypoints: sampledWaypoints,
     warnings,
+  }
+}
+
+/**
+ * Calculate multiple route alternatives with permit cost comparison
+ * Returns up to 3 routes sorted by total cost (permits + escorts)
+ */
+export async function calculateMultipleRoutes(
+  origin: string,
+  destination: string,
+  cargo: CargoSpecs
+): Promise<MultiRouteResult> {
+  // Ensure Google Maps is loaded
+  if (typeof google === 'undefined' || !google.maps) {
+    throw new Error('Google Maps JavaScript API is not loaded')
+  }
+
+  const directionsService = new google.maps.DirectionsService()
+  const geocoder = new google.maps.Geocoder()
+
+  // Get directions with alternatives
+  const result = await directionsService.route({
+    origin,
+    destination,
+    travelMode: google.maps.TravelMode.DRIVING,
+    provideRouteAlternatives: true, // Request alternative routes
+  })
+
+  if (result.routes.length === 0) {
+    throw new Error('No routes found')
+  }
+
+  // Process up to 3 routes
+  const routeAlternatives: RouteAlternative[] = []
+
+  for (let i = 0; i < Math.min(result.routes.length, 3); i++) {
+    const route = result.routes[i]
+    const leg = route.legs[0]
+
+    // Calculate totals
+    const totalDistanceMeters = leg.distance?.value || 0
+    const totalDurationSeconds = leg.duration?.value || 0
+    const totalDistanceMiles = Math.round(totalDistanceMeters * 0.000621371 * 10) / 10
+    const totalDurationMinutes = Math.round(totalDurationSeconds / 60)
+
+    // Get route name from summary (e.g., "via I-40 W")
+    const routeName = route.summary || `Route ${String.fromCharCode(65 + i)}`
+
+    // Get the polyline
+    const overviewPolyline = route.overview_polyline as unknown
+    const routePolyline =
+      typeof overviewPolyline === 'string'
+        ? overviewPolyline
+        : (overviewPolyline as { points?: string })?.points || ''
+
+    // Decode polyline and sample points
+    const decodedPoints = decodePolyline(routePolyline)
+    const sampleInterval = Math.max(1, Math.floor(decodedPoints.length / 100))
+    const sampledWaypoints = decodedPoints.filter((_, idx) => idx % sampleInterval === 0)
+
+    // Detect states along the route
+    const stateDetectionResult = await detectStatesFromPoints(sampledWaypoints, geocoder)
+
+    // Calculate detailed permits for this route
+    const permitSummary = calculateDetailedRoutePermits(
+      stateDetectionResult.states,
+      cargo,
+      stateDetectionResult.distances
+    )
+
+    routeAlternatives.push({
+      id: `route-${i}`,
+      name: routeName,
+      totalDistanceMiles,
+      totalDurationMinutes,
+      statesTraversed: stateDetectionResult.states,
+      stateDistances: stateDetectionResult.distances,
+      routePolyline,
+      permitSummary,
+      estimatedCosts: {
+        permits: permitSummary.totalPermitCost,
+        escorts: permitSummary.totalEscortCost,
+        total: permitSummary.totalCost,
+      },
+    })
+  }
+
+  // Sort by total cost (cheapest first)
+  routeAlternatives.sort((a, b) => a.estimatedCosts.total - b.estimatedCosts.total)
+
+  return {
+    routes: routeAlternatives,
+    selectedRouteId: routeAlternatives[0]?.id || '', // Default to cheapest
+  }
+}
+
+/**
+ * Calculate a single route with detailed permit analysis
+ * Wrapper for calculateRouteClientSide that adds permit calculation
+ */
+export async function calculateRouteWithPermits(
+  origin: string,
+  destination: string,
+  cargo: CargoSpecs
+): Promise<RouteResult & { permitSummary: DetailedRoutePermitSummary }> {
+  const routeResult = await calculateRouteClientSide(origin, destination)
+
+  const permitSummary = calculateDetailedRoutePermits(
+    routeResult.statesTraversed,
+    cargo,
+    routeResult.stateDistances
+  )
+
+  return {
+    ...routeResult,
+    permitSummary,
   }
 }

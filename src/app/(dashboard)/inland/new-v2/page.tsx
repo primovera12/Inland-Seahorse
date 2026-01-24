@@ -549,6 +549,14 @@ export default function NewInlandQuoteV2Page() {
             accessorial_charges: [],
             subtotal: 0,
             accessorials_total: 0,
+            // Load plan diagram data
+            placements: load.placements,
+            truck_specs: {
+              deckLength: load.recommendedTruck.deckLength,
+              deckWidth: load.recommendedTruck.deckWidth,
+              deckHeight: load.recommendedTruck.deckHeight,
+              maxWeight: load.recommendedTruck.maxCargoWeight,
+            },
           })) || [],
           // Services at destination level (consolidated)
           service_items: serviceItems.map(s => ({
@@ -581,6 +589,14 @@ export default function NewInlandQuoteV2Page() {
           accessorial_charges: [],
           subtotal: 0,
           accessorials_total: 0,
+          // Load plan diagram data
+          placements: load.placements,
+          truck_specs: {
+            deckLength: load.recommendedTruck.deckLength,
+            deckWidth: load.recommendedTruck.deckWidth,
+            deckHeight: load.recommendedTruck.deckHeight,
+            maxWeight: load.recommendedTruck.maxCargoWeight,
+          },
         })) || [],
         distance_miles: distanceMiles || undefined,
         duration_minutes: durationMinutes || undefined,

@@ -8,7 +8,10 @@
 import type {
   StatePermitData,
   PermitRequirement,
-  RoutePermitSummary
+  RoutePermitSummary,
+  PermitCostBreakdown,
+  DetailedPermitRequirement,
+  DetailedRoutePermitSummary
 } from './types'
 import { statePermits, getStateByCode } from './state-permits'
 
@@ -202,6 +205,329 @@ export function calculateStatePermit(
     estimatedFee: Math.round(estimatedFee),
     reasons,
     travelRestrictions: restrictions
+  }
+}
+
+/**
+ * Calculate detailed permit requirements for a single state
+ * Returns full cost breakdown with calculation steps and source info
+ */
+export function calculateDetailedStatePermit(
+  stateCode: string,
+  cargo: CargoSpecs,
+  distanceInState: number = 0
+): DetailedPermitRequirement | null {
+  const state = getStateByCode(stateCode)
+  if (!state) return null
+
+  const limits = state.legalLimits
+  const calculationDetails: string[] = []
+  const reasons: string[] = []
+  const restrictions: string[] = []
+
+  // Initialize cost breakdown
+  const costBreakdown: PermitCostBreakdown = {
+    baseFee: 0,
+    dimensionSurcharges: { width: [], height: [], length: [] },
+    weightFees: { baseFee: 0 },
+    triggeringDimensions: {},
+    total: 0
+  }
+
+  // Check oversize
+  const widthOver = cargo.width > limits.maxWidth
+  const heightOver = cargo.height > limits.maxHeight
+  const lengthOver = cargo.length > limits.maxLength.combination
+
+  const oversizeRequired = widthOver || heightOver || lengthOver
+
+  // Track triggering dimensions
+  if (widthOver) {
+    costBreakdown.triggeringDimensions.width = {
+      value: cargo.width,
+      limit: limits.maxWidth,
+      exceeded: true
+    }
+    reasons.push(`Width ${cargo.width}' exceeds ${limits.maxWidth}' limit`)
+  }
+  if (heightOver) {
+    costBreakdown.triggeringDimensions.height = {
+      value: cargo.height,
+      limit: limits.maxHeight,
+      exceeded: true
+    }
+    reasons.push(`Height ${cargo.height}' exceeds ${limits.maxHeight}' limit`)
+  }
+  if (lengthOver) {
+    costBreakdown.triggeringDimensions.length = {
+      value: cargo.length,
+      limit: limits.maxLength.combination,
+      exceeded: true
+    }
+    reasons.push(`Length ${cargo.length}' exceeds ${limits.maxLength.combination}' limit`)
+  }
+
+  // Check overweight
+  const overweightRequired = cargo.grossWeight > limits.maxWeight.gross
+  if (overweightRequired) {
+    costBreakdown.triggeringDimensions.weight = {
+      value: cargo.grossWeight,
+      limit: limits.maxWeight.gross,
+      exceeded: true
+    }
+    reasons.push(`Weight ${cargo.grossWeight.toLocaleString()} lbs exceeds ${limits.maxWeight.gross.toLocaleString()} lb limit`)
+  }
+
+  // Check superload
+  const superload = state.superloadThresholds
+  const isSuperload: boolean = superload ? !!(
+    (superload.width && cargo.width >= superload.width) ||
+    (superload.height && cargo.height >= superload.height) ||
+    (superload.length && cargo.length >= superload.length) ||
+    (superload.weight && cargo.grossWeight >= superload.weight)
+  ) : false
+
+  if (isSuperload) {
+    reasons.push('Load qualifies as superload - special routing required')
+  }
+
+  // Calculate escorts
+  const escortRules = state.escortRules
+  let escortsRequired = 0
+  let poleCarRequired = false
+  let policeEscortRequired = false
+
+  if (cargo.width >= escortRules.width.twoEscorts) {
+    escortsRequired = 2
+  } else if (cargo.width >= escortRules.width.oneEscort) {
+    escortsRequired = 1
+  }
+
+  if (escortRules.height?.poleCar && cargo.height >= escortRules.height.poleCar) {
+    poleCarRequired = true
+  }
+
+  if (escortRules.length?.twoEscorts && cargo.length >= escortRules.length.twoEscorts) {
+    escortsRequired = Math.max(escortsRequired, 2)
+  } else if (escortRules.length?.oneEscort && cargo.length >= escortRules.length.oneEscort) {
+    escortsRequired = Math.max(escortsRequired, 1)
+  }
+
+  if (escortRules.policeEscort) {
+    if (escortRules.policeEscort.width && cargo.width >= escortRules.policeEscort.width) {
+      policeEscortRequired = true
+    }
+    if (escortRules.policeEscort.height && cargo.height >= escortRules.policeEscort.height) {
+      policeEscortRequired = true
+    }
+  }
+
+  // Calculate fees with detailed breakdown
+  let estimatedFee = 0
+
+  if (oversizeRequired) {
+    const osPermit = state.oversizePermits.singleTrip
+    costBreakdown.baseFee = osPermit.baseFee
+    estimatedFee += osPermit.baseFee
+    calculationDetails.push(`Base oversize permit fee: $${osPermit.baseFee}`)
+
+    // Add dimension surcharges with detailed tracking
+    if (osPermit.dimensionSurcharges) {
+      const { width, height, length } = osPermit.dimensionSurcharges
+
+      if (width) {
+        for (const surcharge of width) {
+          if (cargo.width >= surcharge.threshold) {
+            estimatedFee += surcharge.fee
+            costBreakdown.dimensionSurcharges.width.push(surcharge)
+            calculationDetails.push(`Width surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+          }
+        }
+      }
+      if (height) {
+        for (const surcharge of height) {
+          if (cargo.height >= surcharge.threshold) {
+            estimatedFee += surcharge.fee
+            costBreakdown.dimensionSurcharges.height.push(surcharge)
+            calculationDetails.push(`Height surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+          }
+        }
+      }
+      if (length) {
+        for (const surcharge of length) {
+          if (cargo.length >= surcharge.threshold) {
+            estimatedFee += surcharge.fee
+            costBreakdown.dimensionSurcharges.length.push(surcharge)
+            calculationDetails.push(`Length surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+          }
+        }
+      }
+    }
+  }
+
+  if (overweightRequired) {
+    const owPermit = state.overweightPermits.singleTrip
+    costBreakdown.weightFees.baseFee = owPermit.baseFee
+    estimatedFee += owPermit.baseFee
+    calculationDetails.push(`Base overweight permit fee: $${owPermit.baseFee}`)
+
+    // Per mile fees
+    if (owPermit.perMileFee && distanceInState > 0) {
+      const perMileCost = owPermit.perMileFee * distanceInState
+      costBreakdown.weightFees.perMileFee = owPermit.perMileFee
+      estimatedFee += perMileCost
+      calculationDetails.push(`Per-mile fee (${distanceInState} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
+    }
+
+    // Ton-mile fees
+    if (owPermit.tonMileFee && distanceInState > 0) {
+      const tons = cargo.grossWeight / 2000
+      const tonMileCost = owPermit.tonMileFee * tons * distanceInState
+      costBreakdown.weightFees.tonMileFee = owPermit.tonMileFee
+      estimatedFee += tonMileCost
+      calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${distanceInState} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
+    }
+
+    // Weight brackets
+    if (owPermit.weightBrackets) {
+      for (const bracket of owPermit.weightBrackets) {
+        if (cargo.grossWeight <= bracket.upTo) {
+          const bracketTotal = owPermit.baseFee + bracket.fee
+          if (bracketTotal > estimatedFee) {
+            const additionalFee = bracketTotal - estimatedFee
+            costBreakdown.weightFees.bracketFee = bracket.fee
+            estimatedFee = bracketTotal
+            calculationDetails.push(`Weight bracket (up to ${bracket.upTo.toLocaleString()} lbs): +$${additionalFee.toFixed(0)}`)
+          }
+          break
+        }
+      }
+    }
+
+    // Extra legal fees
+    if (owPermit.extraLegalFees?.perTrip) {
+      estimatedFee += owPermit.extraLegalFees.perTrip
+      calculationDetails.push(`Extra legal fee (per trip): +$${owPermit.extraLegalFees.perTrip}`)
+    }
+  }
+
+  costBreakdown.total = Math.round(estimatedFee)
+
+  // Travel restrictions
+  const travel = state.travelRestrictions
+  if (travel.noNightTravel) {
+    restrictions.push(`No night travel${travel.nightDefinition ? ` (${travel.nightDefinition})` : ''}`)
+  }
+  if (travel.noWeekendTravel) {
+    restrictions.push(`No weekend travel${travel.weekendDefinition ? ` (${travel.weekendDefinition})` : ''}`)
+  }
+  if (travel.noHolidayTravel) {
+    restrictions.push('No holiday travel')
+  }
+  if (travel.peakHourRestrictions) {
+    restrictions.push(travel.peakHourRestrictions)
+  }
+  if (travel.weatherRestrictions) {
+    restrictions.push(travel.weatherRestrictions)
+  }
+
+  return {
+    state: state.stateName,
+    stateCode: state.stateCode,
+    distanceInState,
+    oversizeRequired,
+    overweightRequired,
+    isSuperload,
+    escortsRequired,
+    poleCarRequired,
+    policeEscortRequired,
+    estimatedFee: Math.round(estimatedFee),
+    costBreakdown,
+    calculationDetails,
+    source: {
+      agency: state.contact.agency,
+      website: state.contact.website,
+      phone: state.contact.phone,
+      lastUpdated: 'January 2025'
+    },
+    travelRestrictions: restrictions,
+    reasons
+  }
+}
+
+/**
+ * Calculate detailed permits for an entire route across multiple states
+ */
+export function calculateDetailedRoutePermits(
+  stateCodes: string[],
+  cargo: CargoSpecs,
+  stateDistances?: Record<string, number>
+): DetailedRoutePermitSummary {
+  const statePermits: DetailedPermitRequirement[] = []
+  const overallRestrictions: string[] = []
+  const warnings: string[] = []
+
+  let totalPermitCost = 0
+  let maxEscorts = 0
+  let needsPoleCar = false
+  let needsPolice = false
+
+  // Calculate for each state
+  for (const code of stateCodes) {
+    const distance = stateDistances?.[code] || 0
+    const permit = calculateDetailedStatePermit(code, cargo, distance)
+
+    if (permit) {
+      statePermits.push(permit)
+      totalPermitCost += permit.estimatedFee
+      maxEscorts = Math.max(maxEscorts, permit.escortsRequired)
+      if (permit.poleCarRequired) needsPoleCar = true
+      if (permit.policeEscortRequired) needsPolice = true
+
+      if (permit.isSuperload) {
+        warnings.push(`${permit.state} requires superload permit - additional routing and timing restrictions apply`)
+      }
+    }
+  }
+
+  // Aggregate restrictions
+  const hasNoNightTravel = statePermits.some(s => s.travelRestrictions.some(r => r.includes('night')))
+  const hasNoWeekendTravel = statePermits.some(s => s.travelRestrictions.some(r => r.includes('weekend')))
+  const hasNoHolidayTravel = statePermits.some(s => s.travelRestrictions.some(r => r.includes('holiday')))
+
+  if (hasNoNightTravel) overallRestrictions.push('Daytime travel only in most states')
+  if (hasNoWeekendTravel) overallRestrictions.push('Some states restrict weekend travel')
+  if (hasNoHolidayTravel) overallRestrictions.push('Holiday travel restrictions in effect')
+
+  // Calculate escort costs
+  const totalDistance = stateDistances
+    ? Object.values(stateDistances).reduce((a, b) => a + b, 0)
+    : 0
+  const estimatedDays = Math.max(1, Math.ceil(totalDistance / 300))
+
+  let totalEscortCost = 0
+  totalEscortCost += maxEscorts * ESCORT_COST_PER_DAY * estimatedDays
+  if (needsPoleCar) totalEscortCost += POLE_CAR_COST_PER_DAY * estimatedDays
+  if (needsPolice) totalEscortCost += POLICE_ESCORT_HOURLY * 8 * estimatedDays
+
+  // Warnings
+  if (totalPermitCost > 500) {
+    warnings.push(`High permit costs expected ($${totalPermitCost.toLocaleString()})`)
+  }
+  if (maxEscorts >= 2) {
+    warnings.push('Two escorts required - coordinate timing carefully')
+  }
+  if (needsPolice) {
+    warnings.push('Police escort required - schedule in advance')
+  }
+
+  return {
+    statePermits,
+    totalPermitCost,
+    totalEscortCost,
+    totalCost: totalPermitCost + totalEscortCost,
+    overallRestrictions,
+    warnings
   }
 }
 
