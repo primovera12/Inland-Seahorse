@@ -104,17 +104,11 @@ export function RouteIntelligence({
       let routeToAnalyze = routeData
 
       if (!routeToAnalyze) {
-        // Calculate the route via server-side API
-        const response = await fetch('/api/load-planner/calculate-route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ origin, destination }),
-        })
-        const result = await response.json()
-        if (!result.success || !result.route) {
-          throw new Error(result.error || 'Failed to calculate route')
-        }
-        routeToAnalyze = result.route
+        // Calculate the route via client-side API (works with referer-restricted keys)
+        const { calculateRouteClientSide } = await import(
+          '@/lib/load-planner/client-route-calculator'
+        )
+        routeToAnalyze = await calculateRouteClientSide(origin, destination)
       }
 
       if (routeToAnalyze) {
