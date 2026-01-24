@@ -73,7 +73,7 @@ export function RouteIntelligence({
   const [state, setState] = useState<RouteIntelligenceState>({
     isLoading: false,
     error: null,
-    routeResult: routeData || null,
+    routeResult: null, // Don't initialize from routeData - let useEffect handle it
     permitSummary: null,
     seasonalWarnings: null,
     bridgeWarnings: null,
@@ -165,13 +165,15 @@ export function RouteIntelligence({
   }, [origin, destination, cargoSpecs, shipDate, routeData, onRouteCalculated])
 
   useEffect(() => {
-    // ONLY analyze when routeData is explicitly provided from parent
-    // Do NOT auto-calculate to prevent excessive API calls
-    // User must click "Calculate Permits" button to trigger analysis
-    if (routeData && routeData !== state.routeResult) {
+    // Auto-analyze when routeData is provided from parent (e.g., after Calculate Route)
+    // Compare by distance to avoid reference equality issues
+    const routeDataDistance = routeData?.totalDistanceMiles
+    const stateDistance = state.routeResult?.totalDistanceMiles
+
+    if (routeData && routeDataDistance !== stateDistance) {
       analyzeRoute()
     }
-  }, [routeData, state.routeResult, analyzeRoute])
+  }, [routeData, state.routeResult?.totalDistanceMiles, analyzeRoute])
 
   const hasWarnings =
     (state.seasonalWarnings?.hasRestrictions ?? false) ||
@@ -182,6 +184,37 @@ export function RouteIntelligence({
     ? state.permitSummary.totalPermitFees + state.permitSummary.totalEscortCost
     : 0
 
+  // Show error state first (highest priority)
+  if (state.error) {
+    return (
+      <Card className={className}>
+        <CardContent className="flex flex-col items-center justify-center py-8 text-destructive">
+          <AlertCircle className="h-8 w-8 mb-2" />
+          <p className="text-sm font-medium">Route Analysis Failed</p>
+          <p className="text-xs mt-1 text-muted-foreground">{state.error}</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={analyzeRoute}>
+            <Route className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show loading state
+  if (state.isLoading) {
+    return (
+      <Card className={className}>
+        <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin mb-2" />
+          <p className="text-sm font-medium">Analyzing Route...</p>
+          <p className="text-xs mt-1">Calculating permits and restrictions</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show calculate button if no route data yet
   if (!routeData && !state.routeResult) {
     return (
       <Card className={className}>
@@ -191,49 +224,15 @@ export function RouteIntelligence({
           <p className="text-xs mb-4">Calculate permits and route restrictions</p>
           <Button
             onClick={analyzeRoute}
-            disabled={!origin || !destination || state.isLoading}
+            disabled={!origin || !destination}
             size="sm"
           >
-            {state.isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Route className="h-4 w-4 mr-2" />
-                Calculate Permits
-              </>
-            )}
+            <Route className="h-4 w-4 mr-2" />
+            Calculate Permits
           </Button>
           {(!origin || !destination) && (
             <p className="text-xs mt-2 text-muted-foreground">Enter addresses first</p>
           )}
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (state.isLoading) {
-    return (
-      <Card className={className}>
-        <CardContent className="flex items-center justify-center h-40">
-          <Loader2 className="h-6 w-6 animate-spin mr-2" />
-          <span>Analyzing route...</span>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (state.error) {
-    return (
-      <Card className={className}>
-        <CardContent className="flex flex-col items-center justify-center h-40 text-destructive">
-          <AlertCircle className="h-8 w-8 mb-2" />
-          <p className="text-sm">{state.error}</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={analyzeRoute}>
-            Retry
-          </Button>
         </CardContent>
       </Card>
     )
