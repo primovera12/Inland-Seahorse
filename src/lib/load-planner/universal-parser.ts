@@ -359,10 +359,12 @@ function parseGeometry(value: unknown): 'box' | 'cylinder' | 'hollow-cylinder' |
  */
 export function parseSpreadsheet(data: ArrayBuffer, fileName: string): UniversalParseResult {
   try {
+    console.log(`[parseSpreadsheet] Parsing file: ${fileName}`)
     const workbook = XLSX.read(data, { type: 'array' })
     const items: ParsedItem[] = []
     let totalRows = 0
     let parsedRows = 0
+    let skippedRows = 0
     const rawTextParts: string[] = [] // Collect raw text for AI fallback
 
     // Process each sheet

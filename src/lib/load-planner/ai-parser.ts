@@ -161,8 +161,43 @@ export async function parseImageWithAI(
       }
     }
 
-    const mimeType = match[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+    const mimeType = match[1]
     const base64Data = match[2]
+    const isPDF = mimeType === 'application/pdf'
+
+    console.log(`[parseImageWithAI] Processing ${isPDF ? 'PDF' : 'image'} with mime type: ${mimeType}`)
+
+    // Build content array based on file type
+    // Using 'any' because Anthropic SDK types may not include document type yet
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contentArray: any[] = []
+
+    if (isPDF) {
+      // Use document type for PDFs (Anthropic API supports this)
+      contentArray.push({
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: base64Data,
+        },
+      })
+    } else {
+      // Use image type for images
+      contentArray.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mimeType,
+          data: base64Data,
+        },
+      })
+    }
+
+    contentArray.push({
+      type: 'text',
+      text: CARGO_EXTRACTION_PROMPT + `\n\nAnalyze this ${isPDF ? 'PDF document' : 'image'} and extract ALL cargo information. Make sure to extract EVERY item - do not stop early:`,
+    })
 
     const message = await client.messages.create({
       model: 'claude-opus-4-5-20251101',
@@ -170,20 +205,7 @@ export async function parseImageWithAI(
       messages: [
         {
           role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mimeType,
-                data: base64Data,
-              },
-            },
-            {
-              type: 'text',
-              text: CARGO_EXTRACTION_PROMPT + '\n\nAnalyze this image and extract cargo information:',
-            },
-          ],
+          content: contentArray,
         },
       ],
     })
