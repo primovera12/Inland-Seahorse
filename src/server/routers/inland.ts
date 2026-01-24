@@ -30,8 +30,8 @@ export const inlandRouter = router({
     return data
   }),
 
-  // Create equipment type
-  createEquipmentType: protectedProcedure
+  // Create equipment type (admin only)
+  createEquipmentType: adminProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -78,8 +78,8 @@ export const inlandRouter = router({
       return data
     }),
 
-  // Update equipment type
-  updateEquipmentType: protectedProcedure
+  // Update equipment type (admin only)
+  updateEquipmentType: adminProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -178,8 +178,8 @@ export const inlandRouter = router({
     return data || []
   }),
 
-  // Create load type
-  createLoadType: protectedProcedure
+  // Create load type (admin only)
+  createLoadType: adminProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -232,8 +232,8 @@ export const inlandRouter = router({
     return data || []
   }),
 
-  // Create service type
-  createServiceType: protectedProcedure
+  // Create service type (admin only)
+  createServiceType: adminProcedure
     .input(
       z.object({
         name: z.string().min(1),

@@ -763,32 +763,6 @@ export default function NewInlandQuoteV2Page() {
                 </CardContent>
               </Card>
 
-              {/* Route Map with Calculate button */}
-              <SimpleRouteMap
-                origin={pickupAddress}
-                destination={dropoffAddress}
-                existingDistanceMiles={distanceMiles}
-                existingDurationMinutes={durationMinutes}
-                existingPolyline={routePolyline}
-                onRouteCalculated={(data) => {
-                  console.log('Route calculated:', data)
-                  setDistanceMiles(data.distanceMiles)
-                  setDurationMinutes(data.durationMinutes)
-                  setRoutePolyline(data.polyline)
-                }}
-              />
-
-              {/* Debug info - remove after testing */}
-              {distanceMiles !== null && (
-                <Card className="bg-green-50 border-green-200">
-                  <CardContent className="py-3">
-                    <p className="text-sm text-green-700">
-                      Route calculated: {distanceMiles} miles, {durationMinutes} minutes
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-
               <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setActiveTab('customer')}>
                   Back
@@ -1294,10 +1268,7 @@ export default function NewInlandQuoteV2Page() {
                   <CardContent className="flex flex-col items-center py-10 text-muted-foreground">
                     <MapPin className="h-12 w-12 mb-4 opacity-50" />
                     <p className="text-center">Calculate the route first to see permit requirements</p>
-                    <p className="text-xs mt-1">(Current distance: {distanceMiles === null ? 'not calculated' : distanceMiles})</p>
-                    <Button variant="outline" className="mt-4" onClick={() => setActiveTab('route')}>
-                      Go to Route
-                    </Button>
+                    <p className="text-xs mt-1 text-muted-foreground">Use the map on the right to calculate your route</p>
                   </CardContent>
                 </Card>
               ) : !cargoSpecs ? (
@@ -1512,6 +1483,20 @@ export default function NewInlandQuoteV2Page() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Route Map - Always visible in sidebar */}
+          <SimpleRouteMap
+            origin={pickupAddress}
+            destination={dropoffAddress}
+            existingDistanceMiles={distanceMiles}
+            existingDurationMinutes={durationMinutes}
+            existingPolyline={routePolyline}
+            onRouteCalculated={(data) => {
+              setDistanceMiles(data.distanceMiles)
+              setDurationMinutes(data.durationMinutes)
+              setRoutePolyline(data.polyline)
+            }}
+          />
         </div>
       </div>
     </div>
