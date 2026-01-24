@@ -204,9 +204,12 @@ export async function parseImageWithAI(
       text: CARGO_EXTRACTION_PROMPT + `\n\nAnalyze this ${isPDF ? 'PDF document' : 'image'} and extract ALL cargo information. Make sure to extract EVERY item - do not stop early:`,
     })
 
-    const message = await client.messages.create({
+    console.log('[parseImageWithAI] Starting streaming request with Opus 4.5...')
+
+    // Use streaming to handle large files and avoid timeout issues
+    const stream = client.messages.stream({
       model: 'claude-opus-4-5-20251101',
-      max_tokens: 30000,  // Increased to 30K to handle very large item lists
+      max_tokens: 30000,
       messages: [
         {
           role: 'user',
@@ -215,7 +218,11 @@ export async function parseImageWithAI(
       ],
     })
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Wait for complete response using finalMessage()
+    const finalMessage = await stream.finalMessage()
+    const responseText = finalMessage.content[0].type === 'text' ? finalMessage.content[0].text : ''
+
+    console.log('[parseImageWithAI] Stream complete, response length:', responseText.length)
 
     // Try to parse the JSON response
     try {
@@ -300,6 +307,7 @@ export async function parseImageWithAI(
 
 /**
  * Parse text using Claude Opus 4.5 to extract cargo information
+ * Uses streaming to handle large files and avoid timeouts
  * Handles any format: spreadsheets, tables, emails, documents, etc.
  */
 export async function parseTextWithAI(text: string): Promise<AIParseResult> {
@@ -315,9 +323,13 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
   }
 
   try {
-    const message = await client.messages.create({
-      model: 'claude-opus-4-5-20251101',
-      max_tokens: 30000,  // Increased to 30K to handle very large item lists
+    console.log('[parseTextWithAI] Starting streaming request with Opus 4.5...')
+
+    // Use streaming to handle large files and avoid timeout issues
+    // The stream() method handles long-running requests without timeout
+    const stream = client.messages.stream({
+      model: 'claude-opus-4-5-20251101',  // Opus 4.5 for best accuracy
+      max_tokens: 30000,
       messages: [
         {
           role: 'user',
@@ -326,7 +338,11 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
       ],
     })
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Wait for complete response using finalMessage()
+    const finalMessage = await stream.finalMessage()
+    const responseText = finalMessage.content[0].type === 'text' ? finalMessage.content[0].text : ''
+
+    console.log('[parseTextWithAI] Stream complete, response length:', responseText.length)
 
     // Check for truncation before parsing
     const potentiallyTruncated = detectTruncatedJSON(responseText)
@@ -465,9 +481,10 @@ export async function parseTextWithAIMultilang(text: string): Promise<AIParseRes
   }
 
   try {
-    const message = await client.messages.create({
+    // Use streaming to handle large files and avoid timeout issues
+    const stream = client.messages.stream({
       model: 'claude-opus-4-5-20251101',
-      max_tokens: 30000,  // Increased to 30K to handle very large item lists
+      max_tokens: 30000,
       messages: [
         {
           role: 'user',
@@ -476,7 +493,9 @@ export async function parseTextWithAIMultilang(text: string): Promise<AIParseRes
       ],
     })
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Wait for complete response
+    const finalMessage = await stream.finalMessage()
+    const responseText = finalMessage.content[0].type === 'text' ? finalMessage.content[0].text : ''
 
     // Check for truncation before parsing
     const potentiallyTruncated = detectTruncatedJSON(responseText)

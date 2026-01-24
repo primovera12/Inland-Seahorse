@@ -51,110 +51,122 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
     onStatusChange?.(status)
   }, [onStatusChange])
 
-  const analyzeContent = useCallback(async (file?: File, text?: string) => {
+  // Process a single file and return its items
+  const processFile = useCallback(async (file: File): Promise<LoadItem[]> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await fetch('/api/load-planner/analyze', {
+      method: 'POST',
+      body: formData
+    })
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || `Failed to parse ${file.name}`)
+    }
+    return data.parsedLoad?.items || []
+  }, [])
+
+  // Process text and return items
+  const processText = useCallback(async (text: string): Promise<LoadItem[]> => {
+    const response = await fetch('/api/load-planner/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailText: text })
+    })
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to parse text')
+    }
+    return data.parsedLoad?.items || []
+  }, [])
+
+  const analyzeContent = useCallback(async (files?: File[], text?: string) => {
     onLoading(true)
     onError(null)
 
     try {
-      let response: Response
+      let allItems: LoadItem[] = []
 
-      if (file) {
-        // Show file-specific status with step numbers
-        const fileName = file.name.toLowerCase()
-        const fileSize = (file.size / 1024).toFixed(1)
-        updateStatus(`Step 1/5: Reading ${file.name} (${fileSize} KB)...`)
-        await new Promise(r => setTimeout(r, 300)) // Brief pause for UX
+      if (files && files.length > 0) {
+        const totalFiles = files.length
 
-        if (fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-          updateStatus('Step 2/5: Extracting rows from spreadsheet...')
-        } else if (fileName.endsWith('.pdf')) {
-          updateStatus('Step 2/5: Extracting text and images from PDF...')
-        } else if (fileName.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-          updateStatus('Step 2/5: Encoding image for parsing...')
-        } else {
-          updateStatus('Step 2/5: Reading file contents...')
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          const fileName = file.name.toLowerCase()
+          const fileSize = (file.size / 1024).toFixed(1)
+          const fileNum = i + 1
+
+          // Show progress for multiple files
+          const prefix = totalFiles > 1 ? `[File ${fileNum}/${totalFiles}] ` : ''
+
+          updateStatus(`${prefix}Step 1/4: Reading ${file.name} (${fileSize} KB)...`)
+          await new Promise(r => setTimeout(r, 200))
+
+          if (fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+            updateStatus(`${prefix}Step 2/4: Extracting rows from spreadsheet...`)
+          } else if (fileName.endsWith('.pdf')) {
+            updateStatus(`${prefix}Step 2/4: Extracting text and images from PDF...`)
+          } else if (fileName.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+            updateStatus(`${prefix}Step 2/4: Encoding image for parsing...`)
+          } else {
+            updateStatus(`${prefix}Step 2/4: Reading file contents...`)
+          }
+          await new Promise(r => setTimeout(r, 200))
+
+          updateStatus(`${prefix}Step 3/4: Parsing cargo data... (this may take 10-30 seconds)`)
+
+          try {
+            const fileItems = await processFile(file)
+            // Re-ID items to avoid conflicts across files
+            const reIdItems = fileItems.map((item, idx) => ({
+              ...item,
+              id: `file${i}-item-${idx}-${item.id}`
+            }))
+            allItems = [...allItems, ...reIdItems]
+            updateStatus(`${prefix}Step 4/4: Found ${fileItems.length} items from ${file.name}`)
+            await new Promise(r => setTimeout(r, 300))
+          } catch (fileErr) {
+            // Continue with other files even if one fails
+            console.error(`Error processing ${file.name}:`, fileErr)
+            updateStatus(`${prefix}⚠️ Failed to parse ${file.name}, continuing with other files...`)
+            await new Promise(r => setTimeout(r, 500))
+          }
         }
-        await new Promise(r => setTimeout(r, 400))
 
-        updateStatus('Step 3/5: Parsing cargo data... (this may take 10-30 seconds)')
+        if (allItems.length === 0) {
+          throw new Error('No cargo items could be extracted from any files. Try different formats or add more details.')
+        }
 
-        const formData = new FormData()
-        formData.append('file', file)
-        response = await fetch('/api/load-planner/analyze', {
-          method: 'POST',
-          body: formData
-        })
       } else if (text) {
-        updateStatus('Step 1/5: Preparing text for parsing...')
+        updateStatus('Step 1/4: Preparing text for parsing...')
         await new Promise(r => setTimeout(r, 300))
-        updateStatus('Step 2/5: Parsing cargo data... (this may take 10-30 seconds)')
+        updateStatus('Step 2/4: Parsing cargo data... (this may take 10-30 seconds)')
 
-        response = await fetch('/api/load-planner/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emailText: text })
-        })
+        allItems = await processText(text)
+
+        if (allItems.length === 0) {
+          throw new Error('No cargo items could be extracted. Try a different format or add more details.')
+        }
+
+        updateStatus(`Step 3/4: Found ${allItems.length} items!`)
+        await new Promise(r => setTimeout(r, 300))
       } else {
         throw new Error('No input provided')
       }
 
-      updateStatus('Step 4/5: Processing results...')
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Analysis failed')
-      }
-
-      // Get items from parsed load
-      const items: LoadItem[] = data.parsedLoad?.items || []
-
-      if (items.length === 0) {
-        throw new Error('No cargo items could be extracted. Try a different format or add more details.')
-      }
-
-      updateStatus(`Step 5/5: Found ${items.length} items! Planning optimal truck loads...`)
+      updateStatus(`Planning optimal truck loads for ${allItems.length} items...`)
       await new Promise(r => setTimeout(r, 400))
 
-      // Get or generate load plan
-      // API returns 'recommendedTruck' but our interface uses 'truck', so map it
-      let loadPlan: LoadPlanResult
-      if (data.loadPlan && data.loadPlan.loads) {
-        loadPlan = {
-          loads: data.loadPlan.loads.map((load: {
-            id: string
-            items: LoadItem[]
-            recommendedTruck?: TruckType
-            truck?: TruckType
-            placements: Array<{ itemId: string; x: number; z: number; rotated: boolean }>
-            weight?: number
-            warnings: string[]
-          }) => ({
-            id: load.id,
-            items: load.items,
-            truck: load.recommendedTruck || load.truck || trucks[0], // Handle both property names
-            placements: load.placements,
-            utilization: {
-              weight: load.weight ? Math.round((load.weight / (load.recommendedTruck?.maxCargoWeight || load.truck?.maxCargoWeight || 48000)) * 100) : 0,
-              space: 0
-            },
-            warnings: load.warnings || []
-          })),
-          totalTrucks: data.loadPlan.totalTrucks || data.loadPlan.loads.length,
-          totalWeight: data.loadPlan.totalWeight || 0,
-          totalItems: data.loadPlan.totalItems || items.reduce((sum: number, i: LoadItem) => sum + i.quantity, 0),
-          warnings: data.loadPlan.warnings || []
-        }
-      } else {
-        loadPlan = generateBasicLoadPlan(items)
-      }
+      // Generate load plan for all combined items
+      const loadPlan = generateBasicLoadPlan(allItems)
 
-      updateStatus(`✓ Complete! Loaded ${items.length} items onto ${loadPlan.totalTrucks} truck${loadPlan.totalTrucks > 1 ? 's' : ''}`)
+      updateStatus(`✓ Complete! Loaded ${allItems.length} items onto ${loadPlan.totalTrucks} truck${loadPlan.totalTrucks > 1 ? 's' : ''}`)
       await new Promise(r => setTimeout(r, 300))
 
       onAnalyzed({
-        items,
+        items: allItems,
         loadPlan,
-        parseMethod: data.metadata?.parseMethod || 'pattern'
+        parseMethod: 'pattern'
       })
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Analysis failed')
@@ -162,7 +174,7 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
       onLoading(false)
       updateStatus('')
     }
-  }, [onAnalyzed, onLoading, onError, updateStatus])
+  }, [onAnalyzed, onLoading, onError, updateStatus, processFile, processText])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -170,7 +182,8 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
 
     const files = e.dataTransfer.files
     if (files.length > 0) {
-      analyzeContent(files[0])
+      // Convert FileList to array for processing
+      analyzeContent(Array.from(files))
     }
   }, [analyzeContent])
 
@@ -186,13 +199,16 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
-      analyzeContent(files[0])
+      // Convert FileList to array for processing
+      analyzeContent(Array.from(files))
     }
+    // Reset input to allow selecting same files again
+    e.target.value = ''
   }, [analyzeContent])
 
   const handleTextSubmit = useCallback(() => {
     if (textInput.trim()) {
-      analyzeContent(undefined, textInput)
+      analyzeContent(undefined, textInput.trim())
     }
   }, [textInput, analyzeContent])
 
@@ -237,16 +253,17 @@ export function UniversalDropzone({ onAnalyzed, onLoading, onError, onStatusChan
             className="hidden"
             accept=".pdf,.xlsx,.xls,.csv,.txt,.eml,.jpg,.jpeg,.png,.gif,.webp"
             onChange={handleFileSelect}
+            multiple
           />
 
           <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
 
           <p className="text-lg font-medium text-gray-700">
-            {isDragging ? 'Drop your file here' : 'Drop any file here'}
+            {isDragging ? 'Drop your files here' : 'Drop files here'}
           </p>
 
           <p className="text-sm text-gray-500 mt-2">
-            or click to browse
+            or click to browse (multiple files supported)
           </p>
 
           <div className="flex items-center justify-center gap-3 mt-4 text-xs text-gray-400">
