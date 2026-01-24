@@ -542,8 +542,8 @@ function renderClientSection(data: UnifiedPDFData, primaryColor: string): string
           <p class="value">${data.customer.email || '-'}</p>
         </div>
         <div class="info-block span-2">
-          <p class="label">Billing Address</p>
-          <p class="value">${addressLines.join(', ')}</p>
+          <p class="label">Address</p>
+          <p class="value">${addressLines.join(', ') || '-'}</p>
         </div>
       </div>
     </div>

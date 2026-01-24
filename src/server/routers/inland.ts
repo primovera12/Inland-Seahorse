@@ -278,8 +278,8 @@ export const inlandRouter = router({
       return data
     }),
 
-  // Update service type
-  updateServiceType: protectedProcedure
+  // Update service type (admin only)
+  updateServiceType: adminProcedure
     .input(
       z.object({
         id: z.string().uuid(),

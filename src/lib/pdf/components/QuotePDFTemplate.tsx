@@ -145,7 +145,7 @@ function ClientSection({ data }: { data: UnifiedPDFData }) {
         {/* Address */}
         <div>
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">
-            Billing Address
+            Address
           </p>
           <p className="text-sm font-bold text-slate-900 leading-tight">
             {addressLines.map((line, i) => (

@@ -493,6 +493,10 @@ export default function NewInlandQuoteV2Page() {
         company: customerCompany || undefined,
         email: customerEmail || undefined,
         phone: customerPhone || undefined,
+        address: customerAddress.address || undefined,
+        city: customerAddress.city || undefined,
+        state: customerAddress.state || undefined,
+        zip: customerAddress.zip || undefined,
       },
       equipment: [],
       isMultiEquipment: false,
@@ -592,7 +596,7 @@ export default function NewInlandQuoteV2Page() {
       grandTotal: grandTotal,
       customerNotes: quoteNotes || undefined,
     }
-  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, pricingPerTruck, grandTotal, quoteNotes])
+  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, pricingPerTruck, grandTotal, quoteNotes])
 
   return (
     <div className="space-y-6">
