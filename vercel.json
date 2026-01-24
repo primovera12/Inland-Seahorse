@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/load-planner/analyze/route.ts": {
+      "maxDuration": 300
+    }
+  }
+}

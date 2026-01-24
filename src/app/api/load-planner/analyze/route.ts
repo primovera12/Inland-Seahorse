@@ -58,7 +58,7 @@ function convertSpreadsheetToText(data: ArrayBuffer, fileName: string): string {
 }
 
 export const runtime = 'nodejs'
-export const maxDuration = 60 // Allow up to 60s for AI parsing
+export const maxDuration = 300 // Allow up to 5 minutes for AI parsing (requires Vercel Pro)
 
 /**
  * Convert AIParseResult items to ParsedLoad format
