@@ -85,9 +85,36 @@ function detectTruncatedJSON(responseText: string): boolean {
   return bracketCount !== 0 || braceCount !== 0
 }
 
+/**
+ * Deduplicate parsed items based on SKU or description + dimensions
+ * Merges quantities of duplicate items
+ */
+function deduplicateItems(items: ParsedItem[]): ParsedItem[] {
+  const seen = new Map<string, ParsedItem>()
+
+  for (const item of items) {
+    // Create a unique key based on SKU (if available) or description + dimensions
+    const key = item.sku
+      ? `sku:${item.sku.toLowerCase().trim()}`
+      : `desc:${item.description.toLowerCase().trim()}|${item.length}|${item.width}|${item.height}|${item.weight}`
+
+    if (seen.has(key)) {
+      // Merge quantities for duplicates
+      const existing = seen.get(key)!
+      existing.quantity = (existing.quantity || 1) + (item.quantity || 1)
+    } else {
+      seen.set(key, { ...item })
+    }
+  }
+
+  const deduped = Array.from(seen.values())
+  console.log(`[deduplicateItems] Deduped from ${items.length} to ${deduped.length} items`)
+  return deduped
+}
+
 const CARGO_EXTRACTION_PROMPT = `You are an expert at extracting cargo/freight data from ANY format - spreadsheets, tables, packing lists, emails, PDFs, etc.
 
-Your job is to find ALL cargo items with their dimensions and weights, regardless of how the data is formatted.
+Your job is to find ALL UNIQUE cargo items with their dimensions and weights.
 
 LOOK FOR:
 - Item names/descriptions (SKU, Name, Description, Part #, etc.)
@@ -129,15 +156,16 @@ CRITICAL CONVERSION RULES:
   * Tons → multiply by 2000
 - Look for unit hints in headers or metadata rows
 
-CRITICAL REQUIREMENTS:
-- Extract EVERY SINGLE cargo item - do NOT stop early or summarize
-- Count the items in your output - if input has 47 items, output must have 47 items
-- NEVER truncate, summarize, or skip items due to length
+CRITICAL REQUIREMENTS - NO DUPLICATES:
+- ONE JSON object per UNIQUE data row - if a spreadsheet has 47 rows of cargo, return exactly 47 JSON objects
+- Use the "quantity" field for multiples - do NOT create separate JSON objects for each unit
+- If the same item appears in multiple sheets, include it ONLY ONCE (deduplicate across sheets)
+- NEVER duplicate items - each unique SKU/description should appear only once
+- Skip header rows, totals rows, summary rows - only parse actual cargo data rows
 - If units aren't specified, assume inches for dimensions and pounds for weight
 - Stackable: true if "Yes"/"Y", false if "No"/"N"
 - Return ONLY the JSON array, no explanation or comments
-- If no items found, return []
-- IMPORTANT: Include ALL rows/items from the data - do not stop at any arbitrary limit`
+- If no items found, return []`
 
 /**
  * Parse an image using AI vision to extract cargo information
@@ -247,7 +275,7 @@ export async function parseImageWithAI(
       // Log raw item count from AI
       console.log(`[parseImageWithAI] AI returned ${rawItems.length} raw items`)
 
-      const parsedItems: ParsedItem[] = rawItems
+      const filteredItems: ParsedItem[] = rawItems
         .map((item, index) => ({
           id: `ai-${Date.now()}-${index}`,
           sku: item.sku,
@@ -265,7 +293,10 @@ export async function parseImageWithAI(
         )
 
       // Log filtered item count
-      console.log(`[parseImageWithAI] After filtering: ${parsedItems.length} items (filtered ${rawItems.length - parsedItems.length})`)
+      console.log(`[parseImageWithAI] After filtering: ${filteredItems.length} items (filtered ${rawItems.length - filteredItems.length})`)
+
+      // Deduplicate items (in case AI created duplicates)
+      const parsedItems = deduplicateItems(filteredItems)
 
       // Check for truncation
       const potentiallyTruncated = detectTruncatedJSON(responseText)
@@ -370,7 +401,7 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
       console.log(`[parseTextWithAI] AI returned ${rawItems.length} raw items`)
       console.log(`[parseTextWithAI] Response text length: ${responseText.length} chars`)
 
-      const parsedItems: ParsedItem[] = rawItems
+      const filteredItems: ParsedItem[] = rawItems
         .map((item, index) => ({
           id: `ai-${Date.now()}-${index}`,
           sku: item.sku,
@@ -388,7 +419,10 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
         )
 
       // Log filtered item count
-      console.log(`[parseTextWithAI] After filtering: ${parsedItems.length} items (filtered out ${rawItems.length - parsedItems.length})`)
+      console.log(`[parseTextWithAI] After filtering: ${filteredItems.length} items (filtered out ${rawItems.length - filteredItems.length})`)
+
+      // Deduplicate items (in case AI created duplicates)
+      const parsedItems = deduplicateItems(filteredItems)
 
       return {
         success: parsedItems.length > 0,
