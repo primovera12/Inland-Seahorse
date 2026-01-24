@@ -11,7 +11,8 @@ import type {
   RoutePermitSummary,
   PermitCostBreakdown,
   DetailedPermitRequirement,
-  DetailedRoutePermitSummary
+  DetailedRoutePermitSummary,
+  EscortCostBreakdown
 } from './types'
 import { statePermits, getStateByCode } from './state-permits'
 
@@ -499,16 +500,77 @@ export function calculateDetailedRoutePermits(
   if (hasNoWeekendTravel) overallRestrictions.push('Some states restrict weekend travel')
   if (hasNoHolidayTravel) overallRestrictions.push('Holiday travel restrictions in effect')
 
-  // Calculate escort costs
+  // Calculate escort costs with detailed breakdown
   const totalDistance = stateDistances
     ? Object.values(stateDistances).reduce((a, b) => a + b, 0)
     : 0
-  const estimatedDays = Math.max(1, Math.ceil(totalDistance / 300))
+  const estimatedDays = Math.max(1, Math.ceil(totalDistance / 300)) // 300 miles/day average
+  const estimatedHours = estimatedDays * 8 // 8 driving hours per day
 
-  let totalEscortCost = 0
-  totalEscortCost += maxEscorts * ESCORT_COST_PER_DAY * estimatedDays
-  if (needsPoleCar) totalEscortCost += POLE_CAR_COST_PER_DAY * estimatedDays
-  if (needsPolice) totalEscortCost += POLICE_ESCORT_HOURLY * 8 * estimatedDays
+  // Per-state escort cost calculation
+  const perStateEscortCosts: EscortCostBreakdown['perState'] = statePermits.map(permit => {
+    const distance = stateDistances?.[permit.stateCode] || 0
+    const daysInState = Math.max(0.5, distance / 300) // At least half day per state
+
+    let stateCost = 0
+    stateCost += permit.escortsRequired * ESCORT_COST_PER_DAY * daysInState
+    if (permit.poleCarRequired) stateCost += POLE_CAR_COST_PER_DAY * daysInState
+    if (permit.policeEscortRequired) stateCost += POLICE_ESCORT_HOURLY * 8 * daysInState
+
+    return {
+      stateCode: permit.stateCode,
+      stateName: permit.state,
+      distanceMiles: distance,
+      daysInState: Math.round(daysInState * 10) / 10,
+      escortCountInState: permit.escortsRequired,
+      poleCarRequiredInState: permit.poleCarRequired || false,
+      policeRequiredInState: permit.policeEscortRequired || false,
+      stateCost: Math.round(stateCost)
+    }
+  })
+
+  // Calculate total escort costs
+  const totalEscortBaseCost = maxEscorts * ESCORT_COST_PER_DAY * estimatedDays
+  const totalPoleCarCost = needsPoleCar ? POLE_CAR_COST_PER_DAY * estimatedDays : 0
+  const totalPoliceCost = needsPolice ? POLICE_ESCORT_HOURLY * estimatedHours : 0
+  const totalEscortCost = totalEscortBaseCost + totalPoleCarCost + totalPoliceCost
+
+  // Build calculation details for transparency
+  const escortCalculationDetails: string[] = []
+  escortCalculationDetails.push(`Trip estimate: ${totalDistance.toLocaleString()} miles ÷ 300 mi/day = ${estimatedDays} day${estimatedDays > 1 ? 's' : ''}`)
+
+  if (maxEscorts > 0) {
+    escortCalculationDetails.push(`Escorts: ${maxEscorts} × $${ESCORT_COST_PER_DAY}/day × ${estimatedDays} days = $${totalEscortBaseCost.toLocaleString()}`)
+  }
+  if (needsPoleCar) {
+    escortCalculationDetails.push(`Pole Car: 1 × $${POLE_CAR_COST_PER_DAY}/day × ${estimatedDays} days = $${totalPoleCarCost.toLocaleString()}`)
+  }
+  if (needsPolice) {
+    escortCalculationDetails.push(`Police Escort: $${POLICE_ESCORT_HOURLY}/hr × ${estimatedHours} hours = $${totalPoliceCost.toLocaleString()}`)
+  }
+
+  // Build the escort breakdown object
+  const escortBreakdown: EscortCostBreakdown = {
+    rates: {
+      escortPerDay: ESCORT_COST_PER_DAY,
+      poleCarPerDay: POLE_CAR_COST_PER_DAY,
+      policePerHour: POLICE_ESCORT_HOURLY
+    },
+    tripDays: estimatedDays,
+    tripHours: estimatedHours,
+    escortCount: maxEscorts,
+    needsPoleCar,
+    needsPoliceEscort: needsPolice,
+    escortCostPerDay: maxEscorts * ESCORT_COST_PER_DAY,
+    poleCarCostPerDay: needsPoleCar ? POLE_CAR_COST_PER_DAY : 0,
+    policeCostPerDay: needsPolice ? POLICE_ESCORT_HOURLY * 8 : 0,
+    perState: perStateEscortCosts,
+    totalEscortCost: totalEscortBaseCost,
+    totalPoleCarCost,
+    totalPoliceCost,
+    grandTotal: totalEscortCost,
+    calculationDetails: escortCalculationDetails
+  }
 
   // Warnings
   if (totalPermitCost > 500) {
@@ -525,6 +587,7 @@ export function calculateDetailedRoutePermits(
     statePermits,
     totalPermitCost,
     totalEscortCost,
+    escortBreakdown,
     totalCost: totalPermitCost + totalEscortCost,
     overallRestrictions,
     warnings

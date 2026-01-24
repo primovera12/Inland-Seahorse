@@ -166,6 +166,16 @@ export interface LoadItem {
   fragile?: boolean
   hazmat?: boolean
   notes?: string
+  // Cargo images (for PDF display)
+  imageUrl?: string       // Primary custom image
+  imageUrl2?: string      // Secondary custom image
+  frontImageUrl?: string  // Equipment front view (from database)
+  sideImageUrl?: string   // Equipment side view (from database)
+  // Equipment database fields
+  equipmentMatched?: boolean
+  equipmentMakeId?: string
+  equipmentModelId?: string
+  dimensionsSource?: 'ai' | 'database' | 'manual'
 }
 
 export interface ParsedLoad {
@@ -535,12 +545,54 @@ export interface DetailedPermitRequirement {
 }
 
 /**
+ * Detailed breakdown of escort costs for transparency
+ */
+export interface EscortCostBreakdown {
+  // Escort rates (per day/hour)
+  rates: {
+    escortPerDay: number         // Standard escort/pilot car rate per day
+    poleCarPerDay: number        // Height pole car rate per day
+    policePerHour: number        // Police escort rate per hour
+  }
+  // Trip duration estimate
+  tripDays: number               // Total estimated trip days
+  tripHours: number              // Total estimated trip hours
+  // Escort counts needed
+  escortCount: number            // Number of standard escorts (front/rear)
+  needsPoleCar: boolean          // Height pole car needed
+  needsPoliceEscort: boolean     // Police escort required
+  // Cost breakdown by type
+  escortCostPerDay: number       // escortCount × escortPerDay
+  poleCarCostPerDay: number      // needsPoleCar ? poleCarPerDay : 0
+  policeCostPerDay: number       // (policePerHour × hoursPerDay) if needed
+  // Per-state breakdown for itemized view
+  perState: Array<{
+    stateCode: string
+    stateName: string
+    distanceMiles: number
+    daysInState: number
+    escortCountInState: number
+    poleCarRequiredInState: boolean
+    policeRequiredInState: boolean
+    stateCost: number
+  }>
+  // Totals
+  totalEscortCost: number        // Sum of all escort types
+  totalPoleCarCost: number
+  totalPoliceCost: number
+  grandTotal: number             // escortCost + poleCarCost + policeCost
+  // Human-readable calculation explanation
+  calculationDetails: string[]
+}
+
+/**
  * Summary of permits for an entire route
  */
 export interface DetailedRoutePermitSummary {
   statePermits: DetailedPermitRequirement[]
   totalPermitCost: number        // Sum of all state permit fees
   totalEscortCost: number        // Estimated escort/pilot car costs
+  escortBreakdown?: EscortCostBreakdown  // Detailed escort cost breakdown
   totalCost: number              // permits + escorts
   overallRestrictions: string[]  // Combined restrictions across all states
   warnings: string[]
@@ -575,4 +627,45 @@ export interface RouteAlternative {
 export interface MultiRouteResult {
   routes: RouteAlternative[]     // Sorted by total cost (cheapest first)
   selectedRouteId: string        // Currently selected route
+}
+
+// =============================================================================
+// ROUTE RECOMMENDATION TYPES
+// =============================================================================
+
+/**
+ * AI-generated recommendation for why a route is best
+ */
+export interface RouteRecommendation {
+  recommendedRouteId: string
+  recommendedRouteName: string
+  reasoning: string[]              // Why this route is recommended
+  costSavings?: {                  // Compared to next best alternative
+    amount: number
+    comparedTo: string
+  }
+  warnings: string[]               // Any caveats or concerns
+  alternativeConsiderations: {     // Pros/cons of other routes
+    routeId: string
+    routeName: string
+    pros: string[]
+    cons: string[]
+  }[]
+}
+
+/**
+ * Per-truck route recommendation for multi-truck scenarios
+ */
+export interface TruckRouteRecommendation {
+  truckIndex: number
+  truckId: string
+  truckName: string
+  cargoDescription: string
+  isOversize: boolean
+  isOverweight: boolean
+  recommendedRouteId: string
+  recommendedRouteName: string
+  reasoning: string[]
+  alternativeRouteId?: string      // If different from global recommendation
+  alternativeReason?: string       // Why this truck needs different route
 }

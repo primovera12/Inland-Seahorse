@@ -22,13 +22,118 @@ import {
 import type { LatLng, StateSegment, RouteResult } from '@/lib/load-planner/route-calculator'
 import type { SeasonalRestriction } from '@/lib/load-planner/seasonal-restrictions'
 import type { LowClearanceBridge } from '@/lib/load-planner/bridge-heights'
-import type { CargoSpecs, RoutePermitSummary, DetailedPermitRequirement, DetailedRoutePermitSummary } from '@/lib/load-planner/types'
-import { ExternalLink } from 'lucide-react'
+import type { CargoSpecs, RoutePermitSummary, DetailedPermitRequirement, DetailedRoutePermitSummary, EscortCostBreakdown, RouteRecommendation, TruckRouteRecommendation } from '@/lib/load-planner/types'
+import { ExternalLink, Truck, Sparkles, ThumbsUp, ArrowRight } from 'lucide-react'
+
+// Per-truck cargo specs for multi-truck permit analysis
+interface TruckCargoSpecs extends CargoSpecs {
+  truckIndex: number
+  truckName: string
+  truckId: string
+  isOversize: boolean
+  isOverweight: boolean
+}
+
+// Helper function to generate reasoning for a single route
+function generateSingleRouteReasoning(
+  permitSummary: DetailedRoutePermitSummary | null,
+  routeResult: RouteResult,
+  bridgeWarnings: RouteIntelligenceState['bridgeWarnings']
+): string[] {
+  const reasoning: string[] = []
+
+  // Distance and time
+  if (routeResult.totalDistanceMiles < 500) {
+    reasoning.push(`Short haul route at ${routeResult.totalDistanceMiles.toLocaleString()} miles`)
+  } else if (routeResult.totalDistanceMiles < 1000) {
+    reasoning.push(`Regional route at ${routeResult.totalDistanceMiles.toLocaleString()} miles`)
+  } else {
+    reasoning.push(`Long haul route at ${routeResult.totalDistanceMiles.toLocaleString()} miles`)
+  }
+
+  // States
+  if (routeResult.statesTraversed.length === 1) {
+    reasoning.push('Single state route - simplifies permitting')
+  } else if (routeResult.statesTraversed.length <= 3) {
+    reasoning.push(`Traverses ${routeResult.statesTraversed.length} states - manageable permit process`)
+  } else {
+    reasoning.push(`Traverses ${routeResult.statesTraversed.length} states - multi-state permits required`)
+  }
+
+  // Permit costs
+  if (permitSummary) {
+    if (permitSummary.totalPermitCost === 0) {
+      reasoning.push('No permits required - legal dimensions')
+    } else if (permitSummary.totalPermitCost < 50000) {
+      reasoning.push(`Low permit costs: $${(permitSummary.totalPermitCost / 100).toLocaleString()}`)
+    } else {
+      reasoning.push(`Permit costs: $${(permitSummary.totalPermitCost / 100).toLocaleString()}`)
+    }
+
+    // Escort costs
+    if (permitSummary.totalEscortCost > 0) {
+      reasoning.push(`Escort services required: $${(permitSummary.totalEscortCost / 100).toLocaleString()}`)
+    }
+
+    // Superload check
+    const hasSuperload = permitSummary.statePermits.some(p => p.isSuperload)
+    if (hasSuperload) {
+      reasoning.push('Superload permits required - extended processing time')
+    }
+  }
+
+  // Bridge clearance
+  if (bridgeWarnings?.hasIssues) {
+    reasoning.push(`${bridgeWarnings.bridges.length} bridge clearance issue(s) to review`)
+  } else {
+    reasoning.push('Bridge clearances OK for this route')
+  }
+
+  return reasoning
+}
+
+// Helper function to generate warnings for the route
+function generateRouteWarnings(
+  permitSummary: DetailedRoutePermitSummary | null,
+  bridgeWarnings: RouteIntelligenceState['bridgeWarnings'],
+  seasonalWarnings: RouteIntelligenceState['seasonalWarnings']
+): string[] {
+  const warnings: string[] = []
+
+  // Bridge warnings
+  if (bridgeWarnings?.hasIssues) {
+    const dangerBridges = bridgeWarnings.bridges.filter(b => b.clearanceResult.severity === 'danger')
+    if (dangerBridges.length > 0) {
+      warnings.push(`${dangerBridges.length} bridge(s) with insufficient clearance - alternate route may be needed`)
+    }
+  }
+
+  // Superload warning
+  if (permitSummary?.statePermits.some(p => p.isSuperload)) {
+    warnings.push('Superload status in one or more states - expect longer permit processing')
+  }
+
+  // Seasonal restrictions
+  if (seasonalWarnings?.hasRestrictions) {
+    warnings.push('Seasonal restrictions in effect - weight limits may be reduced')
+  }
+
+  // Travel restrictions
+  const totalRestrictions = permitSummary?.statePermits.reduce(
+    (sum, p) => sum + p.travelRestrictions.length, 0
+  ) || 0
+  if (totalRestrictions > 3) {
+    warnings.push('Multiple travel time restrictions - plan schedule carefully')
+  }
+
+  return warnings
+}
 
 interface RouteIntelligenceProps {
   origin: string
   destination: string
   cargoSpecs: CargoSpecs
+  perTruckCargoSpecs?: TruckCargoSpecs[]  // Optional per-truck specs for multi-truck analysis
   shipDate?: Date
   routeData?: RouteResult
   onRouteCalculated?: (result: RouteResult) => void
@@ -61,12 +166,16 @@ interface RouteIntelligenceState {
     warnings: string[]
     recommendations: string[]
   } | null
+  // AI Route Recommendation
+  routeRecommendation: RouteRecommendation | null
+  perTruckRecommendations: TruckRouteRecommendation[] | null
 }
 
 export function RouteIntelligence({
   origin,
   destination,
   cargoSpecs,
+  perTruckCargoSpecs,
   shipDate,
   routeData,
   onRouteCalculated,
@@ -80,6 +189,8 @@ export function RouteIntelligence({
     detailedPermitSummary: null,
     seasonalWarnings: null,
     bridgeWarnings: null,
+    routeRecommendation: null,
+    perTruckRecommendations: null,
   })
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['summary', 'states'])
@@ -151,12 +262,100 @@ export function RouteIntelligence({
         const totalHeight = cargoSpecs.height // Already includes deck height if provided correctly
         const bridgeWarnings = checkRouteBridgeClearances(routeToAnalyze.waypoints, totalHeight)
 
+        // Generate AI route recommendation
+        // For single route, create a basic recommendation based on route characteristics
+        const routeRecommendation: RouteRecommendation = {
+          recommendedRouteId: 'route-0',
+          recommendedRouteName: routeToAnalyze.statesTraversed.length > 0
+            ? `via ${routeToAnalyze.statesTraversed.join(' → ')}`
+            : 'Direct Route',
+          reasoning: generateSingleRouteReasoning(
+            detailedPermitSummary,
+            routeToAnalyze,
+            bridgeWarnings
+          ),
+          warnings: generateRouteWarnings(
+            detailedPermitSummary,
+            bridgeWarnings,
+            seasonalWarnings
+          ),
+          alternativeConsiderations: [], // No alternatives for single route
+        }
+
+        // Generate per-truck recommendations if we have truck specs
+        let perTruckRecommendations: TruckRouteRecommendation[] | null = null
+        if (perTruckCargoSpecs && perTruckCargoSpecs.length > 1) {
+          // Use the new per-truck route calculator for multi-truck scenarios
+          try {
+            const { calculatePerTruckRoutes } = await import(
+              '@/lib/load-planner/client-route-calculator'
+            )
+            const perTruckResult = await calculatePerTruckRoutes(origin, destination, perTruckCargoSpecs)
+
+            // Map the per-truck results to the expected format
+            perTruckRecommendations = perTruckResult.truckRoutes.map(tr => ({
+              truckIndex: tr.truckIndex,
+              truckId: tr.truckId,
+              truckName: tr.truckName,
+              cargoDescription: `${tr.cargoSpecs.width.toFixed(1)}'W × ${tr.cargoSpecs.height.toFixed(1)}'H × ${(tr.cargoSpecs.grossWeight / 1000).toFixed(0)}k lbs`,
+              isOversize: tr.isOversize,
+              isOverweight: tr.isOverweight,
+              recommendedRouteId: tr.recommendedRouteId,
+              recommendedRouteName: tr.recommendedRouteName,
+              reasoning: tr.reasoning,
+              alternativeRouteId: tr.usesDifferentRoute ? tr.recommendedRouteId : undefined,
+              alternativeReason: tr.differentRouteReason,
+            }))
+
+            // Update the route recommendation if we have route groups
+            if (perTruckResult.routeGroups.length > 1) {
+              routeRecommendation.warnings.push(
+                `Different trucks may use different routes - ${perTruckResult.routeGroups.length} route groups identified`
+              )
+            }
+          } catch (err) {
+            console.warn('Per-truck route calculation failed, using fallback:', err)
+            // Fallback to basic recommendations
+            perTruckRecommendations = perTruckCargoSpecs.map(truck => ({
+              truckIndex: truck.truckIndex,
+              truckId: truck.truckId,
+              truckName: truck.truckName,
+              cargoDescription: `${truck.width.toFixed(1)}'W × ${truck.height.toFixed(1)}'H × ${(truck.grossWeight / 1000).toFixed(0)}k lbs`,
+              isOversize: truck.isOversize,
+              isOverweight: truck.isOverweight,
+              recommendedRouteId: 'route-0',
+              recommendedRouteName: routeRecommendation.recommendedRouteName,
+              reasoning: truck.isOversize || truck.isOverweight
+                ? ['Requires oversize/overweight permits', 'Using primary route for permit consistency']
+                : ['Legal load dimensions', 'Can use any route'],
+            }))
+          }
+        } else if (perTruckCargoSpecs && perTruckCargoSpecs.length === 1) {
+          // Single truck - use simple recommendation
+          const truck = perTruckCargoSpecs[0]
+          perTruckRecommendations = [{
+            truckIndex: truck.truckIndex,
+            truckId: truck.truckId,
+            truckName: truck.truckName,
+            cargoDescription: `${truck.width.toFixed(1)}'W × ${truck.height.toFixed(1)}'H × ${(truck.grossWeight / 1000).toFixed(0)}k lbs`,
+            isOversize: truck.isOversize,
+            isOverweight: truck.isOverweight,
+            recommendedRouteId: 'route-0',
+            recommendedRouteName: routeRecommendation.recommendedRouteName,
+            reasoning: truck.isOversize || truck.isOverweight
+              ? ['Requires oversize/overweight permits', 'Using primary route for permit consistency']
+              : ['Legal load dimensions', 'Can use any route'],
+          }]
+        }
+
         setState((prev) => ({
           ...prev,
           permitSummary,
           detailedPermitSummary,
           seasonalWarnings,
           bridgeWarnings,
+          routeRecommendation,
+          perTruckRecommendations,
         }))
 
         onRouteCalculated?.(routeToAnalyze)
@@ -168,7 +367,7 @@ export function RouteIntelligence({
         error: err instanceof Error ? err.message : 'Failed to analyze route',
       }))
     }
-  }, [origin, destination, cargoSpecs, shipDate, routeData, onRouteCalculated])
+  }, [origin, destination, cargoSpecs, perTruckCargoSpecs, shipDate, routeData, onRouteCalculated])
 
   useEffect(() => {
     // Auto-analyze when:
@@ -280,6 +479,80 @@ export function RouteIntelligence({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* AI Route Recommendation */}
+        {state.routeRecommendation && (
+          <div className="p-4 bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-violet-100 rounded-lg">
+                <Sparkles className="w-5 h-5 text-violet-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-semibold text-violet-900">AI Route Analysis</span>
+                  <Badge variant="secondary" className="text-xs bg-violet-100 text-violet-700">
+                    {state.routeRecommendation.recommendedRouteName}
+                  </Badge>
+                </div>
+
+                {/* Reasoning */}
+                <div className="space-y-1 mb-3">
+                  {state.routeRecommendation.reasoning.slice(0, 4).map((reason, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-violet-800">
+                      <ThumbsUp className="w-3 h-3 mt-1 flex-shrink-0 text-violet-500" />
+                      <span>{reason}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Cost savings if available */}
+                {state.routeRecommendation.costSavings && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                    <DollarSign className="w-3 h-3" />
+                    Saves ${(state.routeRecommendation.costSavings.amount / 100).toLocaleString()} vs {state.routeRecommendation.costSavings.comparedTo}
+                  </div>
+                )}
+
+                {/* Warnings */}
+                {state.routeRecommendation.warnings.length > 0 && (
+                  <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-sm">
+                    <div className="font-medium text-amber-800 mb-1">Considerations:</div>
+                    {state.routeRecommendation.warnings.map((warning, i) => (
+                      <div key={i} className="flex items-start gap-2 text-amber-700">
+                        <AlertTriangle className="w-3 h-3 mt-1 flex-shrink-0" />
+                        <span>{warning}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Per-Truck Recommendations (when multiple trucks) */}
+        {state.perTruckRecommendations && state.perTruckRecommendations.length > 1 && (
+          <>
+            <SectionHeader
+              title={`Per-Truck Route Analysis (${state.perTruckRecommendations.length} trucks)`}
+              icon={<Truck className="w-4 h-4" />}
+              isExpanded={expandedSections.has('truckRoutes')}
+              onToggle={() => toggleSection('truckRoutes')}
+              badge={
+                state.perTruckRecommendations.some(t => t.alternativeRouteId) ? (
+                  <Badge variant="secondary" className="text-xs">Different Routes</Badge>
+                ) : undefined
+              }
+            />
+            {expandedSections.has('truckRoutes') && (
+              <div className="pl-6 space-y-2">
+                {state.perTruckRecommendations.map((truck) => (
+                  <TruckRouteCard key={truck.truckId} recommendation={truck} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
         {/* Route Summary */}
         <SectionHeader
           title="Route Summary"
@@ -355,11 +628,16 @@ export function RouteIntelligence({
                   </div>
                 </div>
 
+                {/* Escort Cost Breakdown */}
+                {state.detailedPermitSummary?.escortBreakdown && (
+                  <EscortCostBreakdownCard breakdown={state.detailedPermitSummary.escortBreakdown} />
+                )}
+
                 {/* Per-state breakdown */}
                 {state.detailedPermitSummary?.statePermits && (
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-muted-foreground">
-                      Per-State Breakdown (click to expand):
+                      Per-State Permit Breakdown (click to expand):
                     </div>
                     {state.detailedPermitSummary.statePermits.map((permit) => (
                       <PermitBreakdownCard
@@ -381,12 +659,6 @@ export function RouteIntelligence({
                     ))}
                   </div>
                 )}
-
-                {state.permitSummary.estimatedEscortsPerDay > 0 && (
-                  <div className="text-sm text-muted-foreground">
-                    Escorts required: {state.permitSummary.estimatedEscortsPerDay} per day
-                  </div>
-                )}
                 {state.permitSummary.overallRestrictions.length > 0 && (
                   <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
                     <div className="font-medium text-yellow-800">Travel Restrictions:</div>
@@ -397,6 +669,37 @@ export function RouteIntelligence({
                     </ul>
                   </div>
                 )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Per-Truck Analysis */}
+        {perTruckCargoSpecs && perTruckCargoSpecs.length > 1 && (
+          <>
+            <SectionHeader
+              title={`Per-Truck Analysis (${perTruckCargoSpecs.length} trucks)`}
+              icon={<Truck className="w-4 h-4" />}
+              isExpanded={expandedSections.has('perTruck')}
+              onToggle={() => toggleSection('perTruck')}
+              badge={
+                perTruckCargoSpecs.some(t => t.isOversize || t.isOverweight) ? (
+                  <Badge variant="destructive">
+                    {perTruckCargoSpecs.filter(t => t.isOversize || t.isOverweight).length} Need Permits
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">All Legal</Badge>
+                )
+              }
+            />
+            {expandedSections.has('perTruck') && (
+              <div className="pl-6 space-y-2">
+                <p className="text-xs text-muted-foreground mb-3">
+                  Different trucks may have different permit requirements based on their cargo dimensions.
+                </p>
+                {perTruckCargoSpecs.map((truck) => (
+                  <TruckPermitStatusCard key={truck.truckId} truck={truck} />
+                ))}
               </div>
             )}
           </>
@@ -698,6 +1001,308 @@ function PermitBreakdownCard({ permit, isExpanded, onToggle }: PermitBreakdownCa
             <p>Phone: {permit.source.phone}</p>
             <p className="italic mt-1">Data last updated: {permit.source.lastUpdated}</p>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface EscortCostBreakdownCardProps {
+  breakdown: EscortCostBreakdown
+}
+
+function EscortCostBreakdownCard({ breakdown }: EscortCostBreakdownCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Don't show if no escorts needed
+  if (breakdown.escortCount === 0 && !breakdown.needsPoleCar && !breakdown.needsPoliceEscort) {
+    return null
+  }
+
+  return (
+    <div className="border rounded-lg overflow-hidden bg-blue-50/50">
+      {/* Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex justify-between items-center p-3 bg-blue-50 hover:bg-blue-100 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Truck className="h-4 w-4 text-blue-600" />
+          <span className="font-medium text-blue-900">Escort Cost Breakdown</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-blue-600">${breakdown.grandTotal.toLocaleString()}</span>
+          {isExpanded ? (
+            <ChevronUp className="h-4 w-4 text-blue-600" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-blue-600" />
+          )}
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {isExpanded && (
+        <div className="p-4 space-y-4 border-t bg-white">
+          {/* Rate transparency */}
+          <div>
+            <h4 className="text-sm font-medium text-slate-700 mb-2">Standard Rates</h4>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="p-2 bg-slate-50 rounded">
+                <div className="text-muted-foreground">Escort/Pilot Car</div>
+                <div className="font-medium">${breakdown.rates.escortPerDay}/day</div>
+              </div>
+              <div className="p-2 bg-slate-50 rounded">
+                <div className="text-muted-foreground">Height Pole Car</div>
+                <div className="font-medium">${breakdown.rates.poleCarPerDay}/day</div>
+              </div>
+              <div className="p-2 bg-slate-50 rounded">
+                <div className="text-muted-foreground">Police Escort</div>
+                <div className="font-medium">${breakdown.rates.policePerHour}/hour</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Trip estimate */}
+          <div>
+            <h4 className="text-sm font-medium text-slate-700 mb-2">Trip Estimate</h4>
+            <div className="text-sm text-slate-600">
+              <span className="font-medium">{breakdown.tripDays} day{breakdown.tripDays > 1 ? 's' : ''}</span>
+              {' '}({breakdown.tripHours} driving hours)
+            </div>
+          </div>
+
+          {/* Cost calculation */}
+          <div>
+            <h4 className="text-sm font-medium text-slate-700 mb-2">Cost Calculation</h4>
+            <div className="space-y-2 text-sm">
+              {breakdown.escortCount > 0 && (
+                <div className="flex justify-between items-center p-2 bg-slate-50 rounded">
+                  <span className="text-slate-600">
+                    {breakdown.escortCount} Escort{breakdown.escortCount > 1 ? 's' : ''} × ${breakdown.rates.escortPerDay}/day × {breakdown.tripDays} days
+                  </span>
+                  <span className="font-medium text-slate-900">
+                    ${breakdown.totalEscortCost.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {breakdown.needsPoleCar && (
+                <div className="flex justify-between items-center p-2 bg-slate-50 rounded">
+                  <span className="text-slate-600">
+                    Height Pole Car × ${breakdown.rates.poleCarPerDay}/day × {breakdown.tripDays} days
+                  </span>
+                  <span className="font-medium text-slate-900">
+                    ${breakdown.totalPoleCarCost.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {breakdown.needsPoliceEscort && (
+                <div className="flex justify-between items-center p-2 bg-slate-50 rounded">
+                  <span className="text-slate-600">
+                    Police Escort × ${breakdown.rates.policePerHour}/hr × {breakdown.tripHours} hours
+                  </span>
+                  <span className="font-medium text-slate-900">
+                    ${breakdown.totalPoliceCost.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between items-center p-2 bg-blue-100 rounded font-medium">
+                <span className="text-blue-800">Total Escort Costs</span>
+                <span className="text-blue-900">${breakdown.grandTotal.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Per-state breakdown if available */}
+          {breakdown.perState.length > 0 && breakdown.perState.some(s => s.stateCost > 0) && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Per-State Escort Costs</h4>
+              <div className="space-y-1">
+                {breakdown.perState.filter(s => s.stateCost > 0).map(state => (
+                  <div key={state.stateCode} className="flex justify-between text-xs p-2 bg-slate-50 rounded">
+                    <span className="text-slate-600">
+                      {state.stateName} ({state.distanceMiles.toFixed(0)} mi, ~{state.daysInState} day{state.daysInState !== 1 ? 's' : ''})
+                      {state.escortCountInState > 0 && (
+                        <span className="text-blue-600 ml-1">
+                          [{state.escortCountInState} escort{state.escortCountInState > 1 ? 's' : ''}]
+                        </span>
+                      )}
+                      {state.poleCarRequiredInState && (
+                        <span className="text-amber-600 ml-1">[pole car]</span>
+                      )}
+                      {state.policeRequiredInState && (
+                        <span className="text-red-600 ml-1">[police]</span>
+                      )}
+                    </span>
+                    <span className="font-medium">${state.stateCost.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface TruckPermitStatusCardProps {
+  truck: TruckCargoSpecs
+}
+
+function TruckPermitStatusCard({ truck }: TruckPermitStatusCardProps) {
+  const needsPermit = truck.isOversize || truck.isOverweight
+  const statusColor = needsPermit
+    ? 'bg-amber-50 border-amber-200'
+    : 'bg-green-50 border-green-200'
+  const statusIcon = needsPermit
+    ? <AlertTriangle className="h-4 w-4 text-amber-500" />
+    : <CheckCircle2 className="h-4 w-4 text-green-500" />
+
+  // Standard legal limits for reference
+  const LEGAL_LIMITS = {
+    width: 8.5,
+    height: 13.5,
+    length: 53,
+    weight: 80000
+  }
+
+  return (
+    <div className={`p-3 border rounded-lg ${statusColor}`}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          {statusIcon}
+          <div>
+            <div className="font-medium text-sm">{truck.truckName}</div>
+            <div className="text-xs text-muted-foreground">
+              Load {truck.truckIndex + 1}
+            </div>
+          </div>
+        </div>
+        <Badge variant={needsPermit ? 'destructive' : 'secondary'} className="text-xs">
+          {needsPermit ? 'Permit Required' : 'Legal'}
+        </Badge>
+      </div>
+
+      {/* Dimensions grid */}
+      <div className="grid grid-cols-4 gap-2 mt-3 text-xs">
+        <div>
+          <div className="text-muted-foreground">Width</div>
+          <div className={`font-medium ${truck.width > LEGAL_LIMITS.width ? 'text-amber-600' : ''}`}>
+            {truck.width.toFixed(1)}&apos;
+            {truck.width > LEGAL_LIMITS.width && <span className="text-amber-500"> !</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground">Height</div>
+          <div className={`font-medium ${truck.height > LEGAL_LIMITS.height ? 'text-amber-600' : ''}`}>
+            {truck.height.toFixed(1)}&apos;
+            {truck.height > LEGAL_LIMITS.height && <span className="text-amber-500"> !</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground">Length</div>
+          <div className={`font-medium ${truck.length > LEGAL_LIMITS.length ? 'text-amber-600' : ''}`}>
+            {truck.length.toFixed(1)}&apos;
+            {truck.length > LEGAL_LIMITS.length && <span className="text-amber-500"> !</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground">Weight</div>
+          <div className={`font-medium ${truck.grossWeight > LEGAL_LIMITS.weight ? 'text-amber-600' : ''}`}>
+            {(truck.grossWeight / 1000).toFixed(0)}k
+            {truck.grossWeight > LEGAL_LIMITS.weight && <span className="text-amber-500"> !</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Status indicators */}
+      {needsPermit && (
+        <div className="flex gap-2 mt-2 flex-wrap">
+          {truck.isOversize && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+              Oversize
+            </span>
+          )}
+          {truck.isOverweight && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+              Overweight
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface TruckRouteCardProps {
+  recommendation: TruckRouteRecommendation
+}
+
+function TruckRouteCard({ recommendation }: TruckRouteCardProps) {
+  const needsSpecialRoute = recommendation.alternativeRouteId !== undefined
+  const statusColor = needsSpecialRoute
+    ? 'bg-blue-50 border-blue-200'
+    : recommendation.isOversize || recommendation.isOverweight
+    ? 'bg-amber-50 border-amber-200'
+    : 'bg-green-50 border-green-200'
+
+  return (
+    <div className={`p-3 border rounded-lg ${statusColor}`}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <Truck className="h-4 w-4 text-slate-500" />
+          <div>
+            <div className="font-medium text-sm">{recommendation.truckName}</div>
+            <div className="text-xs text-muted-foreground">
+              {recommendation.cargoDescription}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {recommendation.isOversize && (
+            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">
+              Oversize
+            </Badge>
+          )}
+          {recommendation.isOverweight && (
+            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">
+              Overweight
+            </Badge>
+          )}
+          {!recommendation.isOversize && !recommendation.isOverweight && (
+            <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+              Legal
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Recommended Route */}
+      <div className="mt-2 flex items-center gap-2 text-sm">
+        <ArrowRight className="h-4 w-4 text-violet-500" />
+        <span className="font-medium text-violet-700">{recommendation.recommendedRouteName}</span>
+        {needsSpecialRoute && (
+          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+            Different Route
+          </Badge>
+        )}
+      </div>
+
+      {/* Reasoning */}
+      <div className="mt-2 space-y-1">
+        {recommendation.reasoning.slice(0, 2).map((reason, i) => (
+          <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+            <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0 text-slate-400" />
+            <span>{reason}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Alternative reason if different route */}
+      {recommendation.alternativeReason && (
+        <div className="mt-2 p-2 bg-blue-100 rounded text-xs text-blue-700">
+          <Info className="w-3 h-3 inline-block mr-1" />
+          {recommendation.alternativeReason}
         </div>
       )}
     </div>

@@ -487,3 +487,233 @@ export async function calculateRouteWithPermits(
     permitSummary,
   }
 }
+
+/**
+ * Per-truck cargo specifications with additional metadata
+ */
+export interface TruckCargoSpecs extends CargoSpecs {
+  truckIndex: number
+  truckId: string
+  truckName: string
+  isOversize: boolean
+  isOverweight: boolean
+}
+
+/**
+ * Result of per-truck route optimization
+ */
+export interface TruckRouteResult {
+  truckIndex: number
+  truckId: string
+  truckName: string
+  cargoSpecs: CargoSpecs
+  isOversize: boolean
+  isOverweight: boolean
+  // Best route for this truck
+  recommendedRouteId: string
+  recommendedRouteName: string
+  // Permit costs for recommended route
+  permitCost: number
+  escortCost: number
+  totalCost: number
+  // Reasoning why this route was chosen
+  reasoning: string[]
+  // Is this different from the global recommendation?
+  usesDifferentRoute: boolean
+  differentRouteReason?: string
+}
+
+/**
+ * Result of calculating optimized routes for multiple trucks
+ */
+export interface PerTruckRouteResult {
+  // All route alternatives calculated
+  routes: RouteAlternative[]
+  // Per-truck recommendations
+  truckRoutes: TruckRouteResult[]
+  // Summary of truck groupings by route
+  routeGroups: {
+    routeId: string
+    routeName: string
+    truckIndices: number[]
+    truckCount: number
+  }[]
+  // Global recommendation (for single truck or all trucks together)
+  globalRecommendedRouteId: string
+}
+
+/**
+ * Calculate optimized routes for multiple trucks with different dimensions
+ * Each truck gets its own optimal route based on cargo specs and bridge clearances
+ */
+export async function calculatePerTruckRoutes(
+  origin: string,
+  destination: string,
+  trucks: TruckCargoSpecs[]
+): Promise<PerTruckRouteResult> {
+  if (trucks.length === 0) {
+    throw new Error('No trucks provided for route calculation')
+  }
+
+  // First, calculate multiple route alternatives
+  // Use the largest cargo dimensions to ensure we get permit info for worst case
+  const maxDimensions: CargoSpecs = {
+    width: Math.max(...trucks.map(t => t.width)),
+    height: Math.max(...trucks.map(t => t.height)),
+    length: Math.max(...trucks.map(t => t.length)),
+    grossWeight: Math.max(...trucks.map(t => t.grossWeight)),
+  }
+
+  const multiRouteResult = await calculateMultipleRoutes(origin, destination, maxDimensions)
+
+  // Check bridge clearances for each route
+  const { checkRouteBridgeClearances } = await import('./bridge-heights')
+
+  // For each truck, determine the best route
+  const truckRoutes: TruckRouteResult[] = []
+
+  for (const truck of trucks) {
+    // Calculate permit costs for each route for this specific truck
+    const routeAnalysis = multiRouteResult.routes.map(route => {
+      // Calculate permits specific to this truck's dimensions
+      const truckPermitSummary = calculateDetailedRoutePermits(
+        route.statesTraversed,
+        truck,
+        route.stateDistances
+      )
+
+      // Check bridge clearances for this truck's height
+      // Decode the polyline to check bridges
+      const decodedPoints = decodePolyline(route.routePolyline)
+      const bridgeCheck = checkRouteBridgeClearances(decodedPoints, truck.height)
+
+      // Calculate route score
+      let score = 0
+
+      // Lower cost = better score
+      const maxCost = Math.max(...multiRouteResult.routes.map(r => r.estimatedCosts.total), 1)
+      score += (1 - truckPermitSummary.totalCost / maxCost) * 40
+
+      // No bridge issues = better score
+      if (!bridgeCheck.hasIssues) {
+        score += 30
+      } else {
+        // Penalize based on severity
+        const dangerCount = bridgeCheck.bridges.filter(b => b.clearanceResult.severity === 'danger').length
+        const warningCount = bridgeCheck.bridges.filter(b => b.clearanceResult.severity === 'warning').length
+        score -= dangerCount * 15
+        score -= warningCount * 5
+      }
+
+      // Faster = better score
+      const maxTime = Math.max(...multiRouteResult.routes.map(r => r.totalDurationMinutes), 1)
+      score += (1 - route.totalDurationMinutes / maxTime) * 20
+
+      // Fewer states = simpler logistics
+      const maxStates = Math.max(...multiRouteResult.routes.map(r => r.statesTraversed.length), 1)
+      score += (1 - (route.statesTraversed.length - 1) / maxStates) * 10
+
+      return {
+        route,
+        permitSummary: truckPermitSummary,
+        bridgeCheck,
+        score,
+      }
+    })
+
+    // Sort by score (highest first)
+    routeAnalysis.sort((a, b) => b.score - a.score)
+
+    const bestRoute = routeAnalysis[0]
+    const globalBest = multiRouteResult.routes[0] // Already sorted by cost
+
+    // Generate reasoning for this truck
+    const reasoning: string[] = []
+
+    if (truck.isOversize || truck.isOverweight) {
+      if (truck.isOversize && truck.isOverweight) {
+        reasoning.push('Oversize and overweight load - requires dimension and weight permits')
+      } else if (truck.isOversize) {
+        reasoning.push(`Oversize load (${truck.width.toFixed(1)}'W × ${truck.height.toFixed(1)}'H)`)
+      } else {
+        reasoning.push(`Overweight load (${(truck.grossWeight / 1000).toFixed(0)}k lbs)`)
+      }
+    } else {
+      reasoning.push('Legal load dimensions - can use any route')
+    }
+
+    // Check if this truck needs a different route
+    const usesDifferentRoute = bestRoute.route.id !== globalBest.id
+    let differentRouteReason: string | undefined
+
+    if (usesDifferentRoute) {
+      // Explain why
+      if (bestRoute.bridgeCheck.hasIssues === false && routeAnalysis.find(r => r.route.id === globalBest.id)?.bridgeCheck.hasIssues) {
+        differentRouteReason = 'Avoids low bridge clearances on primary route'
+        reasoning.push('Alternative route avoids bridge clearance issues')
+      } else if (bestRoute.permitSummary.totalCost < routeAnalysis.find(r => r.route.id === globalBest.id)?.permitSummary.totalCost!) {
+        differentRouteReason = 'Lower permit costs for this load'
+        reasoning.push('Alternative route has lower permit costs for this cargo')
+      } else {
+        differentRouteReason = 'Better overall score for this truck'
+        reasoning.push('Alternative route optimizes for this specific load')
+      }
+    } else {
+      reasoning.push(`Using primary route: ${bestRoute.route.name}`)
+    }
+
+    // Add permit cost reasoning
+    if (bestRoute.permitSummary.totalCost > 0) {
+      reasoning.push(`Permit costs: $${(bestRoute.permitSummary.totalCost / 100).toLocaleString()}`)
+    }
+
+    // Add bridge info
+    if (bestRoute.bridgeCheck.hasIssues) {
+      const dangerCount = bestRoute.bridgeCheck.bridges.filter(b => b.clearanceResult.severity === 'danger').length
+      if (dangerCount > 0) {
+        reasoning.push(`⚠ ${dangerCount} bridge(s) with clearance concerns`)
+      }
+    } else {
+      reasoning.push('Bridge clearances OK')
+    }
+
+    truckRoutes.push({
+      truckIndex: truck.truckIndex,
+      truckId: truck.truckId,
+      truckName: truck.truckName,
+      cargoSpecs: truck,
+      isOversize: truck.isOversize,
+      isOverweight: truck.isOverweight,
+      recommendedRouteId: bestRoute.route.id,
+      recommendedRouteName: bestRoute.route.name,
+      permitCost: bestRoute.permitSummary.totalPermitCost,
+      escortCost: bestRoute.permitSummary.totalEscortCost,
+      totalCost: bestRoute.permitSummary.totalCost,
+      reasoning,
+      usesDifferentRoute,
+      differentRouteReason,
+    })
+  }
+
+  // Group trucks by their recommended route
+  const routeGroupsMap = new Map<string, number[]>()
+  for (const tr of truckRoutes) {
+    const indices = routeGroupsMap.get(tr.recommendedRouteId) || []
+    indices.push(tr.truckIndex)
+    routeGroupsMap.set(tr.recommendedRouteId, indices)
+  }
+
+  const routeGroups = Array.from(routeGroupsMap.entries()).map(([routeId, indices]) => ({
+    routeId,
+    routeName: multiRouteResult.routes.find(r => r.id === routeId)?.name || 'Unknown',
+    truckIndices: indices,
+    truckCount: indices.length,
+  }))
+
+  return {
+    routes: multiRouteResult.routes,
+    truckRoutes,
+    routeGroups,
+    globalRecommendedRouteId: multiRouteResult.routes[0]?.id || '',
+  }
+}

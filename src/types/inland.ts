@@ -123,6 +123,26 @@ export interface InlandLoadBlock {
 
   // Accessorial fees total (if applicable - not included in subtotal)
   accessorials_total?: number
+
+  // Load diagram data (from load planner)
+  placements?: InlandCargoPlacement[]
+  truck_specs?: InlandTruckSpecs
+}
+
+// Placement info for cargo items on trailer (for load diagrams)
+export interface InlandCargoPlacement {
+  itemId: string
+  x: number // feet from front
+  z: number // feet from left edge
+  rotated: boolean
+}
+
+// Truck specs for trailer diagram rendering
+export interface InlandTruckSpecs {
+  deckLength: number // feet
+  deckWidth: number // feet
+  deckHeight: number // feet
+  maxWeight: number // lbs
 }
 
 export interface CargoItem {

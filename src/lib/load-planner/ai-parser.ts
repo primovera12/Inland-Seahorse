@@ -24,11 +24,60 @@ export interface AIParseResult {
   items: ParsedItem[]
   rawResponse?: string
   error?: string
+  warning?: string  // Warning for potential issues like truncation
   debugInfo?: {
     rawItemCount: number
     filteredItemCount: number
     sampleRawItem: unknown
+    potentiallyTruncated?: boolean
   }
+}
+
+/**
+ * Detect if a JSON array response was truncated mid-parse
+ * Returns true if the response seems incomplete
+ */
+function detectTruncatedJSON(responseText: string): boolean {
+  // Look for signs of truncation:
+  // 1. Ends with incomplete JSON (no closing bracket)
+  // 2. Has unbalanced brackets
+  // 3. Ends mid-string or mid-number
+
+  const trimmed = responseText.trim()
+
+  // Check if it ends with a complete array
+  if (!trimmed.endsWith(']')) {
+    return true
+  }
+
+  // Count brackets to check balance
+  let bracketCount = 0
+  let braceCount = 0
+  let inString = false
+  let escape = false
+
+  for (const char of trimmed) {
+    if (escape) {
+      escape = false
+      continue
+    }
+    if (char === '\\') {
+      escape = true
+      continue
+    }
+    if (char === '"') {
+      inString = !inString
+      continue
+    }
+    if (!inString) {
+      if (char === '[') bracketCount++
+      if (char === ']') bracketCount--
+      if (char === '{') braceCount++
+      if (char === '}') braceCount--
+    }
+  }
+
+  return bracketCount !== 0 || braceCount !== 0
 }
 
 const CARGO_EXTRACTION_PROMPT = `You are an expert at extracting cargo/freight data from ANY format - spreadsheets, tables, packing lists, emails, PDFs, etc.
@@ -114,7 +163,7 @@ export async function parseImageWithAI(
 
     const message = await client.messages.create({
       model: 'claude-opus-4-5-20251101',
-      max_tokens: 8192,
+      max_tokens: 30000,  // Increased to 30K to handle very large item lists
       messages: [
         {
           role: 'user',
@@ -175,10 +224,16 @@ export async function parseImageWithAI(
           item.length > 0 || item.width > 0 || item.height > 0 || item.weight > 0
         )
 
+      // Check for truncation
+      const potentiallyTruncated = detectTruncatedJSON(responseText)
+
       return {
         success: parsedItems.length > 0,
         items: parsedItems,
         rawResponse: responseText,
+        warning: potentiallyTruncated
+          ? 'Response may have been truncated. Some items might be missing.'
+          : undefined,
       }
     } catch {
       return {
@@ -217,7 +272,7 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
   try {
     const message = await client.messages.create({
       model: 'claude-opus-4-5-20251101',
-      max_tokens: 8192,
+      max_tokens: 30000,  // Increased to 30K to handle very large item lists
       messages: [
         {
           role: 'user',
@@ -227,6 +282,9 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
     })
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+
+    // Check for truncation before parsing
+    const potentiallyTruncated = detectTruncatedJSON(responseText)
 
     try {
       let jsonStr = responseText
@@ -268,10 +326,14 @@ export async function parseTextWithAI(text: string): Promise<AIParseResult> {
         success: parsedItems.length > 0,
         items: parsedItems,
         rawResponse: responseText,
+        warning: potentiallyTruncated
+          ? 'Response may have been truncated. Some items might be missing.'
+          : undefined,
         debugInfo: {
           rawItemCount: items.length,
           filteredItemCount: parsedItems.length,
           sampleRawItem: items[0],
+          potentiallyTruncated,
         },
       }
     } catch (parseError) {
@@ -334,7 +396,7 @@ export async function parseTextWithAIMultilang(text: string): Promise<AIParseRes
   try {
     const message = await client.messages.create({
       model: 'claude-opus-4-5-20251101',
-      max_tokens: 8192,
+      max_tokens: 30000,  // Increased to 30K to handle very large item lists
       messages: [
         {
           role: 'user',
@@ -344,6 +406,9 @@ export async function parseTextWithAIMultilang(text: string): Promise<AIParseRes
     })
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+
+    // Check for truncation before parsing
+    const potentiallyTruncated = detectTruncatedJSON(responseText)
 
     try {
       let jsonStr = responseText
@@ -385,6 +450,9 @@ export async function parseTextWithAIMultilang(text: string): Promise<AIParseRes
         success: parsedItems.length > 0,
         items: parsedItems,
         rawResponse: responseText,
+        warning: potentiallyTruncated
+          ? 'Response may have been truncated. Some items might be missing.'
+          : undefined,
       }
     } catch {
       return {

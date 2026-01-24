@@ -47,6 +47,12 @@ import type { RouteResult } from '@/lib/load-planner/route-calculator'
 import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
 import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
 import { useRouter } from 'next/navigation'
+import {
+  DEFAULT_ACCESSORIAL_TYPES,
+  ACCESSORIAL_BILLING_UNITS,
+  type AccessorialCharge,
+  type AccessorialBillingUnit
+} from '@/types/inland'
 
 // Predefined service types for inland transportation
 const PREDEFINED_SERVICES = [
@@ -112,6 +118,20 @@ export default function NewInlandQuoteV2Page() {
   const [routePolyline, setRoutePolyline] = useState<string>('')
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
 
+  // Cargo entry mode toggle: 'ai' for drag-drop/paste, 'manual' for manual form entry
+  const [cargoEntryMode, setCargoEntryMode] = useState<'ai' | 'manual'>('ai')
+
+  // Manual entry state (for equipment mode)
+  const [manualDescription, setManualDescription] = useState('')
+  const [manualLength, setManualLength] = useState('')
+  const [manualWidth, setManualWidth] = useState('')
+  const [manualHeight, setManualHeight] = useState('')
+  const [manualWeight, setManualWeight] = useState('')
+  const [manualQuantity, setManualQuantity] = useState('1')
+  const [isEquipmentMode, setIsEquipmentMode] = useState(false)
+  const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
+
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -141,9 +161,23 @@ export default function NewInlandQuoteV2Page() {
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([])
   const [pricingPerTruck, setPricingPerTruck] = useState(false)
 
+  // Accessorial charges
+  const [accessorialItems, setAccessorialItems] = useState<AccessorialCharge[]>([])
+
   // Fetch settings for PDF and service types
   const { data: settings } = trpc.settings.get.useQuery()
   const { data: serviceTypes } = trpc.inland.getServiceTypes.useQuery()
+
+  // Equipment database queries (for manual entry mode)
+  const { data: equipmentMakes } = trpc.equipment.getMakes.useQuery()
+  const { data: equipmentModels } = trpc.equipment.getModels.useQuery(
+    { makeId: selectedMakeId! },
+    { enabled: !!selectedMakeId }
+  )
+  const { data: equipmentDimensions } = trpc.equipment.getDimensions.useQuery(
+    { modelId: selectedModelId! },
+    { enabled: !!selectedModelId }
+  )
 
   // Generate quote number on mount
   useEffect(() => {
@@ -189,10 +223,104 @@ export default function NewInlandQuoteV2Page() {
     setLoadPlan(plan)
   }, [cargoItems])
 
+  // Auto-populate dimensions when equipment model is selected
+  useEffect(() => {
+    if (equipmentDimensions && isEquipmentMode) {
+      // Convert inches to feet for display (dimensions come in inches from DB)
+      setManualLength((equipmentDimensions.length / 12).toFixed(2))
+      setManualWidth((equipmentDimensions.width / 12).toFixed(2))
+      setManualHeight((equipmentDimensions.height / 12).toFixed(2))
+      setManualWeight(equipmentDimensions.weight.toString())
+    }
+  }, [equipmentDimensions, isEquipmentMode])
+
+  // Handler for adding a manual cargo item
+  const handleAddManualItem = useCallback(() => {
+    const length = parseFloat(manualLength) || 0
+    const width = parseFloat(manualWidth) || 0
+    const height = parseFloat(manualHeight) || 0
+    const weight = parseFloat(manualWeight) || 0
+    const quantity = parseInt(manualQuantity) || 1
+
+    if (!manualDescription.trim()) {
+      toast.error('Please enter a description')
+      return
+    }
+
+    if (length <= 0 || width <= 0 || height <= 0) {
+      toast.error('Please enter valid dimensions')
+      return
+    }
+
+    // Find the make and model names from the selected IDs
+    const makeName = selectedMakeId
+      ? equipmentMakes?.find(m => m.id === selectedMakeId)?.name
+      : undefined
+    const modelName = selectedModelId
+      ? equipmentModels?.find(m => m.id === selectedModelId)?.name
+      : undefined
+
+    const newItem: LoadItem = {
+      id: `manual-${Date.now()}`,
+      description: manualDescription.trim(),
+      quantity,
+      length, // in feet
+      width,
+      height,
+      weight,
+      stackable: true,
+      // Equipment fields (mapped for later use)
+      ...(isEquipmentMode && selectedMakeId && selectedModelId && {
+        equipmentMatched: true,
+        equipmentMakeId: selectedMakeId,
+        equipmentModelId: selectedModelId,
+        dimensionsSource: 'database' as const,
+      }),
+    }
+
+    setCargoItems(prev => [...prev, newItem])
+
+    // Reset form
+    setManualDescription('')
+    setManualLength('')
+    setManualWidth('')
+    setManualHeight('')
+    setManualWeight('')
+    setManualQuantity('1')
+    if (isEquipmentMode) {
+      setSelectedMakeId(null)
+      setSelectedModelId(null)
+    }
+
+    toast.success('Cargo item added')
+  }, [
+    manualDescription,
+    manualLength,
+    manualWidth,
+    manualHeight,
+    manualWeight,
+    manualQuantity,
+    isEquipmentMode,
+    selectedMakeId,
+    selectedModelId,
+    equipmentMakes,
+    equipmentModels,
+  ])
+
   // Calculate totals from service items
-  const grandTotal = useMemo(() => {
+  const servicesTotal = useMemo(() => {
     return serviceItems.reduce((sum, s) => sum + s.total, 0)
   }, [serviceItems])
+
+  // Calculate totals from accessorial charges
+  const accessorialsTotal = useMemo(() => {
+    return accessorialItems.reduce((sum, a) => sum + a.total, 0)
+  }, [accessorialItems])
+
+  // Grand total = services + accessorials
+  const grandTotal = useMemo(() => {
+    return servicesTotal + accessorialsTotal
+  }, [servicesTotal, accessorialsTotal])
 
   // Service item functions
   const addServiceItem = (truckIndex?: number) => {
@@ -229,6 +357,74 @@ export default function NewInlandQuoteV2Page() {
     setServiceItems(serviceItems.filter((_, i) => i !== index))
   }
 
+  // Accessorial charge functions
+  const addAccessorialItem = () => {
+    const defaultType = DEFAULT_ACCESSORIAL_TYPES[0]
+    const newAccessorial: AccessorialCharge = {
+      id: crypto.randomUUID(),
+      accessorial_type_id: '',
+      name: defaultType.name,
+      billing_unit: defaultType.billing_unit,
+      rate: defaultType.default_rate,
+      quantity: 1,
+      total: defaultType.default_rate,
+    }
+    setAccessorialItems([...accessorialItems, newAccessorial])
+  }
+
+  const updateAccessorialItem = (index: number, field: keyof AccessorialCharge, value: string | number) => {
+    const newAccessorials = [...accessorialItems]
+    const accessorial = { ...newAccessorials[index] }
+
+    if (field === 'name') {
+      accessorial.name = String(value)
+      // Find matching default type and update billing unit and rate
+      const matchingType = DEFAULT_ACCESSORIAL_TYPES.find(t => t.name === value)
+      if (matchingType) {
+        accessorial.billing_unit = matchingType.billing_unit
+        accessorial.rate = matchingType.default_rate
+        accessorial.total = accessorial.rate * accessorial.quantity
+      }
+    } else if (field === 'billing_unit') {
+      accessorial.billing_unit = value as AccessorialBillingUnit
+    } else if (field === 'rate') {
+      accessorial.rate = typeof value === 'number' ? value : parseWholeDollarsToCents(String(value))
+      accessorial.total = accessorial.rate * accessorial.quantity
+    } else if (field === 'quantity') {
+      accessorial.quantity = typeof value === 'number' ? value : parseInt(String(value)) || 1
+      accessorial.total = accessorial.rate * accessorial.quantity
+    }
+
+    newAccessorials[index] = accessorial
+    setAccessorialItems(newAccessorials)
+  }
+
+  const removeAccessorialItem = (index: number) => {
+    setAccessorialItems(accessorialItems.filter((_, i) => i !== index))
+  }
+
+  // Accessorial type options for dropdown
+  const accessorialOptions = useMemo(() => {
+    return DEFAULT_ACCESSORIAL_TYPES.map(t => ({
+      value: t.name,
+      label: t.name,
+    }))
+  }, [])
+
+  // Billing unit options for dropdown
+  const billingUnitOptions = useMemo(() => {
+    return ACCESSORIAL_BILLING_UNITS.map(u => ({
+      value: u,
+      label: u === 'flat' ? 'Flat Rate' :
+             u === 'hour' ? 'Per Hour' :
+             u === 'day' ? 'Per Day' :
+             u === 'way' ? 'Per Way' :
+             u === 'week' ? 'Per Week' :
+             u === 'month' ? 'Per Month' :
+             u === 'stop' ? 'Per Stop' : u,
+    }))
+  }, [])
+
   // Service options from database or fallback
   const serviceOptions = useMemo(() => {
     if (serviceTypes && serviceTypes.length > 0) {
@@ -240,30 +436,71 @@ export default function NewInlandQuoteV2Page() {
     return PREDEFINED_SERVICES
   }, [serviceTypes])
 
-  // Calculate cargo specs for permit calculation
+  // Calculate per-truck cargo specs for permit calculation
+  // This allows us to show which trucks need permits vs which are legal
+  interface TruckCargoSpecs extends CargoSpecs {
+    truckIndex: number
+    truckName: string
+    truckId: string
+    isOversize: boolean
+    isOverweight: boolean
+  }
+
+  const perTruckCargoSpecs: TruckCargoSpecs[] = useMemo(() => {
+    if (!loadPlan || loadPlan.loads.length === 0) return []
+
+    return loadPlan.loads.map((load, index) => {
+      const truck = load.recommendedTruck
+      const items = load.items
+
+      // Calculate max dimensions for this specific load
+      const maxLength = items.length > 0 ? Math.max(...items.map(i => i.length)) : 0
+      const maxWidth = items.length > 0 ? Math.max(...items.map(i => i.width)) : 0
+      const maxHeight = items.length > 0 ? Math.max(...items.map(i => i.height)) : 0
+      const cargoWeight = items.reduce((sum, i) => sum + i.weight * (i.quantity || 1), 0)
+
+      // Add deck height for total height
+      const totalHeight = maxHeight + truck.deckHeight
+
+      // Gross weight = cargo + truck tare weight
+      const tareWeight = truck.tareWeight || 20000
+      const grossWeight = cargoWeight + tareWeight
+
+      // Legal limits for oversize/overweight determination
+      const isOversize = maxWidth > 8.5 || totalHeight > 13.5 || maxLength > 53
+      const isOverweight = grossWeight > 80000
+
+      return {
+        truckIndex: index,
+        truckName: truck.name,
+        truckId: truck.id,
+        length: maxLength,
+        width: maxWidth,
+        height: totalHeight,
+        grossWeight: grossWeight,
+        isOversize,
+        isOverweight,
+      }
+    })
+  }, [loadPlan])
+
+  // Calculate overall cargo specs (max across all trucks) for backward compatibility
   const cargoSpecs: CargoSpecs | null = useMemo(() => {
-    if (cargoItems.length === 0) return null
+    if (perTruckCargoSpecs.length === 0) return null
 
-    const maxLength = Math.max(...cargoItems.map(i => i.length))
-    const maxWidth = Math.max(...cargoItems.map(i => i.width))
-    const maxHeight = Math.max(...cargoItems.map(i => i.height))
-    const cargoWeight = cargoItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
-
-    // Add deck height from selected truck for total height
-    const deckHeight = loadPlan?.loads[0]?.recommendedTruck?.deckHeight || 0
-    const totalHeight = maxHeight + deckHeight
-
-    // Gross weight = cargo + truck/trailer tare weight (estimate ~20,000 lbs if not specified)
-    const tareWeight = loadPlan?.loads[0]?.recommendedTruck?.tareWeight || 20000
-    const grossWeight = cargoWeight + tareWeight
+    // Use the maximum dimensions across all trucks
+    const maxLength = Math.max(...perTruckCargoSpecs.map(t => t.length))
+    const maxWidth = Math.max(...perTruckCargoSpecs.map(t => t.width))
+    const maxHeight = Math.max(...perTruckCargoSpecs.map(t => t.height))
+    const maxGrossWeight = Math.max(...perTruckCargoSpecs.map(t => t.grossWeight))
 
     return {
       length: maxLength,
       width: maxWidth,
-      height: totalHeight, // Include deck height for permit calculation
-      grossWeight: grossWeight, // Total weight including truck/trailer
+      height: maxHeight,
+      grossWeight: maxGrossWeight,
     }
-  }, [cargoItems, loadPlan])
+  }, [perTruckCargoSpecs])
 
   // Handle file/text analysis
   const handleAnalyzed = (result: {
@@ -358,6 +595,7 @@ export default function NewInlandQuoteV2Page() {
     setInternalNotes('')
     setQuoteNotes('')
     setServiceItems([])
+    setAccessorialItems([])
     setPricingPerTruck(false)
     setActiveTab('customer')
     toast.success('Quote cleared')
@@ -543,6 +781,15 @@ export default function NewInlandQuoteV2Page() {
               weight_lbs: item.weight,
               is_oversize: item.width > 8.5 || item.height > 10,
               is_overweight: item.weight > 48000,
+              // Cargo images
+              image_url: item.imageUrl,
+              image_url_2: item.imageUrl2,
+              front_image_url: item.frontImageUrl,
+              side_image_url: item.sideImageUrl,
+              // Equipment database fields
+              is_equipment: item.equipmentMatched,
+              equipment_make_id: item.equipmentMakeId,
+              equipment_model_id: item.equipmentModelId,
             })),
             // Empty service_items - services are at transport level instead
             service_items: [],
@@ -566,7 +813,17 @@ export default function NewInlandQuoteV2Page() {
             quantity: s.quantity,
             total: s.total,
           })),
-          subtotal: grandTotal,
+          // Accessorial charges at destination level
+          accessorial_charges: accessorialItems.map(a => ({
+            id: a.id,
+            name: a.name,
+            billing_unit: a.billing_unit,
+            rate: a.rate,
+            quantity: a.quantity,
+            total: a.total,
+          })),
+          subtotal: servicesTotal,
+          accessorials_total: accessorialsTotal,
         }],
         // Top-level load blocks for backward compatibility - cargo only
         load_blocks: loadPlan?.loads.map(load => ({
@@ -583,6 +840,15 @@ export default function NewInlandQuoteV2Page() {
             weight_lbs: item.weight,
             is_oversize: item.width > 8.5 || item.height > 10,
             is_overweight: item.weight > 48000,
+            // Cargo images
+            image_url: item.imageUrl,
+            image_url_2: item.imageUrl2,
+            front_image_url: item.frontImageUrl,
+            side_image_url: item.sideImageUrl,
+            // Equipment database fields
+            is_equipment: item.equipmentMatched,
+            equipment_make_id: item.equipmentMakeId,
+            equipment_model_id: item.equipmentModelId,
           })),
           // Empty - services consolidated at destination level
           service_items: [],
@@ -610,7 +876,7 @@ export default function NewInlandQuoteV2Page() {
       grandTotal: grandTotal,
       customerNotes: quoteNotes || undefined,
     }
-  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, pricingPerTruck, grandTotal, quoteNotes])
+  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, accessorialItems, pricingPerTruck, grandTotal, servicesTotal, accessorialsTotal, quoteNotes])
 
   return (
     <div className="space-y-6">
@@ -789,30 +1055,232 @@ export default function NewInlandQuoteV2Page() {
 
             {/* Cargo Tab */}
             <TabsContent value="cargo" className="space-y-4 mt-4">
-              {/* AI Upload Section */}
+              {/* Entry Mode Toggle */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Upload className="h-5 w-5" />
-                    Upload Cargo Data
-                  </CardTitle>
-                  <CardDescription>
-                    Drop an Excel file, image, or paste cargo info - AI will extract the details
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <UniversalDropzone
-                    onAnalyzed={handleAnalyzed}
-                    onLoading={setIsAnalyzing}
-                    onError={setAnalysisError}
-                  />
-                  {analysisError && (
-                    <p className="text-sm text-red-500 mt-2">{analysisError}</p>
-                  )}
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium">Cargo Entry Mode</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Choose how to add cargo items
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+                      <button
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          cargoEntryMode === 'ai'
+                            ? 'bg-background shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setCargoEntryMode('ai')}
+                      >
+                        <Upload className="h-4 w-4 inline mr-2" />
+                        AI Upload
+                      </button>
+                      <button
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          cargoEntryMode === 'manual'
+                            ? 'bg-background shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setCargoEntryMode('manual')}
+                      >
+                        <Plus className="h-4 w-4 inline mr-2" />
+                        Manual Entry
+                      </button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Extracted Items */}
+              {/* AI Upload Section - shown in AI mode */}
+              {cargoEntryMode === 'ai' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Upload className="h-5 w-5" />
+                      Upload Cargo Data
+                    </CardTitle>
+                    <CardDescription>
+                      Drop an Excel file, image, or paste cargo info - AI will extract the details
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <UniversalDropzone
+                      onAnalyzed={handleAnalyzed}
+                      onLoading={setIsAnalyzing}
+                      onError={setAnalysisError}
+                    />
+                    {analysisError && (
+                      <p className="text-sm text-red-500 mt-2">{analysisError}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Manual Entry Section - shown in Manual mode */}
+              {cargoEntryMode === 'manual' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Plus className="h-5 w-5" />
+                      Add Cargo Item
+                    </CardTitle>
+                    <CardDescription>
+                      Enter cargo details manually. Toggle Equipment Mode to select from the database.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Equipment Mode Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <span className="text-sm font-medium">Equipment Mode</span>
+                          <p className="text-xs text-muted-foreground">
+                            Select equipment from database to auto-fill dimensions
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={isEquipmentMode}
+                        onCheckedChange={(checked) => {
+                          setIsEquipmentMode(checked)
+                          if (!checked) {
+                            setSelectedMakeId(null)
+                            setSelectedModelId(null)
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {/* Equipment Selection - shown when equipment mode is on */}
+                    {isEquipmentMode && (
+                      <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50/50">
+                        <div>
+                          <Label className="text-xs font-medium">Make</Label>
+                          <SearchableSelect
+                            value={selectedMakeId || ''}
+                            onChange={(value) => {
+                              setSelectedMakeId(value || null)
+                              setSelectedModelId(null) // Reset model when make changes
+                            }}
+                            options={
+                              equipmentMakes?.map((make) => ({
+                                value: make.id,
+                                label: make.name,
+                              })) || []
+                            }
+                            placeholder="Select make..."
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium">Model</Label>
+                          <SearchableSelect
+                            value={selectedModelId || ''}
+                            onChange={(value) => {
+                              setSelectedModelId(value || null)
+                              // Description will be auto-filled from make + model
+                              if (value && selectedMakeId) {
+                                const make = equipmentMakes?.find(m => m.id === selectedMakeId)
+                                const model = equipmentModels?.find(m => m.id === value)
+                                if (make && model) {
+                                  setManualDescription(`${make.name} ${model.name}`)
+                                }
+                              }
+                            }}
+                            options={
+                              equipmentModels?.map((model) => ({
+                                value: model.id,
+                                label: model.name,
+                              })) || []
+                            }
+                            placeholder={selectedMakeId ? "Select model..." : "Select make first"}
+                            disabled={!selectedMakeId}
+                          />
+                        </div>
+                        {equipmentDimensions && (
+                          <div className="col-span-2 text-xs text-green-600 bg-green-50 p-2 rounded">
+                            Dimensions loaded from database - you can still modify them below
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Manual Entry Form */}
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-xs font-medium">Description</Label>
+                        <Input
+                          value={manualDescription}
+                          onChange={(e) => setManualDescription(e.target.value)}
+                          placeholder="e.g., CAT 320 Excavator"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <Label className="text-xs font-medium">Length (ft)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={manualLength}
+                            onChange={(e) => setManualLength(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium">Width (ft)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={manualWidth}
+                            onChange={(e) => setManualWidth(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium">Height (ft)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={manualHeight}
+                            onChange={(e) => setManualHeight(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium">Weight (lbs)</Label>
+                          <Input
+                            type="number"
+                            value={manualWeight}
+                            onChange={(e) => setManualWeight(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-end gap-3">
+                        <div className="w-24">
+                          <Label className="text-xs font-medium">Quantity</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={manualQuantity}
+                            onChange={(e) => setManualQuantity(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={handleAddManualItem} className="flex-1">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Item
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Cargo Items List - shown in both modes */}
               {cargoItems.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -821,7 +1289,7 @@ export default function NewInlandQuoteV2Page() {
                       Cargo Items ({cargoItems.length})
                     </CardTitle>
                     <CardDescription>
-                      Review and edit the extracted cargo. All dimensions are in feet.
+                      Review and edit the cargo items. All dimensions are in feet.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1088,10 +1556,101 @@ export default function NewInlandQuoteV2Page() {
                     </div>
                   )}
 
-                  <Separator />
+                  <Separator className="my-6" />
+
+                  {/* Accessorial Charges Section */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Accessorial Charges (If Applicable)</Label>
+                      <Button variant="outline" size="sm" onClick={addAccessorialItem}>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Accessorial
+                      </Button>
+                    </div>
+
+                    {accessorialItems.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg bg-amber-50/50 border-amber-200">
+                        No accessorial charges added. Add items like detention, layover, fuel surcharge, tolls, etc.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {accessorialItems.map((accessorial, index) => (
+                          <div key={accessorial.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-amber-50/50 border border-amber-200">
+                            <SearchableSelect
+                              value={accessorial.name}
+                              onChange={(value) => updateAccessorialItem(index, 'name', value)}
+                              options={accessorialOptions.map((a): SearchableSelectOption => ({
+                                value: a.value,
+                                label: a.label,
+                              }))}
+                              placeholder="Select type"
+                              searchPlaceholder="Search accessorials..."
+                              className="w-full sm:w-[180px]"
+                            />
+                            <SearchableSelect
+                              value={accessorial.billing_unit}
+                              onChange={(value) => updateAccessorialItem(index, 'billing_unit', value)}
+                              options={billingUnitOptions.map((b): SearchableSelectOption => ({
+                                value: b.value,
+                                label: b.label,
+                              }))}
+                              placeholder="Unit"
+                              className="w-[100px]"
+                            />
+                            <Input
+                              className="w-16 sm:w-20"
+                              type="number"
+                              min={1}
+                              value={accessorial.quantity}
+                              onChange={(e) => updateAccessorialItem(index, 'quantity', e.target.value)}
+                              placeholder="Qty"
+                            />
+                            <div className="relative w-24 sm:w-28">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                              <Input
+                                className="pl-5 text-right font-mono"
+                                placeholder="0"
+                                value={formatWholeDollars(accessorial.rate)}
+                                onChange={(e) => updateAccessorialItem(index, 'rate', e.target.value)}
+                              />
+                            </div>
+                            <span className="w-20 sm:w-24 text-right font-mono text-sm">
+                              ${formatWholeDollars(accessorial.total)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeAccessorialItem(index)}
+                              className="shrink-0"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {accessorialItems.length > 0 && (
+                      <div className="flex justify-between text-sm pt-2">
+                        <span className="text-muted-foreground">Accessorials Subtotal</span>
+                        <span className="font-mono font-medium text-amber-700">
+                          {formatCurrency(accessorialsTotal)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator className="my-6" />
 
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-lg font-medium">Grand Total</span>
+                    <div>
+                      <span className="text-lg font-medium">Grand Total</span>
+                      {accessorialItems.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Services: {formatCurrency(servicesTotal)} + Accessorials: {formatCurrency(accessorialsTotal)}
+                        </div>
+                      )}
+                    </div>
                     <span className="text-2xl font-bold font-mono text-primary">
                       {formatCurrency(grandTotal)}
                     </span>
@@ -1300,6 +1859,7 @@ export default function NewInlandQuoteV2Page() {
                   origin={pickupAddress}
                   destination={dropoffAddress}
                   cargoSpecs={cargoSpecs}
+                  perTruckCargoSpecs={perTruckCargoSpecs}
                   routeData={routeResult || undefined}
                   onRouteCalculated={(result) => {
                     setRouteResult(result)

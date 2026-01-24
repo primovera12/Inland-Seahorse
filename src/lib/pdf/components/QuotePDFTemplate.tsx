@@ -995,6 +995,9 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                     accessorial_charges: loadBlock.accessorial_charges,
                     subtotal: loadBlock.subtotal,
                     accessorials_total: loadBlock.accessorials_total || 0,
+                    // Load diagram data
+                    placements: loadBlock.placements,
+                    truck_specs: loadBlock.truck_specs,
                   }
                   return renderLoadBlock(formattedBlock, loadIndex, dest.load_blocks.length > 1)
                 })}
