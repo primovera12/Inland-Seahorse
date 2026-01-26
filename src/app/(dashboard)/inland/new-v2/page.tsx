@@ -168,6 +168,7 @@ export default function NewInlandQuoteV2Page() {
   const [manualWeight, setManualWeight] = useState('')
   const [manualQuantity, setManualQuantity] = useState('1')
   const [isEquipmentMode, setIsEquipmentMode] = useState(false)
+  const [isBulkEntryMode, setIsBulkEntryMode] = useState(false)
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedCargoTypeId, setSelectedCargoTypeId] = useState<string | null>(null)
@@ -261,6 +262,7 @@ export default function NewInlandQuoteV2Page() {
 
   // Accessorial charges
   const [accessorialItems, setAccessorialItems] = useState<AccessorialCharge[]>([])
+  const [accessorialsExpanded, setAccessorialsExpanded] = useState(false)
 
   // Editable permit costs - allows overriding calculated values
   const [editablePermitCosts, setEditablePermitCosts] = useState<EditablePermitCost[]>([])
@@ -662,6 +664,14 @@ export default function NewInlandQuoteV2Page() {
       handleAddManualItem()
     }
   }, [handleAddManualItem])
+
+  // Handle bulk entry items
+  const handleBulkAddItems = useCallback((items: LoadItem[]) => {
+    setCargoItems(prev => {
+      const updated = [...prev, ...items]
+      return updated
+    })
+  }, [])
 
   // Calculate totals from service items
   const servicesTotal = useMemo(() => {
@@ -1356,6 +1366,10 @@ export default function NewInlandQuoteV2Page() {
               deckHeight: load.recommendedTruck.deckHeight,
               maxWeight: load.recommendedTruck.maxCargoWeight,
             },
+            // Load compliance info
+            warnings: load.warnings,
+            permits_required: load.permitsRequired,
+            is_legal: load.isLegal,
           })) || [],
           // Services at destination level (consolidated)
           service_items: serviceItems.map(s => ({
@@ -1416,6 +1430,10 @@ export default function NewInlandQuoteV2Page() {
             deckHeight: load.recommendedTruck.deckHeight,
             maxWeight: load.recommendedTruck.maxCargoWeight,
           },
+          // Load compliance info
+          warnings: load.warnings,
+          permits_required: load.permitsRequired,
+          is_legal: load.isLegal,
         })) || [],
         distance_miles: distanceMiles || undefined,
         duration_minutes: durationMinutes || undefined,
@@ -1810,8 +1828,35 @@ export default function NewInlandQuoteV2Page() {
                       </div>
                     </div>
 
-                    {/* Equipment Selection - shown when equipment mode is on */}
-                    {isEquipmentMode && (
+                    {/* Bulk Entry Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <span className="text-sm font-medium">Bulk Entry</span>
+                          <p className="text-xs text-muted-foreground">
+                            Add multiple items at once (paste from Excel)
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={isBulkEntryMode}
+                        onCheckedChange={setIsBulkEntryMode}
+                      />
+                    </div>
+
+                    {/* Bulk Entry Component or Single Entry Form */}
+                    {isBulkEntryMode ? (
+                      <BulkCargoEntry
+                        unitSystem={unitSystem}
+                        onAddItems={handleBulkAddItems}
+                        metersToFeet={metersToFeet}
+                        kgToLbs={kgToLbs}
+                      />
+                    ) : (
+                      <>
+                        {/* Equipment Selection - shown when equipment mode is on */}
+                        {isEquipmentMode && (
                       <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50/50">
                         <div>
                           <Label className="text-xs font-medium">Make</Label>
@@ -1997,6 +2042,8 @@ export default function NewInlandQuoteV2Page() {
                         )}
                       </div>
                     </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -2392,21 +2439,44 @@ export default function NewInlandQuoteV2Page() {
 
                   <Separator className="my-6" />
 
-                  {/* Accessorial Charges Section */}
+                  {/* Accessorial Charges Section - Collapsible */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Accessorial Charges (If Applicable)</Label>
-                      <Button variant="outline" size="sm" onClick={addAccessorialItem}>
+                      <button
+                        type="button"
+                        onClick={() => setAccessorialsExpanded(!accessorialsExpanded)}
+                        className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors"
+                      >
+                        {accessorialsExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        Accessorial Charges
+                        {accessorialItems.length > 0 && (
+                          <Badge variant="secondary" className="ml-1">
+                            {accessorialItems.length}
+                          </Badge>
+                        )}
+                        {!accessorialsExpanded && accessorialItems.length > 0 && (
+                          <span className="text-muted-foreground font-normal ml-2">
+                            ({formatCurrency(accessorialsTotal)})
+                          </span>
+                        )}
+                      </button>
+                      <Button variant="outline" size="sm" onClick={() => { addAccessorialItem(); setAccessorialsExpanded(true); }}>
                         <Plus className="h-3 w-3 mr-1" />
                         Add Accessorial
                       </Button>
                     </div>
 
-                    {accessorialItems.length === 0 ? (
-                      <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg bg-amber-50/50 border-amber-200">
-                        No accessorial charges added. Add items like detention, layover, fuel surcharge, tolls, etc.
-                      </div>
-                    ) : (
+                    {accessorialsExpanded && (
+                      <>
+                        {accessorialItems.length === 0 ? (
+                          <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg bg-amber-50/50 border-amber-200">
+                            No accessorial charges added. Add items like detention, layover, tolls, etc.
+                          </div>
+                        ) : (
                       <div className="space-y-2">
                         {accessorialItems.map((accessorial, index) => (
                           <div key={accessorial.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-amber-50/50 border border-amber-200">
@@ -2471,6 +2541,8 @@ export default function NewInlandQuoteV2Page() {
                           {formatCurrency(accessorialsTotal)}
                         </span>
                       </div>
+                    )}
+                      </>
                     )}
                   </div>
 
