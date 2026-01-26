@@ -9,7 +9,7 @@ import {
 import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_API_KEY } from '@/lib/google-maps'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, MapPin, Route, Maximize2, Minimize2, CheckCircle2 } from 'lucide-react'
+import { Loader2, MapPin, Route, Maximize2, Minimize2, CheckCircle2, RotateCcw } from 'lucide-react'
 
 const containerStyle = {
   width: '100%',
@@ -96,12 +96,27 @@ export function SimpleRouteMap({
     }
   }, [hasExistingData, existingDistanceMiles, existingDurationMinutes, currentHash])
 
-  // Reset initialized flag when addresses change significantly
+  // Reset initialized flag and clear old route when addresses change significantly
   useEffect(() => {
     if (lastCalculatedRef.current && lastCalculatedRef.current !== currentHash) {
       initializedFromExistingRef.current = false
+      // Clear the old route so the map doesn't show stale data
+      setDirections(null)
+      setRouteInfo(null)
     }
   }, [currentHash])
+
+  // Reset map to default view
+  const resetMap = useCallback(() => {
+    setDirections(null)
+    setRouteInfo(null)
+    lastCalculatedRef.current = ''
+    initializedFromExistingRef.current = false
+    if (map) {
+      map.setCenter(defaultCenter)
+      map.setZoom(4)
+    }
+  }, [map])
 
   // Whether the route needs to be (re)calculated
   const needsCalculation = hasValidAddresses && lastCalculatedRef.current !== currentHash && !hasExistingData
@@ -221,6 +236,17 @@ export function SimpleRouteMap({
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Calculating...
               </span>
+            )}
+            {(directions || routeInfo) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={resetMap}
+                title="Reset map"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
             )}
             <Button
               variant="ghost"
