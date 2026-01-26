@@ -154,7 +154,7 @@ export function scoreWeightDistribution(
   const numTrailerAxles = config.numberOfTrailerAxles || 2
 
   // Determine trailer axle limit based on configuration
-  let trailerAxleLimit = AXLE_LIMITS.TANDEM_AXLE
+  let trailerAxleLimit: number = AXLE_LIMITS.TANDEM_AXLE
   if (numTrailerAxles === 1) {
     trailerAxleLimit = AXLE_LIMITS.SINGLE_AXLE
   } else if (numTrailerAxles >= 3) {
