@@ -669,3 +669,293 @@ export interface TruckRouteRecommendation {
   alternativeRouteId?: string      // If different from global recommendation
   alternativeReason?: string       // Why this truck needs different route
 }
+
+// =============================================================================
+// SMART LOAD PLANNER TYPES
+// =============================================================================
+
+// Weight Distribution Types
+// -----------------------------------------------------------------------------
+
+export interface AxleWeights {
+  steerAxle: number       // Front axle weight (~12,000 lbs limit)
+  driveAxle: number       // Tractor drive axles (~34,000 lbs limit)
+  trailerAxles: number    // Trailer axles (~34,000 lbs limit)
+  totalGross: number      // Total vehicle weight
+}
+
+export interface WeightDistributionResult {
+  axleWeights: AxleWeights
+  centerOfGravity: { x: number; z: number }  // CG position on trailer
+  balanceScore: number    // 0-100, higher is better balanced
+  warnings: string[]      // Weight distribution warnings
+  isLegal: boolean        // All axle weights within limits
+}
+
+// Axle Weight Limits (Federal Defaults)
+export const AXLE_LIMITS = {
+  STEER_AXLE: 12000,        // Front axle max (lbs)
+  SINGLE_AXLE: 20000,       // Single axle max (lbs)
+  TANDEM_AXLE: 34000,       // Tandem axle max (lbs)
+  TRIDEM_AXLE: 42000,       // Tridem axle max (lbs)
+  GROSS_WEIGHT: 80000,      // Total gross max (lbs)
+} as const
+
+// 3D Stacking Types
+// -----------------------------------------------------------------------------
+
+export interface ItemPlacement3D {
+  itemId: string
+  x: number              // Position from front of trailer (feet)
+  y: number              // Height from deck (feet), 0 = on deck
+  z: number              // Position from left edge (feet)
+  rotated: boolean       // 90-degree rotation applied
+  stackedOn?: string     // ID of item this is stacked on
+  layer: number          // 0 = deck, 1+ = stacked layer
+}
+
+export interface StackingCell {
+  x: number              // Grid position X
+  z: number              // Grid position Z
+  ceiling: number        // Current height at this position (feet)
+  maxLoad: number        // Remaining load capacity (lbs)
+  baseItemId?: string    // ID of item at base of this cell
+  canStack: boolean      // Whether stacking is allowed here
+}
+
+// Cost Optimization Types
+// -----------------------------------------------------------------------------
+
+export interface SmartPermitCostEstimate {
+  heightPermit: number
+  widthPermit: number
+  weightPermit: number
+  escorts: number
+}
+
+export interface SmartLoadCostBreakdown {
+  truckCost: number      // Base daily truck cost
+  fuelCost: number       // Fuel cost for route
+  permitCosts: SmartPermitCostEstimate
+  totalCost: number
+}
+
+export interface PlanningOptions {
+  // Feature flags
+  enableWeightDistribution?: boolean
+  enable3DStacking?: boolean
+  enableCostOptimization?: boolean
+  enableItemConstraints?: boolean
+  enableSecurementPlanning?: boolean
+  enableEscortCalculation?: boolean
+  enableRouteValidation?: boolean
+  enableHOSValidation?: boolean
+  // Cost optimization parameters
+  costWeight?: number        // 0-1, importance of cost vs truck count
+  routeDistance?: number     // Miles for fuel calculation
+  fuelPrice?: number         // $/gallon
+  // Multi-stop routing
+  stopOrder?: string[]       // Destination order for multi-stop loads
+  // HOS validation
+  driverStatus?: HOSStatus
+  departureTime?: Date
+}
+
+// Truck Cost and Axle Configuration Types
+// -----------------------------------------------------------------------------
+
+export interface AxleConfiguration {
+  kingpinPosition: number     // Reference point (usually 0)
+  driveAxlePosition: number   // Distance from kingpin to drive axle (negative = ahead)
+  trailerAxlePosition: number // Distance from kingpin to trailer axle(s)
+  trailerAxleSpread?: number  // Spread between multiple trailer axles
+  numberOfTrailerAxles?: number // 1, 2, 3, etc.
+}
+
+export interface TruckCostData {
+  dailyCost: number           // Base daily rental/usage cost ($)
+  fuelEfficiency: number      // Miles per gallon
+  specializedPremium: number  // Cost multiplier (1.0 = standard, 2.5 = heavy haul)
+}
+
+export interface TruckTypeExtended extends TruckType {
+  axleConfiguration?: AxleConfiguration
+  costData?: TruckCostData
+}
+
+// Default Cost Data by Trailer Category
+export const DEFAULT_COST_DATA: Record<TrailerCategory, TruckCostData> = {
+  FLATBED: { dailyCost: 350, fuelEfficiency: 6.5, specializedPremium: 1.0 },
+  STEP_DECK: { dailyCost: 400, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  RGN: { dailyCost: 650, fuelEfficiency: 5.5, specializedPremium: 1.3 },
+  LOWBOY: { dailyCost: 850, fuelEfficiency: 5.0, specializedPremium: 1.5 },
+  DOUBLE_DROP: { dailyCost: 550, fuelEfficiency: 5.5, specializedPremium: 1.2 },
+  LANDOLL: { dailyCost: 500, fuelEfficiency: 5.5, specializedPremium: 1.2 },
+  CONESTOGA: { dailyCost: 450, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  DRY_VAN: { dailyCost: 300, fuelEfficiency: 7.0, specializedPremium: 1.0 },
+  REEFER: { dailyCost: 450, fuelEfficiency: 5.5, specializedPremium: 1.2 },
+  CURTAIN_SIDE: { dailyCost: 400, fuelEfficiency: 6.5, specializedPremium: 1.1 },
+  MULTI_AXLE: { dailyCost: 2500, fuelEfficiency: 3.5, specializedPremium: 2.5 },
+  SCHNABEL: { dailyCost: 5000, fuelEfficiency: 2.5, specializedPremium: 4.0 },
+  PERIMETER: { dailyCost: 3500, fuelEfficiency: 3.0, specializedPremium: 3.0 },
+  STEERABLE: { dailyCost: 3000, fuelEfficiency: 3.0, specializedPremium: 2.5 },
+  BLADE: { dailyCost: 4000, fuelEfficiency: 3.5, specializedPremium: 3.5 },
+  TANKER: { dailyCost: 400, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  HOPPER: { dailyCost: 380, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  SPECIALIZED: { dailyCost: 1500, fuelEfficiency: 4.5, specializedPremium: 2.0 },
+}
+
+// Default Axle Configurations by Trailer Category
+export const DEFAULT_AXLE_CONFIGS: Record<TrailerCategory, AxleConfiguration> = {
+  FLATBED: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
+  STEP_DECK: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  RGN: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
+  LOWBOY: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
+  DOUBLE_DROP: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
+  LANDOLL: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  CONESTOGA: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
+  DRY_VAN: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  REEFER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  CURTAIN_SIDE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  MULTI_AXLE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 13, trailerAxleSpread: 4.5 },
+  SCHNABEL: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 20, numberOfTrailerAxles: 8, trailerAxleSpread: 5 },
+  PERIMETER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 22, numberOfTrailerAxles: 6, trailerAxleSpread: 4.5 },
+  STEERABLE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
+  BLADE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
+  TANKER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
+  HOPPER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
+  SPECIALIZED: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
+}
+
+// Item Constraint Types
+// -----------------------------------------------------------------------------
+
+export interface LoadingInstruction {
+  sequence: number           // Order of loading (1 = first)
+  itemId: string
+  itemDescription: string
+  action: string             // "Load", "Stack on [item]", "Secure"
+  position: string           // Human-readable position description
+  notes: string[]            // Safety notes, special instructions
+}
+
+export interface ConstraintViolation {
+  type: 'fragile' | 'hazmat' | 'priority' | 'destination' | 'stacking' | 'weight'
+  itemId: string
+  description: string
+  severity: 'error' | 'warning'
+}
+
+// Securement Planning Types
+// -----------------------------------------------------------------------------
+
+export type TieDownType = 'strap' | 'chain' | 'binder'
+
+export interface TieDownPoint {
+  x: number              // Position from front of cargo (feet)
+  z: number              // Position from left edge (feet)
+  type: TieDownType
+  wll: number            // Working Load Limit (lbs)
+  angle: number          // Angle from horizontal (degrees)
+}
+
+export interface SecurementPlan {
+  itemId: string
+  tieDowns: TieDownPoint[]
+  totalWLL: number           // Total working load limit
+  requiredWLL: number        // Required WLL (50% of cargo weight)
+  isCompliant: boolean       // Meets DOT requirements
+  notes: string[]            // "Use edge protectors", etc.
+}
+
+// Escort/Pilot Car Types
+// -----------------------------------------------------------------------------
+
+export interface SmartTravelRestrictions {
+  dayOnly: boolean
+  noWeekends: boolean
+  noHolidays: boolean
+  curfewHours?: { start: number; end: number }
+}
+
+export interface SmartEscortRequirements {
+  frontPilot: boolean
+  rearPilot: boolean
+  policeEscort: boolean
+  bucketTruck: boolean       // For high loads near power lines
+  signage: string[]          // "OVERSIZE LOAD", "WIDE LOAD"
+  flags: { front: boolean; rear: boolean; corners: boolean }
+  lights: { amber: boolean; rotating: boolean }
+  travelRestrictions: SmartTravelRestrictions
+  estimatedCost: number
+}
+
+export interface SmartStateEscortRules {
+  state: string
+  widthThresholds: { frontPilot: number; rearPilot: number; police: number }
+  heightThresholds: { frontPilot: number; rearPilot: number; police: number }
+  lengthThresholds: { frontPilot: number; rearPilot: number; police: number }
+  weightThresholds: { frontPilot: number; rearPilot: number; police: number }
+}
+
+// Route Restriction Types
+// -----------------------------------------------------------------------------
+
+export type RouteRestrictionType = 'bridge_weight' | 'tunnel_hazmat' | 'low_clearance' | 'road_width' | 'seasonal'
+
+export interface SmartRouteRestriction {
+  type: RouteRestrictionType
+  location: { lat: number; lng: number }
+  description: string
+  limit?: number             // Weight in lbs, height in feet, etc.
+  alternative?: string       // Suggested alternate route
+  severity: 'blocking' | 'warning'
+}
+
+export interface AlternateRoute {
+  description: string
+  addedMiles: number
+  addedTime: number          // Minutes
+}
+
+export interface SmartRouteValidation {
+  isValid: boolean
+  restrictions: SmartRouteRestriction[]
+  alternateRoutes: AlternateRoute[]
+}
+
+// Hours of Service Types
+// -----------------------------------------------------------------------------
+
+export interface HOSStatus {
+  drivingRemaining: number      // Minutes remaining
+  onDutyRemaining: number       // Minutes (14-hour window)
+  breakRequired: boolean
+  breakRequiredIn: number       // Minutes until 30-min break needed
+  cycleRemaining: number        // Hours remaining in 60/70 cycle
+}
+
+export interface RequiredBreak {
+  location: string
+  afterMiles: number
+  duration: number              // Minutes
+}
+
+export interface TripHOSValidation {
+  isAchievable: boolean
+  estimatedDriveTime: number    // Minutes
+  requiredBreaks: RequiredBreak[]
+  overnightRequired: boolean
+  overnightLocation?: string
+  warnings: string[]
+}
+
+export type RestStopType = 'truck_stop' | 'rest_area' | 'weigh_station'
+
+export interface RestStop {
+  name: string
+  location: { lat: number; lng: number }
+  type: RestStopType
+  amenities: string[]
+  parking: boolean
+}

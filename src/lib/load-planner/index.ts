@@ -104,7 +104,138 @@ export {
 export {
   planLoads,
   getLoadPlanSummary,
+  planLoadsWithOptions,
+  getSmartLoadPlanSummary,
+  DEFAULT_PLANNING_OPTIONS,
 } from './load-planner'
+
+// =============================================================================
+// SMART LOAD PLANNER EXPORTS
+// =============================================================================
+
+// Weight Distribution
+export {
+  analyzeWeightDistribution,
+  calculateAxleWeights,
+  calculateCenterOfGravity,
+  scoreWeightDistribution,
+  suggestOptimalPosition,
+} from './weight-distribution'
+
+// 3D Stacking Engine
+export {
+  calculatePlacements3D,
+  sortItemsForStacking,
+  buildStackingMap,
+  canStackOn,
+  findBestPosition,
+  getStackedItems,
+  getWeightStackedOn,
+} from './stacking-engine'
+
+// Item Constraints
+export {
+  validateAllConstraints,
+  validateFragilePlacement,
+  validateHazmatConstraints,
+  generateLoadingInstructions,
+  generateUnloadingInstructions,
+  sortByPriority,
+  sortByDestination,
+  sortForOptimalLoading,
+  requiresDedicatedTruck,
+} from './item-constraints'
+
+// Cost Optimizer
+export {
+  calculateTruckCost,
+  calculatePermitCosts,
+  calculateFuelCost,
+  calculateMultiTruckCost,
+  scoreTruckForCost,
+  compareLoadingOptions,
+  shouldUseSpecializedTruck,
+  getTruckCostData,
+} from './cost-optimizer'
+
+// Securement Planner
+export {
+  generateSecurementPlan,
+  generateLoadSecurementPlan,
+  calculateRequiredTieDowns,
+  calculateRequiredWLL,
+  validateSecurement,
+  getSecurementNotes,
+} from './securement-planner'
+
+// Escort Calculator
+export {
+  calculateEscortRequirements,
+  calculateStateEscortRequirements,
+  getMostRestrictiveState,
+  estimateEscortCost,
+  getEscortCostBreakdown,
+  getEscortSummary,
+  getStateEscortRules,
+  getStateTravelRestrictions,
+} from './escort-calculator'
+
+// HOS Validator
+export {
+  validateTripHOS,
+  createFreshHOSStatus,
+  calculateDriveTime,
+  estimateDeliveryWindow,
+  generateTripPlan,
+  findRequiredBreakLocations,
+  HOS_LIMITS,
+} from './hos-validator'
+
+// Smart types exports
+export type {
+  // Weight distribution
+  AxleWeights,
+  WeightDistributionResult,
+  // 3D stacking
+  ItemPlacement3D,
+  StackingCell,
+  // Cost optimization
+  SmartLoadCostBreakdown,
+  SmartPermitCostEstimate,
+  PlanningOptions,
+  TruckCostData,
+  AxleConfiguration,
+  TruckTypeExtended,
+  // Item constraints
+  LoadingInstruction,
+  ConstraintViolation,
+  // Securement
+  TieDownType,
+  TieDownPoint,
+  SecurementPlan,
+  // Escort
+  SmartEscortRequirements,
+  SmartTravelRestrictions,
+  SmartStateEscortRules,
+  // Route restrictions
+  RouteRestrictionType,
+  SmartRouteRestriction,
+  AlternateRoute,
+  SmartRouteValidation,
+  // HOS
+  HOSStatus,
+  RequiredBreak,
+  TripHOSValidation,
+  RestStopType,
+  RestStop,
+} from './types'
+
+// Smart constants exports
+export {
+  AXLE_LIMITS,
+  DEFAULT_COST_DATA,
+  DEFAULT_AXLE_CONFIGS,
+} from './types'
 
 // =============================================================================
 // PERMIT CALCULATION EXPORTS
@@ -217,6 +348,35 @@ export {
 } from './bridge-heights'
 
 export type { LowClearanceBridge } from './bridge-heights'
+
+// Route validation (combines all restriction checking)
+export {
+  validateRoute,
+  quickValidateRoute,
+  findNearbyRestrictions,
+  checkBridgeWeights,
+  checkTunnelRestrictions,
+  checkClearances,
+  checkRoadWidths,
+  getSeasonalRestrictionsForRoute,
+  suggestAlternateRoutes,
+  canUseTunnels,
+  fitsStandardClearance,
+  routeHasSeasonalRestrictions,
+  generateRouteValidationSummary,
+  getRestrictionCounts,
+  KNOWN_RESTRICTIONS,
+  HAZMAT_TUNNELS,
+  WEIGHT_RESTRICTED_BRIDGES,
+  WIDTH_RESTRICTED_ROADS,
+} from './route-validator'
+
+export type {
+  RestrictionType,
+  RouteRestriction,
+  AlternateRoute as RouteAlternate,
+  RouteValidation,
+} from './route-validator'
 
 // =============================================================================
 // BACKWARD COMPATIBILITY - FEET <-> INCHES CONVERSION

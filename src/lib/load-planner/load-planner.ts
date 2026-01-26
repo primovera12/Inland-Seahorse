@@ -5,10 +5,45 @@
  * 1. Determining how many trucks are needed
  * 2. Assigning items to trucks optimally
  * 3. Recommending the best truck type for each load
+ *
+ * Smart Features (optional, enabled via PlanningOptions):
+ * - Weight Distribution: Axle weights, center of gravity, balance scoring
+ * - 3D Stacking: Vertical placement with constraints
+ * - Cost Optimization: Total cost calculation (trucks + fuel + permits)
+ * - Item Constraints: Fragile, hazmat, priority, loading order
+ * - Securement Planning: DOT-compliant tie-down generation
+ * - Escort Calculation: Pilot car requirements by state
+ * - HOS Validation: Driver hours of service validation
  */
 
-import type { LoadItem, TruckType, ParsedLoad } from './types'
+import type {
+  LoadItem,
+  TruckType,
+  ParsedLoad,
+  PlanningOptions,
+  ItemPlacement3D,
+  WeightDistributionResult,
+  SmartLoadCostBreakdown,
+  ConstraintViolation,
+  LoadingInstruction,
+  SecurementPlan,
+  SmartEscortRequirements,
+  TripHOSValidation,
+} from './types'
 import { trucks, LEGAL_LIMITS } from './trucks'
+
+// Smart module imports
+import { analyzeWeightDistribution } from './weight-distribution'
+import { calculatePlacements3D, sortItemsForStacking } from './stacking-engine'
+import {
+  validateAllConstraints,
+  generateLoadingInstructions,
+  sortForOptimalLoading,
+} from './item-constraints'
+import { calculateTruckCost, calculateMultiTruckCost } from './cost-optimizer'
+import { generateLoadSecurementPlan } from './securement-planner'
+import { calculateEscortRequirements, estimateEscortCost } from './escort-calculator'
+import { validateTripHOS, createFreshHOSStatus } from './hos-validator'
 
 export interface ItemPlacement {
   itemId: string
@@ -36,6 +71,23 @@ export interface PlannedLoad {
   warnings: string[]
   // Is this load legal without permits?
   isLegal: boolean
+  // === SMART FEATURES (optional) ===
+  // 3D placements (when 3D stacking enabled)
+  placements3D?: ItemPlacement3D[]
+  // Weight distribution analysis
+  weightDistribution?: WeightDistributionResult
+  // Cost breakdown
+  costBreakdown?: SmartLoadCostBreakdown
+  // Securement plan
+  securementPlan?: {
+    plans: SecurementPlan[]
+    isFullyCompliant: boolean
+    summary: string[]
+  }
+  // Escort requirements
+  escortRequirements?: SmartEscortRequirements
+  // Loading instructions
+  loadingInstructions?: LoadingInstruction[]
 }
 
 export interface LoadPlan {
@@ -49,6 +101,21 @@ export interface LoadPlan {
   unassignedItems: LoadItem[]
   // Overall warnings
   warnings: string[]
+  // === SMART FEATURES (optional) ===
+  // Total cost breakdown
+  totalCost?: {
+    perTruckCosts: SmartLoadCostBreakdown[]
+    totalCost: number
+    averageCostPerItem: number
+  }
+  // Constraint violations across all loads
+  constraintViolations?: ConstraintViolation[]
+  // Overall weight balance score (0-100)
+  overallBalanceScore?: number
+  // HOS validation (if enabled)
+  hosValidation?: TripHOSValidation
+  // Escort cost total
+  totalEscortCost?: number
 }
 
 /**
@@ -686,6 +753,323 @@ export function getLoadPlanSummary(plan: LoadPlan): string {
     lines.push('UNASSIGNED ITEMS (require special transport):')
     for (const item of plan.unassignedItems) {
       lines.push(`   - ${item.description}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+// ============================================================================
+// SMART LOAD PLANNING
+// ============================================================================
+
+/**
+ * Default planning options - all smart features enabled
+ */
+export const DEFAULT_PLANNING_OPTIONS: PlanningOptions = {
+  enableWeightDistribution: true,
+  enable3DStacking: false, // Keep 2D by default for compatibility
+  enableCostOptimization: true,
+  enableItemConstraints: true,
+  enableSecurementPlanning: true,
+  enableEscortCalculation: true,
+  enableRouteValidation: false, // Requires route data
+  enableHOSValidation: false, // Requires driver status
+  costWeight: 0.5,
+  fuelPrice: 4.50,
+}
+
+/**
+ * Enhance a planned load with smart features
+ */
+function enhanceLoadWithSmartFeatures(
+  load: PlannedLoad,
+  allItems: LoadItem[],
+  options: PlanningOptions,
+  routeStates: string[] = []
+): PlannedLoad {
+  const enhanced = { ...load }
+
+  // 3D Stacking
+  if (options.enable3DStacking) {
+    const stacking = calculatePlacements3D(load.items, load.recommendedTruck)
+    enhanced.placements3D = stacking.placements
+    // Update warnings if items couldn't be placed
+    if (stacking.unplacedItems.length > 0) {
+      enhanced.warnings.push(
+        `${stacking.unplacedItems.length} item(s) could not be placed with 3D stacking`
+      )
+    }
+  }
+
+  // Weight Distribution
+  if (options.enableWeightDistribution) {
+    // Use 3D placements if available, otherwise convert 2D to 3D format
+    const placements: ItemPlacement3D[] = enhanced.placements3D ||
+      enhanced.placements.map(p => ({
+        ...p,
+        y: 0,
+        layer: 0,
+      }))
+
+    enhanced.weightDistribution = analyzeWeightDistribution(
+      load.items,
+      placements,
+      load.recommendedTruck
+    )
+
+    // Add weight warnings to load warnings
+    if (enhanced.weightDistribution.warnings.length > 0) {
+      enhanced.warnings.push(...enhanced.weightDistribution.warnings)
+    }
+  }
+
+  // Cost Optimization
+  if (options.enableCostOptimization) {
+    const cargo = {
+      width: load.width,
+      height: load.height,
+      weight: load.weight,
+    }
+    enhanced.costBreakdown = calculateTruckCost(load.recommendedTruck, cargo, {
+      distanceMiles: options.routeDistance,
+      fuelPrice: options.fuelPrice,
+      statesCount: routeStates.length || 1,
+    })
+  }
+
+  // Securement Planning
+  if (options.enableSecurementPlanning) {
+    const placements: ItemPlacement3D[] = enhanced.placements3D ||
+      enhanced.placements.map(p => ({ ...p, y: 0, layer: 0 }))
+
+    const securementResult = generateLoadSecurementPlan(load.items, placements)
+    enhanced.securementPlan = {
+      plans: securementResult.plans,
+      isFullyCompliant: securementResult.isFullyCompliant,
+      summary: securementResult.summary,
+    }
+
+    if (!securementResult.isFullyCompliant) {
+      enhanced.warnings.push('Securement plan requires additional tie-downs')
+    }
+  }
+
+  // Escort Calculation
+  if (options.enableEscortCalculation && routeStates.length > 0) {
+    const cargo = {
+      width: load.width,
+      height: load.height + load.recommendedTruck.deckHeight,
+      length: load.length,
+      weight: load.weight + load.recommendedTruck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT,
+    }
+    enhanced.escortRequirements = calculateEscortRequirements(
+      routeStates,
+      cargo,
+      load.recommendedTruck
+    )
+    enhanced.escortRequirements.estimatedCost = estimateEscortCost(
+      enhanced.escortRequirements,
+      options.routeDistance || 500
+    )
+  }
+
+  // Loading Instructions
+  if (options.enableItemConstraints) {
+    const placements: ItemPlacement3D[] = enhanced.placements3D ||
+      enhanced.placements.map(p => ({ ...p, y: 0, layer: 0 }))
+
+    enhanced.loadingInstructions = generateLoadingInstructions(
+      load.items,
+      placements,
+      options.stopOrder
+    )
+  }
+
+  return enhanced
+}
+
+/**
+ * Enhanced load planning with smart features
+ * Accepts optional PlanningOptions to enable advanced calculations
+ */
+export function planLoadsWithOptions(
+  parsedLoad: ParsedLoad,
+  options: Partial<PlanningOptions> = {}
+): LoadPlan {
+  // Merge with defaults
+  const opts: PlanningOptions = { ...DEFAULT_PLANNING_OPTIONS, ...options }
+
+  // Sort items based on constraints if enabled
+  let itemsToProcess = [...parsedLoad.items]
+  if (opts.enableItemConstraints) {
+    itemsToProcess = sortForOptimalLoading(itemsToProcess, opts.stopOrder)
+  }
+
+  // Create modified parsed load with sorted items
+  const modifiedParsedLoad: ParsedLoad = {
+    ...parsedLoad,
+    items: itemsToProcess,
+  }
+
+  // Run base planning
+  const basePlan = planLoads(modifiedParsedLoad)
+
+  // Detect route states from origin/destination if available
+  const routeStates = detectRouteStates(parsedLoad.origin, parsedLoad.destination)
+
+  // Enhance each load with smart features
+  const enhancedLoads = basePlan.loads.map(load =>
+    enhanceLoadWithSmartFeatures(load, parsedLoad.items, opts, routeStates)
+  )
+
+  // Build enhanced plan
+  const enhancedPlan: LoadPlan = {
+    ...basePlan,
+    loads: enhancedLoads,
+  }
+
+  // Calculate overall cost if cost optimization enabled
+  if (opts.enableCostOptimization) {
+    const loadsWithTrucks = enhancedLoads.map(l => ({
+      truck: l.recommendedTruck,
+      items: l.items,
+    }))
+    enhancedPlan.totalCost = calculateMultiTruckCost(loadsWithTrucks, {
+      distanceMiles: opts.routeDistance,
+      fuelPrice: opts.fuelPrice,
+      statesCount: routeStates.length || 1,
+    })
+
+    // Add escort costs to total
+    const totalEscortCost = enhancedLoads.reduce((sum, l) =>
+      sum + (l.escortRequirements?.estimatedCost || 0), 0
+    )
+    enhancedPlan.totalEscortCost = totalEscortCost
+    if (enhancedPlan.totalCost) {
+      enhancedPlan.totalCost.totalCost += totalEscortCost
+    }
+  }
+
+  // Calculate overall balance score
+  if (opts.enableWeightDistribution) {
+    const balanceScores = enhancedLoads
+      .filter(l => l.weightDistribution)
+      .map(l => l.weightDistribution!.balanceScore)
+    if (balanceScores.length > 0) {
+      enhancedPlan.overallBalanceScore = Math.round(
+        balanceScores.reduce((a, b) => a + b, 0) / balanceScores.length
+      )
+    }
+  }
+
+  // Validate constraints
+  if (opts.enableItemConstraints) {
+    const allPlacements: ItemPlacement3D[] = enhancedLoads.flatMap(l =>
+      l.placements3D || l.placements.map(p => ({ ...p, y: 0, layer: 0 }))
+    )
+    enhancedPlan.constraintViolations = validateAllConstraints(
+      parsedLoad.items,
+      allPlacements,
+      enhancedLoads.map(l => ({ items: l.items }))
+    )
+
+    // Add violation warnings
+    for (const violation of enhancedPlan.constraintViolations) {
+      if (violation.severity === 'error') {
+        enhancedPlan.warnings.push(`⚠️ ${violation.description}`)
+      }
+    }
+  }
+
+  // HOS Validation
+  if (opts.enableHOSValidation && opts.routeDistance) {
+    const isOversize = enhancedLoads.some(l =>
+      l.width > LEGAL_LIMITS.WIDTH ||
+      (l.height + l.recommendedTruck.deckHeight) > LEGAL_LIMITS.HEIGHT
+    )
+    const driverStatus = opts.driverStatus || createFreshHOSStatus()
+    enhancedPlan.hosValidation = validateTripHOS(
+      opts.routeDistance,
+      driverStatus,
+      isOversize
+    )
+
+    if (enhancedPlan.hosValidation.warnings.length > 0) {
+      enhancedPlan.warnings.push(...enhancedPlan.hosValidation.warnings)
+    }
+  }
+
+  return enhancedPlan
+}
+
+/**
+ * Helper to detect states from origin/destination
+ * (Simplified - in production would use geocoding)
+ */
+function detectRouteStates(origin?: string, destination?: string): string[] {
+  const states: string[] = []
+
+  // Simple state code extraction from location strings
+  const stateCodeRegex = /\b([A-Z]{2})\b/g
+
+  if (origin) {
+    const matches = origin.match(stateCodeRegex)
+    if (matches) states.push(...matches)
+  }
+  if (destination) {
+    const matches = destination.match(stateCodeRegex)
+    if (matches) states.push(...matches)
+  }
+
+  // Remove duplicates and return
+  return [...new Set(states)]
+}
+
+/**
+ * Get enhanced summary including smart features
+ */
+export function getSmartLoadPlanSummary(plan: LoadPlan): string {
+  const lines: string[] = []
+  lines.push(getLoadPlanSummary(plan))
+
+  // Add smart feature summaries
+  if (plan.totalCost) {
+    lines.push('')
+    lines.push('=== COST BREAKDOWN ===')
+    lines.push(`Total Cost: $${plan.totalCost.totalCost.toLocaleString()}`)
+    lines.push(`Average Cost per Item: $${plan.totalCost.averageCostPerItem.toLocaleString()}`)
+  }
+
+  if (plan.totalEscortCost && plan.totalEscortCost > 0) {
+    lines.push(`Escort Costs: $${plan.totalEscortCost.toLocaleString()}`)
+  }
+
+  if (plan.overallBalanceScore !== undefined) {
+    lines.push('')
+    lines.push('=== WEIGHT DISTRIBUTION ===')
+    lines.push(`Overall Balance Score: ${plan.overallBalanceScore}/100`)
+  }
+
+  if (plan.constraintViolations && plan.constraintViolations.length > 0) {
+    lines.push('')
+    lines.push('=== CONSTRAINT VIOLATIONS ===')
+    for (const v of plan.constraintViolations) {
+      const icon = v.severity === 'error' ? '❌' : '⚠️'
+      lines.push(`${icon} ${v.description}`)
+    }
+  }
+
+  if (plan.hosValidation) {
+    lines.push('')
+    lines.push('=== HOURS OF SERVICE ===')
+    lines.push(`Trip Achievable: ${plan.hosValidation.isAchievable ? 'Yes' : 'No'}`)
+    lines.push(`Estimated Drive Time: ${Math.round(plan.hosValidation.estimatedDriveTime / 60)} hours`)
+    if (plan.hosValidation.overnightRequired) {
+      lines.push(`Overnight Required: ${plan.hosValidation.overnightLocation || 'Yes'}`)
+    }
+    if (plan.hosValidation.requiredBreaks.length > 0) {
+      lines.push(`Required Breaks: ${plan.hosValidation.requiredBreaks.length}`)
     }
   }
 
