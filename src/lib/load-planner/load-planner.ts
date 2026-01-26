@@ -1180,3 +1180,454 @@ export function getSmartLoadPlanSummary(plan: LoadPlan): string {
 
   return lines.join('\n')
 }
+
+// =============================================================================
+// SMART MULTI-PLAN GENERATION
+// =============================================================================
+
+/**
+ * Plan strategy types for different optimization goals
+ */
+export type PlanStrategy =
+  | 'recommended'      // Best balance of cost, trucks, and legality
+  | 'legal-only'       // Minimize permits, even if more trucks needed
+  | 'cost-optimized'   // Minimize total cost (may include permits)
+  | 'fewest-trucks'    // Consolidate to minimum trucks (may need permits)
+  | 'fastest'          // Optimize for speed (team drivers, legal routes)
+
+/**
+ * A smart plan option with strategy metadata
+ */
+export interface SmartPlanOption {
+  strategy: PlanStrategy
+  name: string
+  description: string
+  plan: LoadPlan
+  // Metrics for comparison
+  totalTrucks: number
+  totalCost: number
+  permitCount: number
+  escortRequired: boolean
+  legalLoads: number
+  nonLegalLoads: number
+  // Recommendation badge
+  isRecommended: boolean
+  badges: string[]
+}
+
+/**
+ * Generate multiple smart plan options for user comparison
+ * Returns plans optimized for different strategies
+ */
+export function generateSmartPlans(
+  parsedLoad: ParsedLoad,
+  options: {
+    routeStates?: string[]
+    routeDistance?: number
+    shipDate?: Date
+  } = {}
+): SmartPlanOption[] {
+  const smartOptions: SmartPlanOption[] = []
+  const { routeStates = [], routeDistance = 500, shipDate } = options
+
+  // === Strategy 1: RECOMMENDED (balanced) ===
+  const recommendedPlan = planLoadsWithOptions(parsedLoad, {
+    enableCostOptimization: true,
+    enableItemConstraints: true,
+    enableSecurementPlanning: true,
+    enableEscortCalculation: true,
+    costWeight: 0.5, // Balance between cost and efficiency
+    routeDistance,
+  })
+
+  const recommendedMetrics = calculatePlanMetrics(recommendedPlan)
+  smartOptions.push({
+    strategy: 'recommended',
+    name: 'Recommended Plan',
+    description: 'Best balance of cost, efficiency, and compliance',
+    plan: recommendedPlan,
+    ...recommendedMetrics,
+    isRecommended: true,
+    badges: ['Best Overall'],
+  })
+
+  // === Strategy 2: LEGAL-ONLY (no permits if possible) ===
+  const legalPlan = generateLegalOnlyPlan(parsedLoad)
+  const legalMetrics = calculatePlanMetrics(legalPlan)
+
+  // Only include if meaningfully different from recommended
+  if (legalMetrics.permitCount < recommendedMetrics.permitCount ||
+      legalMetrics.totalTrucks !== recommendedMetrics.totalTrucks) {
+    const badges: string[] = []
+    if (legalMetrics.permitCount === 0) badges.push('No Permits')
+    if (legalMetrics.legalLoads === legalPlan.loads.length) badges.push('100% Legal')
+
+    smartOptions.push({
+      strategy: 'legal-only',
+      name: 'Legal-Only Plan',
+      description: legalMetrics.permitCount === 0
+        ? 'All loads within legal limits - no permits required'
+        : 'Minimized permits where possible',
+      plan: legalPlan,
+      ...legalMetrics,
+      isRecommended: false,
+      badges,
+    })
+  }
+
+  // === Strategy 3: COST-OPTIMIZED (minimize total cost) ===
+  const costPlan = planLoadsWithOptions(parsedLoad, {
+    enableCostOptimization: true,
+    costWeight: 1.0, // Prioritize cost above all
+    routeDistance,
+  })
+  const costMetrics = calculatePlanMetrics(costPlan)
+
+  // Only include if meaningfully different
+  if (costMetrics.totalCost < recommendedMetrics.totalCost * 0.95 ||
+      costMetrics.totalTrucks !== recommendedMetrics.totalTrucks) {
+    smartOptions.push({
+      strategy: 'cost-optimized',
+      name: 'Cost-Optimized Plan',
+      description: `Lowest estimated cost: $${costMetrics.totalCost.toLocaleString()}`,
+      plan: costPlan,
+      ...costMetrics,
+      isRecommended: false,
+      badges: ['Lowest Cost'],
+    })
+  }
+
+  // === Strategy 4: FEWEST-TRUCKS (consolidate aggressively) ===
+  const consolidatedPlan = generateConsolidatedPlan(parsedLoad)
+  const consolidatedMetrics = calculatePlanMetrics(consolidatedPlan)
+
+  // Only include if fewer trucks than recommended
+  if (consolidatedMetrics.totalTrucks < recommendedMetrics.totalTrucks) {
+    const badges = [`${consolidatedMetrics.totalTrucks} Truck${consolidatedMetrics.totalTrucks > 1 ? 's' : ''}`]
+    if (consolidatedMetrics.permitCount > 0) badges.push(`${consolidatedMetrics.permitCount} Permits`)
+
+    smartOptions.push({
+      strategy: 'fewest-trucks',
+      name: 'Fewest Trucks Plan',
+      description: `Maximum consolidation with ${consolidatedMetrics.totalTrucks} truck${consolidatedMetrics.totalTrucks > 1 ? 's' : ''}`,
+      plan: consolidatedPlan,
+      ...consolidatedMetrics,
+      isRecommended: false,
+      badges,
+    })
+  }
+
+  // Sort by recommendation: recommended first, then by legality, then by truck count
+  smartOptions.sort((a, b) => {
+    if (a.isRecommended && !b.isRecommended) return -1
+    if (!a.isRecommended && b.isRecommended) return 1
+    // Then prioritize fully legal plans
+    if (a.nonLegalLoads === 0 && b.nonLegalLoads > 0) return -1
+    if (a.nonLegalLoads > 0 && b.nonLegalLoads === 0) return 1
+    // Then by fewer trucks
+    return a.totalTrucks - b.totalTrucks
+  })
+
+  return smartOptions
+}
+
+/**
+ * Calculate comparison metrics for a plan
+ */
+function calculatePlanMetrics(plan: LoadPlan): {
+  totalTrucks: number
+  totalCost: number
+  permitCount: number
+  escortRequired: boolean
+  legalLoads: number
+  nonLegalLoads: number
+} {
+  const legalLoads = plan.loads.filter(l => l.isLegal).length
+  const permitCount = plan.loads.reduce((sum, l) => sum + l.permitsRequired.length, 0)
+  const escortRequired = plan.loads.some(l =>
+    l.escortRequirements?.leadRequired || l.escortRequirements?.followRequired
+  )
+
+  // Estimate total cost
+  let totalCost = 0
+  if (plan.totalCost) {
+    totalCost = plan.totalCost.totalCost
+  } else {
+    // Basic estimate: base rate per truck + permit costs
+    const baseTruckCost = 2500 // Average per truck
+    totalCost = plan.totalTrucks * baseTruckCost
+    // Add permit cost estimate
+    totalCost += permitCount * 150 // Average permit cost
+    // Add escort cost estimate if required
+    if (escortRequired) totalCost += 800 // Basic escort cost
+  }
+  if (plan.totalEscortCost) {
+    totalCost += plan.totalEscortCost
+  }
+
+  return {
+    totalTrucks: plan.totalTrucks,
+    totalCost: Math.round(totalCost),
+    permitCount,
+    escortRequired,
+    legalLoads,
+    nonLegalLoads: plan.loads.length - legalLoads,
+  }
+}
+
+/**
+ * Generate a plan that prioritizes legal loads (no permits)
+ * May use more trucks to stay within legal limits
+ */
+function generateLegalOnlyPlan(parsedLoad: ParsedLoad): LoadPlan {
+  const items = [...parsedLoad.items]
+  const loads: PlannedLoad[] = []
+  const unassignedItems: LoadItem[] = []
+  const warnings: string[] = []
+
+  // Sort by weight (heaviest first) to place heavy items first
+  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+
+  // Find trucks that can handle each item LEGALLY
+  for (const item of items) {
+    const itemWeight = item.weight * (item.quantity || 1)
+
+    // Find trucks that can carry this item legally
+    const legalTrucks = trucks.filter(truck => {
+      const totalHeight = item.height + truck.deckHeight
+      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+
+      return (
+        item.length <= truck.deckLength &&
+        item.width <= truck.deckWidth &&
+        itemWeight <= truck.maxCargoWeight &&
+        totalHeight <= LEGAL_LIMITS.HEIGHT &&
+        item.width <= LEGAL_LIMITS.WIDTH &&
+        totalWeight <= LEGAL_LIMITS.GROSS_WEIGHT
+      )
+    })
+
+    if (legalTrucks.length === 0) {
+      // Item can't be transported legally - still assign it
+      const { truck, score, isLegal, permits, scoreBreakdown } = findBestTruckForItem(item)
+      warnings.push(`Item "${item.description}" requires permits (no legal option)`)
+
+      loads.push({
+        id: `load-${loads.length + 1}`,
+        items: [item],
+        length: item.length,
+        width: item.width,
+        height: item.height,
+        weight: itemWeight,
+        recommendedTruck: truck,
+        truckScore: score,
+        scoreBreakdown,
+        placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+        permitsRequired: permits,
+        warnings: ['No legal truck option available'],
+        isLegal: false,
+      })
+      continue
+    }
+
+    // Score legal trucks and find the best one
+    let bestTruck = legalTrucks[0]
+    let bestScore = 0
+
+    for (const truck of legalTrucks) {
+      const totalHeight = item.height + truck.deckHeight
+      const heightClearance = LEGAL_LIMITS.HEIGHT - totalHeight
+
+      // Score based on fit efficiency (tighter fit = better)
+      let score = 50
+
+      // Bonus for tighter height fit (less wasted clearance)
+      if (heightClearance <= 2) score += 20
+      else if (heightClearance <= 4) score += 10
+
+      // Bonus for matching loading method
+      if (truck.loadingMethod === 'drive-on' &&
+          item.description?.toLowerCase().match(/excavator|dozer|loader|tractor|tracked/)) {
+        score += 15
+      }
+
+      // Penalty for overkill (using low-deck when not needed)
+      if (heightClearance > 5 && truck.category === 'LOWBOY') score -= 15
+
+      if (score > bestScore) {
+        bestScore = score
+        bestTruck = truck
+      }
+    }
+
+    // Try to add to existing load if possible
+    let addedToExisting = false
+    for (const load of loads) {
+      if (load.isLegal && canAddItemLegally(load, item, bestTruck)) {
+        load.items.push(item)
+        load.weight = getLoadWeight(load.items)
+        load.length = Math.max(load.length, item.length)
+        load.width = Math.max(load.width, item.width)
+        load.height = Math.max(load.height, item.height)
+        load.placements = calculatePlacements(load.items, load.recommendedTruck)
+        addedToExisting = true
+        break
+      }
+    }
+
+    if (!addedToExisting) {
+      loads.push({
+        id: `load-${loads.length + 1}`,
+        items: [item],
+        length: item.length,
+        width: item.width,
+        height: item.height,
+        weight: itemWeight,
+        recommendedTruck: bestTruck,
+        truckScore: bestScore,
+        scoreBreakdown: {
+          baseScore: 100,
+          fitPenalty: 0,
+          heightPenalty: 0,
+          widthPenalty: 0,
+          weightPenalty: 0,
+          overkillPenalty: 0,
+          permitPenalty: 0,
+          idealFitBonus: bestScore > 60 ? 10 : 0,
+          equipmentMatchBonus: 0,
+          historicalBonus: 0,
+          seasonalPenalty: 0,
+          bridgePenalty: 0,
+          escortProximityWarning: false,
+          finalScore: bestScore,
+        },
+        placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+        permitsRequired: [],
+        warnings: [],
+        isLegal: true,
+      })
+    }
+  }
+
+  return {
+    loads,
+    totalTrucks: loads.length,
+    totalWeight: loads.reduce((sum, l) => sum + l.weight, 0),
+    totalItems: items.length,
+    unassignedItems,
+    warnings,
+  }
+}
+
+/**
+ * Check if an item can be added to a load while keeping it legal
+ */
+function canAddItemLegally(load: PlannedLoad, item: LoadItem, truck: TruckType): boolean {
+  const itemWeight = item.weight * (item.quantity || 1)
+  const newWeight = load.weight + itemWeight
+  const newHeight = Math.max(load.height, item.height)
+  const newWidth = Math.max(load.width, item.width)
+  const newLength = Math.max(load.length, item.length)
+
+  const totalHeight = newHeight + truck.deckHeight
+  const grossWeight = newWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+
+  // Check all legal limits
+  return (
+    newLength <= truck.deckLength &&
+    newWidth <= truck.deckWidth &&
+    newWeight <= truck.maxCargoWeight &&
+    totalHeight <= LEGAL_LIMITS.HEIGHT &&
+    newWidth <= LEGAL_LIMITS.WIDTH &&
+    grossWeight <= LEGAL_LIMITS.GROSS_WEIGHT
+  )
+}
+
+/**
+ * Generate a plan that aggressively consolidates to fewest trucks
+ * May require permits but minimizes truck count
+ */
+function generateConsolidatedPlan(parsedLoad: ParsedLoad): LoadPlan {
+  const items = [...parsedLoad.items]
+  const loads: PlannedLoad[] = []
+  const warnings: string[] = []
+
+  // Sort by weight to place heavy items first
+  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+
+  // Try to fit as many items as possible per truck
+  for (const item of items) {
+    const itemWeight = item.weight * (item.quantity || 1)
+
+    // Find the best existing load to add this to
+    let bestLoadIndex = -1
+    let bestNewUtilization = Infinity
+
+    for (let i = 0; i < loads.length; i++) {
+      const load = loads[i]
+      const truck = load.recommendedTruck
+
+      // Check if item can physically fit (ignore legal limits for consolidation)
+      const newWeight = load.weight + itemWeight
+      if (newWeight > truck.maxCargoWeight) continue
+
+      const newLength = Math.max(load.length, item.length)
+      const newWidth = Math.max(load.width, item.width)
+
+      if (newLength > truck.deckLength || newWidth > truck.deckWidth) continue
+
+      // Calculate new utilization
+      const utilization = (newWeight / truck.maxCargoWeight) * 100
+
+      if (utilization < bestNewUtilization) {
+        bestNewUtilization = utilization
+        bestLoadIndex = i
+      }
+    }
+
+    if (bestLoadIndex >= 0 && bestNewUtilization <= 100) {
+      // Add to existing load
+      const load = loads[bestLoadIndex]
+      load.items.push(item)
+      load.weight = getLoadWeight(load.items)
+      load.length = Math.max(load.length, item.length)
+      load.width = Math.max(load.width, item.width)
+      load.height = Math.max(load.height, item.height)
+
+      // Re-evaluate permits
+      const { isLegal, permits, scoreBreakdown } = findBestTruckForLoad(load)
+      load.isLegal = isLegal
+      load.permitsRequired = permits
+      load.scoreBreakdown = scoreBreakdown
+      load.placements = calculatePlacements(load.items, load.recommendedTruck)
+    } else {
+      // Create new load with best truck for this item
+      const { truck, score, isLegal, permits, scoreBreakdown } = findBestTruckForItem(item)
+
+      loads.push({
+        id: `load-${loads.length + 1}`,
+        items: [item],
+        length: item.length,
+        width: item.width,
+        height: item.height,
+        weight: itemWeight,
+        recommendedTruck: truck,
+        truckScore: score,
+        scoreBreakdown,
+        placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+        permitsRequired: permits,
+        warnings: [],
+        isLegal,
+      })
+    }
+  }
+
+  return {
+    loads,
+    totalTrucks: loads.length,
+    totalWeight: loads.reduce((sum, l) => sum + l.weight, 0),
+    totalItems: items.length,
+    unassignedItems: [],
+    warnings,
+  }
+}

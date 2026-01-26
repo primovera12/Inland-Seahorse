@@ -992,13 +992,19 @@ function PermitBreakdownCard({ permit, isExpanded, onToggle }: PermitBreakdownCa
           {/* Restriction icons */}
           <div className="flex items-center gap-1 ml-1">
             {hasNightRestriction && (
-              <Moon className="h-3.5 w-3.5 text-indigo-500" title="No night travel" />
+              <span title="No night travel">
+                <Moon className="h-3.5 w-3.5 text-indigo-500" />
+              </span>
             )}
             {hasWeekendRestriction && (
-              <Calendar className="h-3.5 w-3.5 text-purple-500" title="No weekend travel" />
+              <span title="No weekend travel">
+                <Calendar className="h-3.5 w-3.5 text-purple-500" />
+              </span>
             )}
             {hasSeasonalRestriction && (
-              <Snowflake className="h-3.5 w-3.5 text-blue-500" title="Seasonal restrictions" />
+              <span title="Seasonal restrictions">
+                <Snowflake className="h-3.5 w-3.5 text-blue-500" />
+              </span>
             )}
           </div>
 
@@ -1006,17 +1012,21 @@ function PermitBreakdownCard({ permit, isExpanded, onToggle }: PermitBreakdownCa
           {(permit.escortsRequired > 0 || permit.poleCarRequired || permit.policeEscortRequired) && (
             <div className="flex items-center gap-0.5 ml-1">
               {permit.escortsRequired > 0 && (
-                <div className="flex" title={`${permit.escortsRequired} escort(s)`}>
+                <span className="flex" title={`${permit.escortsRequired} escort(s)`}>
                   {Array.from({ length: Math.min(permit.escortsRequired, 2) }).map((_, i) => (
                     <Car key={i} className="h-3.5 w-3.5 text-amber-600" />
                   ))}
-                </div>
+                </span>
               )}
               {permit.poleCarRequired && (
-                <Ruler className="h-3.5 w-3.5 text-blue-600" title="Pole car required" />
+                <span title="Pole car required">
+                  <Ruler className="h-3.5 w-3.5 text-blue-600" />
+                </span>
               )}
               {permit.policeEscortRequired && (
-                <Siren className="h-3.5 w-3.5 text-red-600" title="Police escort required" />
+                <span title="Police escort required">
+                  <Siren className="h-3.5 w-3.5 text-red-600" />
+                </span>
               )}
             </div>
           )}

@@ -111,7 +111,10 @@ export {
   getLoadPlanSummary,
   planLoadsWithOptions,
   getSmartLoadPlanSummary,
+  generateSmartPlans,
   DEFAULT_PLANNING_OPTIONS,
+  type PlanStrategy,
+  type SmartPlanOption,
 } from './load-planner'
 
 // =============================================================================
