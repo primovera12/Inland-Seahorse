@@ -17,8 +17,163 @@ import type {
   FitAnalysis,
   PermitRequired,
   ParsedLoad,
+  ScoreBreakdown,
+  FitOptimization,
 } from './types'
 import { trucks, LEGAL_LIMITS, SUPERLOAD_THRESHOLDS } from './trucks'
+
+// =============================================================================
+// EQUIPMENT MATCHING PROFILES
+// Enhanced cargo-to-truck matching based on equipment type keywords
+// =============================================================================
+
+interface EquipmentMatchProfile {
+  keywords: string[]
+  preferredCategories: string[]
+  avoidCategories: string[]
+  loadingPreference: 'drive-on' | 'crane' | 'forklift' | 'any'
+  heightSensitive: boolean
+  widthSensitive: boolean
+}
+
+const EQUIPMENT_PROFILES: Record<string, EquipmentMatchProfile> = {
+  excavator: {
+    keywords: ['excavator', 'backhoe', 'digger', 'cat 320', 'cat 330', 'cat 336', 'hitachi', 'komatsu pc', 'volvo ec', 'deere 350', 'deere 470'],
+    preferredCategories: ['RGN', 'LOWBOY', 'STEP_DECK'],
+    avoidCategories: ['DRY_VAN', 'FLATBED', 'CONESTOGA'],
+    loadingPreference: 'drive-on',
+    heightSensitive: true,
+    widthSensitive: false,
+  },
+  dozer: {
+    keywords: ['dozer', 'bulldozer', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'cat d', 'deere 850', 'komatsu d'],
+    preferredCategories: ['RGN', 'LOWBOY'],
+    avoidCategories: ['DRY_VAN', 'FLATBED', 'STEP_DECK'],
+    loadingPreference: 'drive-on',
+    heightSensitive: true,
+    widthSensitive: true,
+  },
+  loader: {
+    keywords: ['loader', 'wheel loader', 'front loader', 'cat 950', 'cat 966', 'cat 980', 'volvo l', 'deere 544', 'deere 644', 'deere 844'],
+    preferredCategories: ['RGN', 'LOWBOY', 'STEP_DECK'],
+    avoidCategories: ['DRY_VAN', 'FLATBED'],
+    loadingPreference: 'drive-on',
+    heightSensitive: true,
+    widthSensitive: false,
+  },
+  crane: {
+    keywords: ['crane', 'crawler crane', 'lattice crane', 'rough terrain crane', 'rt crane', 'grove', 'liebherr', 'manitowoc', 'link-belt'],
+    preferredCategories: ['LOWBOY', 'MULTI_AXLE', 'RGN'],
+    avoidCategories: ['DRY_VAN', 'FLATBED', 'STEP_DECK'],
+    loadingPreference: 'crane',
+    heightSensitive: true,
+    widthSensitive: true,
+  },
+  forklift: {
+    keywords: ['forklift', 'telehandler', 'reach stacker', 'toyota forklift', 'hyster', 'yale', 'crown forklift', 'cat forklift'],
+    preferredCategories: ['FLATBED', 'STEP_DECK', 'LANDOLL'],
+    avoidCategories: ['DRY_VAN'],
+    loadingPreference: 'drive-on',
+    heightSensitive: false,
+    widthSensitive: false,
+  },
+  tractor: {
+    keywords: ['tractor', 'farm tractor', 'agricultural', 'john deere', 'case ih', 'new holland', 'kubota', 'massey ferguson'],
+    preferredCategories: ['STEP_DECK', 'RGN', 'FLATBED'],
+    avoidCategories: ['DRY_VAN'],
+    loadingPreference: 'drive-on',
+    heightSensitive: false,
+    widthSensitive: false,
+  },
+  skidsteer: {
+    keywords: ['skid steer', 'skidsteer', 'bobcat', 'compact loader', 'cat 259', 'cat 299', 'deere 333'],
+    preferredCategories: ['FLATBED', 'STEP_DECK', 'LANDOLL'],
+    avoidCategories: [],
+    loadingPreference: 'drive-on',
+    heightSensitive: false,
+    widthSensitive: false,
+  },
+  transformer: {
+    keywords: ['transformer', 'power transformer', 'substation', 'electrical transformer'],
+    preferredCategories: ['MULTI_AXLE', 'SCHNABEL', 'LOWBOY'],
+    avoidCategories: ['FLATBED', 'DRY_VAN', 'STEP_DECK'],
+    loadingPreference: 'crane',
+    heightSensitive: false,
+    widthSensitive: true,
+  },
+  windTurbine: {
+    keywords: ['wind turbine', 'blade', 'nacelle', 'tower section', 'wind tower'],
+    preferredCategories: ['BLADE', 'SPECIALIZED', 'MULTI_AXLE'],
+    avoidCategories: ['DRY_VAN', 'FLATBED'],
+    loadingPreference: 'crane',
+    heightSensitive: true,
+    widthSensitive: true,
+  },
+  boat: {
+    keywords: ['boat', 'yacht', 'vessel', 'watercraft', 'sailboat', 'powerboat'],
+    preferredCategories: ['STEP_DECK', 'RGN', 'SPECIALIZED'],
+    avoidCategories: ['DRY_VAN', 'FLATBED'],
+    loadingPreference: 'crane',
+    heightSensitive: true,
+    widthSensitive: true,
+  },
+  modularBuilding: {
+    keywords: ['modular', 'portable building', 'office trailer', 'mobile office', 'construction trailer'],
+    preferredCategories: ['STEP_DECK', 'RGN', 'SPECIALIZED'],
+    avoidCategories: ['DRY_VAN', 'FLATBED'],
+    loadingPreference: 'crane',
+    heightSensitive: true,
+    widthSensitive: true,
+  },
+  tank: {
+    keywords: ['tank', 'pressure vessel', 'storage tank', 'propane tank', 'fuel tank'],
+    preferredCategories: ['STEP_DECK', 'RGN', 'FLATBED'],
+    avoidCategories: ['DRY_VAN'],
+    loadingPreference: 'crane',
+    heightSensitive: false,
+    widthSensitive: true,
+  },
+}
+
+/**
+ * Get equipment match bonus based on cargo description
+ */
+function getEquipmentMatchBonus(cargo: ParsedLoad, truck: TruckType): { bonus: number; matchedProfile: string | null } {
+  const description = cargo.description?.toLowerCase() || ''
+  const itemDescriptions = cargo.items?.map(i => i.description?.toLowerCase() || '').join(' ') || ''
+  const combinedText = `${description} ${itemDescriptions}`
+
+  for (const [profileName, profile] of Object.entries(EQUIPMENT_PROFILES)) {
+    // Check if any keyword matches
+    const keywordMatch = profile.keywords.some(kw => combinedText.includes(kw))
+    if (!keywordMatch) continue
+
+    let bonus = 0
+
+    // Check if truck category is preferred
+    if (profile.preferredCategories.includes(truck.category)) {
+      bonus += 15
+    }
+
+    // Check if truck category should be avoided
+    if (profile.avoidCategories.includes(truck.category)) {
+      bonus -= 20
+    }
+
+    // Check loading method preference
+    if (profile.loadingPreference !== 'any') {
+      if (truck.loadingMethod === profile.loadingPreference) {
+        bonus += 10
+      } else if (profile.loadingPreference === 'drive-on' && truck.loadingMethod !== 'drive-on') {
+        bonus -= 10
+      }
+    }
+
+    return { bonus, matchedProfile: profileName }
+  }
+
+  return { bonus: 0, matchedProfile: null }
+}
 
 /**
  * Analyze how cargo fits on a specific truck
@@ -115,71 +270,109 @@ function determinePermits(
 }
 
 /**
- * Calculate recommendation score for a truck
+ * Calculate recommendation score for a truck with detailed breakdown
  *
  * Score breakdown:
  * - Base score: 100
- * - Deductions for exceeded limits
+ * - Deductions for exceeded limits (proportional to severity)
  * - Deductions for overkill (using lowboy for short cargo)
- * - Bonuses for ideal fit
+ * - Cost-weighted permit penalties (expensive permits penalized more)
+ * - Bonuses for ideal fit and equipment matching
+ *
+ * @param cargo - Parsed cargo information
+ * @param truck - Truck type being scored
+ * @param fit - Fit analysis results
+ * @param permits - Required permits
+ * @param historicalBonus - Optional bonus from historical success data (0-15)
+ * @returns Object with final score and detailed breakdown
  */
 function calculateScore(
   cargo: ParsedLoad,
   truck: TruckType,
   fit: FitAnalysis,
-  permits: PermitRequired[]
-): number {
+  permits: PermitRequired[],
+  historicalBonus: number = 0
+): { score: number; breakdown: ScoreBreakdown } {
+  const breakdown: ScoreBreakdown = {
+    baseScore: 100,
+    fitPenalty: 0,
+    heightPenalty: 0,
+    widthPenalty: 0,
+    weightPenalty: 0,
+    overkillPenalty: 0,
+    permitPenalty: 0,
+    idealFitBonus: 0,
+    equipmentMatchBonus: 0,
+    historicalBonus: 0,
+    finalScore: 0,
+  }
+
   let score = 100
 
   // Major deductions for exceeded limits
   if (!fit.fits) {
+    breakdown.fitPenalty = 50
     score -= 50 // Cargo physically doesn't fit
   }
 
   if (fit.exceedsHeight) {
     // Deduct based on how much it exceeds
     const excess = fit.totalHeight - LEGAL_LIMITS.HEIGHT
-    score -= Math.min(40, excess * 10) // Up to 40 points
+    breakdown.heightPenalty = Math.min(40, Math.round(excess * 10)) // Up to 40 points
+    score -= breakdown.heightPenalty
   }
 
   if (fit.exceedsWidth) {
     const excess = cargo.width - LEGAL_LIMITS.WIDTH
-    score -= Math.min(25, excess * 5) // Up to 25 points
+    breakdown.widthPenalty = Math.min(25, Math.round(excess * 5)) // Up to 25 points
+    score -= breakdown.widthPenalty
   }
 
   if (fit.exceedsWeight) {
     const excessPercent =
       ((fit.totalWeight - LEGAL_LIMITS.GROSS_WEIGHT) / LEGAL_LIMITS.GROSS_WEIGHT) * 100
-    score -= Math.min(30, excessPercent) // Up to 30 points
+    breakdown.weightPenalty = Math.min(30, Math.round(excessPercent)) // Up to 30 points
+    score -= breakdown.weightPenalty
   }
 
   // Deduction for overkill trailer choice
   // (e.g., using a lowboy with 1.5' deck for cargo that fits on flatbed)
   if (fit.heightClearance > 3) {
     // More than 3 feet of clearance = overkill
+    breakdown.overkillPenalty = 10
     score -= 10
   }
 
-  // Deduction for each permit required
-  score -= permits.length * 5
+  // OPTIMIZATION #1: Cost-weighted permit penalty
+  // Instead of flat -5 per permit, use actual estimated costs
+  // A $500 superload permit should penalize more than a $75 basic permit
+  const totalPermitCost = permits.reduce((sum, p) => sum + (p.estimatedCost || 100), 0)
+  // Scale: $50 = 1 point, max 30 points
+  breakdown.permitPenalty = Math.min(30, Math.round(totalPermitCost / 50))
+  score -= breakdown.permitPenalty
 
   // Bonus for ideal deck height match
   if (fit.heightClearance >= 0 && fit.heightClearance <= 1) {
     // Perfect height fit (within 1 foot of limit)
+    breakdown.idealFitBonus = 5
     score += 5
   }
 
-  // Bonus for matching loading method to cargo type
-  // (tracked equipment should use drive-on trailers)
-  if (
-    truck.loadingMethod === 'drive-on' &&
-    cargo.description?.toLowerCase().match(/excavator|dozer|loader|tractor|tracked/)
-  ) {
-    score += 10
+  // OPTIMIZATION #4: Enhanced equipment matching
+  const { bonus: equipmentBonus } = getEquipmentMatchBonus(cargo, truck)
+  breakdown.equipmentMatchBonus = equipmentBonus
+  score += equipmentBonus
+
+  // OPTIMIZATION #3: Historical data bonus (passed in from external query)
+  if (historicalBonus > 0) {
+    breakdown.historicalBonus = Math.min(15, historicalBonus)
+    score += breakdown.historicalBonus
   }
 
   // Ensure score is within bounds
-  return Math.max(0, Math.min(100, Math.round(score)))
+  breakdown.finalScore = Math.max(0, Math.min(100, Math.round(score)))
+
+  return { score: breakdown.finalScore, breakdown }
 }
 
 /**
@@ -260,27 +453,168 @@ function generateWarnings(
   return warnings
 }
 
+// =============================================================================
+// SMART FIT ALTERNATIVES (OPTIMIZATION #5)
+// Suggest modifications for borderline loads to avoid permits
+// =============================================================================
+
+/**
+ * Analyze fit alternatives for borderline loads
+ * When cargo is within 1-2 feet of legal limits, suggest practical modifications
+ */
+function analyzeFitAlternatives(
+  cargo: ParsedLoad,
+  truck: TruckType,
+  fit: FitAnalysis,
+  permits: PermitRequired[]
+): FitOptimization[] {
+  const alternatives: FitOptimization[] = []
+
+  // Only suggest alternatives if there are permits to avoid
+  if (permits.length === 0) return alternatives
+
+  // Check height - can we avoid permit with slight reduction?
+  if (fit.exceedsHeight && fit.totalHeight <= LEGAL_LIMITS.HEIGHT + 2) {
+    const reduction = fit.totalHeight - LEGAL_LIMITS.HEIGHT + 0.1 // Add buffer
+    const heightPermitCost = permits.find(p => p.type === 'OVERSIZE_HEIGHT' || p.type === 'SUPERLOAD')?.estimatedCost || 100
+
+    // Find a lower-deck truck that would work
+    const lowerTrucks = trucks.filter(t =>
+      t.deckHeight < truck.deckHeight &&
+      cargo.weight <= t.maxCargoWeight &&
+      cargo.length <= t.deckLength &&
+      cargo.width <= t.deckWidth
+    )
+
+    if (lowerTrucks.length > 0) {
+      const bestLowerTruck = lowerTrucks.sort((a, b) => a.deckHeight - b.deckHeight)[0]
+      const newTotalHeight = cargo.height + bestLowerTruck.deckHeight
+
+      if (newTotalHeight <= LEGAL_LIMITS.HEIGHT) {
+        alternatives.push({
+          type: 'as-is',
+          modification: `Use ${bestLowerTruck.name} instead (${bestLowerTruck.deckHeight}' deck vs ${truck.deckHeight}' deck)`,
+          resultingTruck: bestLowerTruck,
+          permitsSaved: permits.filter(p => p.type === 'OVERSIZE_HEIGHT' || p.type === 'SUPERLOAD').length,
+          costSavings: heightPermitCost,
+          feasibility: 'easy',
+        })
+      }
+    }
+
+    // Suggest disassembly if reduction is small
+    if (reduction <= 1.5) {
+      alternatives.push({
+        type: 'reduced-height',
+        modification: `Reduce cargo height by ${reduction.toFixed(1)}' (remove attachments, lower boom, etc.)`,
+        dimensionChange: {
+          dimension: 'height',
+          currentValue: cargo.height,
+          targetValue: cargo.height - reduction,
+          reduction,
+        },
+        permitsSaved: 1,
+        costSavings: heightPermitCost,
+        feasibility: reduction <= 0.5 ? 'easy' : reduction <= 1 ? 'moderate' : 'difficult',
+      })
+    }
+  }
+
+  // Check width - can we avoid permit with slight reduction?
+  if (fit.exceedsWidth && cargo.width <= LEGAL_LIMITS.WIDTH + 2) {
+    const reduction = cargo.width - LEGAL_LIMITS.WIDTH + 0.1
+    const widthPermitCost = permits.find(p => p.type === 'OVERSIZE_WIDTH' || p.type === 'SUPERLOAD')?.estimatedCost || 100
+
+    if (reduction <= 1) {
+      alternatives.push({
+        type: 'reduced-width',
+        modification: `Reduce width by ${(reduction * 12).toFixed(0)}" (remove mirrors, fold attachments, etc.)`,
+        dimensionChange: {
+          dimension: 'width',
+          currentValue: cargo.width,
+          targetValue: cargo.width - reduction,
+          reduction,
+        },
+        permitsSaved: 1,
+        costSavings: widthPermitCost,
+        feasibility: reduction <= 0.5 ? 'easy' : 'moderate',
+      })
+    }
+  }
+
+  // Check if tilt transport could help (for tracked equipment)
+  const description = (cargo.description || '').toLowerCase()
+  const itemDescriptions = cargo.items?.map(i => i.description?.toLowerCase() || '').join(' ') || ''
+  const isTiltable = /excavator|trackhoe|dozer|bulldozer|loader/.test(`${description} ${itemDescriptions}`)
+
+  if (isTiltable && fit.exceedsHeight && cargo.height > 10) {
+    const tiltReduction = cargo.height * 0.15 // ~15% height reduction when tilted
+    const tiltedHeight = cargo.height - tiltReduction + truck.deckHeight
+
+    if (tiltedHeight <= LEGAL_LIMITS.HEIGHT) {
+      alternatives.push({
+        type: 'tilt-transport',
+        modification: `Transport tilted on angled blocks (reduces height by ~${(tiltReduction * 12).toFixed(0)}")`,
+        dimensionChange: {
+          dimension: 'height',
+          currentValue: cargo.height,
+          targetValue: cargo.height - tiltReduction,
+          reduction: tiltReduction,
+        },
+        permitsSaved: 1,
+        costSavings: permits.find(p => p.type === 'OVERSIZE_HEIGHT')?.estimatedCost || 100,
+        feasibility: 'moderate',
+      })
+    }
+  }
+
+  return alternatives
+}
+
+/**
+ * Options for truck selection
+ */
+export interface TruckSelectionOptions {
+  /** Historical bonus data by truck category (from load_history queries) */
+  historicalBonuses?: Record<string, number>
+  /** Include fit alternatives for borderline loads */
+  includeFitAlternatives?: boolean
+}
+
 /**
  * Main function: Select and rank trucks for a given cargo
  *
  * @param cargo - Parsed load information
+ * @param options - Optional configuration for enhanced features
  * @returns Array of truck recommendations sorted by score (best first)
  */
-export function selectTrucks(cargo: ParsedLoad): TruckRecommendation[] {
+export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions): TruckRecommendation[] {
   const recommendations: TruckRecommendation[] = []
+  const historicalBonuses = options?.historicalBonuses || {}
 
   for (const truck of trucks) {
     const fit = analyzeFit(cargo, truck)
     const permits = determinePermits(cargo, fit)
-    const score = calculateScore(cargo, truck, fit, permits)
+
+    // Get historical bonus for this truck category (if available)
+    const historicalBonus = historicalBonuses[truck.category] || 0
+
+    const { score, breakdown } = calculateScore(cargo, truck, fit, permits, historicalBonus)
     const reason = generateReason(truck, fit, permits)
     const warnings = generateWarnings(cargo, truck, fit, permits)
+
+    // OPTIMIZATION #5: Analyze fit alternatives for borderline loads
+    const fitAlternatives = options?.includeFitAlternatives
+      ? analyzeFitAlternatives(cargo, truck, fit, permits)
+      : undefined
 
     recommendations.push({
       truck,
       score,
+      scoreBreakdown: breakdown,
       fit,
       permitsRequired: permits,
+      fitAlternatives,
       reason,
       warnings,
       isBestChoice: false, // Will be set after sorting

@@ -92,14 +92,55 @@ export interface FitAnalysis {
   exceedsLength: boolean
 }
 
+/**
+ * Detailed breakdown of how a truck score was calculated
+ * Enables UI to show WHY a truck is recommended
+ */
+export interface ScoreBreakdown {
+  baseScore: number              // Starting score (100)
+  fitPenalty: number             // Penalty if cargo doesn't physically fit
+  heightPenalty: number          // Penalty for exceeding height limit
+  widthPenalty: number           // Penalty for exceeding width limit
+  weightPenalty: number          // Penalty for exceeding weight limit
+  overkillPenalty: number        // Penalty for using unnecessarily low trailer
+  permitPenalty: number          // Cost-weighted penalty for permits
+  idealFitBonus: number          // Bonus for optimal height clearance
+  equipmentMatchBonus: number    // Bonus for matching loading method
+  historicalBonus: number        // Bonus from historical success data
+  finalScore: number             // Final calculated score (0-100)
+}
+
+/**
+ * Smart fit alternative suggestion for borderline loads
+ * Helps users avoid permits with minor cargo modifications
+ */
+export interface FitOptimization {
+  type: 'as-is' | 'reduced-height' | 'reduced-width' | 'split-load' | 'tilt-transport' | 'disassembly'
+  modification: string           // Human-readable suggestion
+  dimensionChange?: {            // What would need to change
+    dimension: 'height' | 'width' | 'length' | 'weight'
+    currentValue: number
+    targetValue: number
+    reduction: number            // How much to reduce
+  }
+  resultingTruck?: TruckType     // Better truck option if modified
+  permitsSaved: number           // Number of permits avoided
+  costSavings: number            // Estimated dollar savings
+  feasibility: 'easy' | 'moderate' | 'difficult'  // How practical
+}
+
 export interface TruckRecommendation {
   truck: TruckType
   // Score from 0-100
   score: number
+  // Detailed score breakdown for UI display
+  scoreBreakdown?: ScoreBreakdown
   // Fit analysis
   fit: FitAnalysis
   // Required permits
   permitsRequired: PermitRequired[]
+  // Smart fit alternatives for borderline loads
+  fitAlternatives?: FitOptimization[]
   // Recommendation reason
   reason: string
   // Warnings

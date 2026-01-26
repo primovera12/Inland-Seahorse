@@ -55,6 +55,10 @@ export type {
   AnalyzeResponse,
   // Cargo specs
   CargoSpecs,
+  // Score breakdown (Optimization #2)
+  ScoreBreakdown,
+  // Fit optimization (Optimization #5)
+  FitOptimization,
 } from './types'
 
 // Constants
@@ -96,6 +100,7 @@ export {
   canTransportLegally,
   calculateFitAnalysis,
   getRequiredPermits,
+  type TruckSelectionOptions,
 } from './truck-selector'
 
 // =============================================================================

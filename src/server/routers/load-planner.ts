@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc/trpc'
+import { createClient } from '@supabase/supabase-js'
 import {
   // Truck data
   trucks,
@@ -11,6 +12,8 @@ import {
   getBestTruck,
   calculateFitAnalysis,
   getRequiredPermits,
+  // Export the options type
+  type TruckSelectionOptions,
   // Load planning
   planLoads,
   // Permits
@@ -119,9 +122,14 @@ export const loadPlannerRouter = router({
       z.object({
         items: z.array(LoadItemSchema),
         limit: z.number().min(1).max(10).optional().default(5),
+        // Enhanced options for smart recommendations
+        originState: z.string().length(2).optional(),
+        destinationState: z.string().length(2).optional(),
+        includeHistoricalBonus: z.boolean().optional().default(false),
+        includeFitAlternatives: z.boolean().optional().default(false),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const items = input.items as LoadItem[]
       // Convert LoadItem[] to ParsedLoad
       const parsedLoad = {
@@ -133,7 +141,76 @@ export const loadPlannerRouter = router({
         items,
         confidence: 100,
       }
-      const recommendations = selectTrucks(parsedLoad)
+
+      // Build selection options
+      const options: TruckSelectionOptions = {
+        includeFitAlternatives: input.includeFitAlternatives,
+      }
+
+      // OPTIMIZATION #3: Historical data integration
+      // Query load_history for similar routes and get equipment type usage
+      if (input.includeHistoricalBonus && input.originState && input.destinationState) {
+        try {
+          const supabase = ctx.supabase
+          const sixMonthsAgo = new Date()
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+          const { data: historicalLoads } = await supabase
+            .from('load_history')
+            .select('equipment_type_used, cargo_length_in, cargo_width_in, cargo_height_in')
+            .eq('origin_state', input.originState)
+            .eq('destination_state', input.destinationState)
+            .gte('pickup_date', sixMonthsAgo.toISOString())
+            .not('equipment_type_used', 'is', null)
+            .limit(100)
+
+          if (historicalLoads && historicalLoads.length > 0) {
+            // Count equipment type usage
+            const usageCounts: Record<string, number> = {}
+            for (const load of historicalLoads) {
+              const equipType = load.equipment_type_used
+              if (equipType) {
+                usageCounts[equipType] = (usageCounts[equipType] || 0) + 1
+              }
+            }
+
+            // Convert equipment types to truck categories and calculate bonuses
+            // More frequent usage = higher bonus (max 15 points)
+            const totalLoads = historicalLoads.length
+            const historicalBonuses: Record<string, number> = {}
+
+            // Map load_history equipment types to truck categories
+            const equipmentToCategory: Record<string, string> = {
+              'flatbed': 'FLATBED',
+              'step_deck': 'STEP_DECK',
+              'rgn': 'RGN',
+              'lowboy': 'LOWBOY',
+              'double_drop': 'DOUBLE_DROP',
+              'hotshot': 'FLATBED', // Map hotshot to flatbed
+              'conestoga': 'CONESTOGA',
+              'dry_van': 'DRY_VAN',
+              'reefer': 'REEFER',
+            }
+
+            for (const [equipType, count] of Object.entries(usageCounts)) {
+              const category = equipmentToCategory[equipType]
+              if (category) {
+                // Scale bonus: 50%+ usage = 15 points, 25% = 8 points, 10% = 3 points
+                const usagePercent = (count / totalLoads) * 100
+                const bonus = Math.min(15, Math.round(usagePercent * 0.3))
+                historicalBonuses[category] = Math.max(historicalBonuses[category] || 0, bonus)
+              }
+            }
+
+            options.historicalBonuses = historicalBonuses
+          }
+        } catch {
+          // Silently fail historical bonus - it's an enhancement, not critical
+          console.warn('Failed to fetch historical bonuses')
+        }
+      }
+
+      const recommendations = selectTrucks(parsedLoad, options)
       return recommendations.slice(0, input.limit)
     }),
 
