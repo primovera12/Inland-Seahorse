@@ -45,13 +45,15 @@ import { RouteIntelligence } from '@/components/load-planner/RouteIntelligence'
 import { ScoreBreakdownPanel } from '@/components/load-planner/ScoreBreakdownPanel'
 import { FitAlternativesPanel } from '@/components/load-planner/FitAlternativesPanel'
 import { SeasonalWarningBanner } from '@/components/load-planner/SeasonalWarningBanner'
+import { PlanComparisonPanel } from '@/components/load-planner/PlanComparisonPanel'
 import { PermitSummaryCard, PermitQuickActions } from '@/components/load-planner'
 import {
-  planLoads,
+  generateSmartPlans,
   type LoadItem,
   type LoadPlan,
   type TruckType,
   type CargoSpecs,
+  type SmartPlanOption,
 } from '@/lib/load-planner'
 import type { RouteResult } from '@/lib/load-planner/route-calculator'
 import type { DetailedRoutePermitSummary } from '@/lib/load-planner/types'
@@ -91,6 +93,84 @@ const PREDEFINED_SERVICES = [
   { value: 'liftgate', label: 'Liftgate' },
   { value: 'residential', label: 'Residential Delivery' },
   { value: 'custom', label: 'Custom Service' },
+]
+
+// Standard cargo types with typical dimensions (in feet and pounds)
+// These provide quick auto-fill for common cargo items
+interface StandardCargoType {
+  id: string
+  name: string
+  description?: string
+  length: number // feet
+  width: number // feet
+  height: number // feet
+  weight: number // pounds
+}
+
+const STANDARD_CARGO_TYPES: StandardCargoType[] = [
+  // Containers
+  { id: 'std-20ft-container', name: '20ft Shipping Container', length: 20, width: 8, height: 8.5, weight: 5000 },
+  { id: 'std-40ft-container', name: '40ft Shipping Container', length: 40, width: 8, height: 8.5, weight: 8500 },
+  { id: 'std-40ft-hc-container', name: '40ft High Cube Container', length: 40, width: 8, height: 9.5, weight: 8750 },
+  { id: 'std-45ft-container', name: '45ft Shipping Container', length: 45, width: 8, height: 9.5, weight: 10500 },
+
+  // Construction Equipment - Excavators
+  { id: 'std-mini-excavator', name: 'Mini Excavator (1-3 ton)', length: 12, width: 5, height: 7, weight: 6000 },
+  { id: 'std-small-excavator', name: 'Small Excavator (5-8 ton)', length: 18, width: 7, height: 8, weight: 16000 },
+  { id: 'std-medium-excavator', name: 'Medium Excavator (15-20 ton)', length: 25, width: 9, height: 10, weight: 42000 },
+  { id: 'std-large-excavator', name: 'Large Excavator (30-40 ton)', length: 32, width: 10.5, height: 11, weight: 75000 },
+
+  // Construction Equipment - Loaders
+  { id: 'std-skid-steer', name: 'Skid Steer Loader', length: 10, width: 6, height: 6.5, weight: 7500 },
+  { id: 'std-compact-loader', name: 'Compact Wheel Loader', length: 16, width: 7, height: 8, weight: 12000 },
+  { id: 'std-wheel-loader', name: 'Wheel Loader (3-4 yd)', length: 24, width: 9, height: 10.5, weight: 35000 },
+  { id: 'std-large-wheel-loader', name: 'Large Wheel Loader (5+ yd)', length: 30, width: 10, height: 11.5, weight: 55000 },
+
+  // Construction Equipment - Dozers
+  { id: 'std-small-dozer', name: 'Small Dozer (D3-D4)', length: 14, width: 7.5, height: 8, weight: 18000 },
+  { id: 'std-medium-dozer', name: 'Medium Dozer (D5-D6)', length: 18, width: 9, height: 9, weight: 35000 },
+  { id: 'std-large-dozer', name: 'Large Dozer (D7-D8)', length: 22, width: 11, height: 10.5, weight: 65000 },
+
+  // Forklifts
+  { id: 'std-warehouse-forklift', name: 'Warehouse Forklift (5000 lb)', length: 8, width: 4, height: 7, weight: 9000 },
+  { id: 'std-rough-terrain-forklift', name: 'Rough Terrain Forklift', length: 14, width: 7, height: 8, weight: 18000 },
+  { id: 'std-telehandler', name: 'Telehandler', length: 20, width: 8, height: 8.5, weight: 24000 },
+
+  // Cranes
+  { id: 'std-carry-deck-crane', name: 'Carry Deck Crane (8-15 ton)', length: 20, width: 8, height: 9, weight: 28000 },
+  { id: 'std-rt-crane-small', name: 'RT Crane (30-50 ton)', length: 35, width: 10, height: 11, weight: 70000 },
+
+  // Agricultural Equipment
+  { id: 'std-tractor-small', name: 'Farm Tractor (50-100 HP)', length: 12, width: 6.5, height: 8, weight: 8000 },
+  { id: 'std-tractor-large', name: 'Farm Tractor (150+ HP)', length: 18, width: 8, height: 10, weight: 20000 },
+  { id: 'std-combine', name: 'Combine Harvester', length: 28, width: 12, height: 13, weight: 35000 },
+
+  // Vehicles
+  { id: 'std-pickup-truck', name: 'Pickup Truck', length: 19, width: 6.5, height: 6, weight: 5500 },
+  { id: 'std-suv', name: 'SUV', length: 16, width: 6.5, height: 6, weight: 5000 },
+  { id: 'std-sedan', name: 'Sedan/Car', length: 15, width: 6, height: 5, weight: 3500 },
+  { id: 'std-van', name: 'Cargo Van', length: 20, width: 7, height: 8, weight: 6000 },
+  { id: 'std-box-truck', name: 'Box Truck (26ft)', length: 26, width: 8, height: 10, weight: 12000 },
+
+  // Industrial Equipment
+  { id: 'std-generator-small', name: 'Generator (50-100 kW)', length: 8, width: 4, height: 5, weight: 4000 },
+  { id: 'std-generator-large', name: 'Generator (500+ kW)', length: 16, width: 6, height: 8, weight: 15000 },
+  { id: 'std-compressor', name: 'Air Compressor (Industrial)', length: 12, width: 6, height: 7, weight: 8000 },
+  { id: 'std-transformer', name: 'Electrical Transformer', length: 10, width: 8, height: 10, weight: 25000 },
+
+  // Boats
+  { id: 'std-boat-small', name: 'Small Boat (16-20ft)', length: 20, width: 8, height: 6, weight: 3000 },
+  { id: 'std-boat-medium', name: 'Medium Boat (24-30ft)', length: 30, width: 10, height: 9, weight: 8000 },
+  { id: 'std-boat-large', name: 'Large Boat (35-45ft)', length: 45, width: 14, height: 12, weight: 20000 },
+
+  // Modular/Prefab
+  { id: 'std-modular-office', name: 'Modular Office (12x60)', length: 60, width: 12, height: 10, weight: 20000 },
+  { id: 'std-storage-container', name: 'Storage Container (8x20)', length: 20, width: 8, height: 8, weight: 4000 },
+
+  // Misc
+  { id: 'std-pallet', name: 'Standard Pallet', length: 4, width: 3.3, height: 4, weight: 1500 },
+  { id: 'std-crate-small', name: 'Small Crate', length: 4, width: 4, height: 4, weight: 500 },
+  { id: 'std-crate-large', name: 'Large Crate', length: 8, width: 6, height: 6, weight: 2000 },
 ]
 
 interface ServiceItem {
@@ -239,6 +319,9 @@ export default function NewInlandQuoteV2Page() {
 
   // Load plan state (automatically calculated)
   const [loadPlan, setLoadPlan] = useState<LoadPlan | null>(null)
+  // Smart plan options (multiple alternative plans)
+  const [smartPlanOptions, setSmartPlanOptions] = useState<SmartPlanOption[]>([])
+  const [selectedPlanOption, setSelectedPlanOption] = useState<SmartPlanOption | null>(null)
 
   // Customer state
   const [customerName, setCustomerName] = useState('')
@@ -441,10 +524,12 @@ export default function NewInlandQuoteV2Page() {
     toast.success('Quote loaded for editing')
   }, [editQuoteData, hasPopulatedFromEdit, isEditMode])
 
-  // Auto-calculate load plan when cargo changes
+  // Auto-calculate smart load plans when cargo changes
   useEffect(() => {
     if (cargoItems.length === 0) {
       setLoadPlan(null)
+      setSmartPlanOptions([])
+      setSelectedPlanOption(null)
       return
     }
 
@@ -455,10 +540,12 @@ export default function NewInlandQuoteV2Page() {
 
     if (validItems.length === 0) {
       setLoadPlan(null)
+      setSmartPlanOptions([])
+      setSelectedPlanOption(null)
       return
     }
 
-    // Convert LoadItem[] to ParsedLoad for planLoads
+    // Convert LoadItem[] to ParsedLoad for smart planning
     const maxLength = Math.max(...validItems.map(i => i.length))
     const maxWidth = Math.max(...validItems.map(i => i.width))
     const maxHeight = Math.max(...validItems.map(i => i.height))
@@ -466,6 +553,7 @@ export default function NewInlandQuoteV2Page() {
     const totalWeight = validItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
 
     const parsedLoad = {
+      id: 'auto-plan',
       length: maxLength,
       width: maxWidth,
       height: maxHeight,
@@ -475,10 +563,24 @@ export default function NewInlandQuoteV2Page() {
       confidence: 100,
     }
 
-    // Calculate full load plan
-    const plan = planLoads(parsedLoad)
-    setLoadPlan(plan)
-  }, [cargoItems])
+    // Generate smart plans with multiple strategies
+    const smartPlans = generateSmartPlans(parsedLoad, {
+      routeDistance: routeData?.distance ? routeData.distance / 1609.34 : 500, // Convert meters to miles
+      routeStates: routeData?.stateSegments?.map(s => s.stateCode) || [],
+    })
+
+    setSmartPlanOptions(smartPlans)
+
+    // Auto-select the recommended plan
+    const recommended = smartPlans.find(p => p.isRecommended) || smartPlans[0]
+    if (recommended) {
+      setSelectedPlanOption(recommended)
+      setLoadPlan(recommended.plan)
+    } else {
+      setSelectedPlanOption(null)
+      setLoadPlan(null)
+    }
+  }, [cargoItems, routeData])
 
   // Auto-populate dimensions when equipment model is selected
   useEffect(() => {
@@ -987,6 +1089,12 @@ export default function NewInlandQuoteV2Page() {
       ...loadPlan,
       loads: updatedLoads,
     })
+  }
+
+  // Handle selecting a different plan option
+  const handlePlanOptionSelect = (planOption: SmartPlanOption) => {
+    setSelectedPlanOption(planOption)
+    setLoadPlan(planOption.plan)
   }
 
   // Handle permit data calculated from RouteIntelligence
@@ -1936,26 +2044,52 @@ export default function NewInlandQuoteV2Page() {
                       {/* Cargo Type Selector - shown when not in equipment mode */}
                       {!isEquipmentMode && (
                         <div>
-                          <Label className="text-xs font-medium">Cargo Type</Label>
+                          <Label className="text-xs font-medium">Cargo Type (with standard dimensions)</Label>
                           <SearchableSelect
                             value={selectedCargoTypeId || ''}
                             onChange={(value) => {
                               setSelectedCargoTypeId(value || null)
                               if (value) {
-                                const loadType = loadTypes?.find(lt => lt.id === value)
-                                if (loadType) {
-                                  setManualDescription(loadType.name)
+                                // Check if it's a standard cargo type first
+                                const stdType = STANDARD_CARGO_TYPES.find(st => st.id === value)
+                                if (stdType) {
+                                  setManualDescription(stdType.name)
+                                  // Auto-fill dimensions (convert to metric if needed)
+                                  if (unitSystem === 'metric') {
+                                    setManualLength(feetToMeters(stdType.length).toFixed(2))
+                                    setManualWidth(feetToMeters(stdType.width).toFixed(2))
+                                    setManualHeight(feetToMeters(stdType.height).toFixed(2))
+                                    setManualWeight(lbsToKg(stdType.weight).toFixed(0))
+                                  } else {
+                                    setManualLength(stdType.length.toString())
+                                    setManualWidth(stdType.width.toString())
+                                    setManualHeight(stdType.height.toString())
+                                    setManualWeight(stdType.weight.toString())
+                                  }
+                                } else {
+                                  // Check database load types
+                                  const loadType = loadTypes?.find(lt => lt.id === value)
+                                  if (loadType) {
+                                    setManualDescription(loadType.name)
+                                  }
                                 }
                               }
                             }}
-                            options={
-                              loadTypes?.map((lt) => ({
+                            options={[
+                              // Standard cargo types with dimensions
+                              ...STANDARD_CARGO_TYPES.map((st) => ({
+                                value: st.id,
+                                label: `📦 ${st.name}`,
+                                description: `${st.length}×${st.width}×${st.height} ft, ${(st.weight / 1000).toFixed(1)}k lbs`,
+                              })),
+                              // Database load types (custom)
+                              ...(loadTypes?.map((lt) => ({
                                 value: lt.id,
                                 label: lt.name,
-                                description: lt.description || undefined,
-                              })) || []
-                            }
-                            placeholder="Select cargo type or enter custom..."
+                                description: lt.description || 'Custom type',
+                              })) || []),
+                            ]}
+                            placeholder="Select cargo type for auto-fill..."
                             allowCustom={true}
                             customPlaceholder="Enter custom cargo type name..."
                             onCustomAdd={(customName) => {
@@ -2665,6 +2799,16 @@ export default function NewInlandQuoteV2Page() {
                     </div>
                   ) : loadPlan && loadPlan.loads.length > 0 ? (
                     <div className="space-y-4">
+                      {/* Smart Plan Selection */}
+                      {smartPlanOptions.length > 1 && (
+                        <PlanComparisonPanel
+                          plans={smartPlanOptions}
+                          selectedPlan={selectedPlanOption}
+                          onSelectPlan={handlePlanOptionSelect}
+                          className="mb-4"
+                        />
+                      )}
+
                       {/* Seasonal Restriction Warning Banner */}
                       {routeResult?.statesTraversed && routeResult.statesTraversed.length > 0 && (
                         <SeasonalWarningBanner
