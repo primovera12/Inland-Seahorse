@@ -114,6 +114,12 @@ const operationsItems: NavItem[] = [
     icon: Users,
   },
   {
+    title: 'Truck Types',
+    url: '/truck-types',
+    icon: Truck,
+    roles: ADMIN_ROLES,
+  },
+  {
     title: 'Load History',
     url: '/load-history',
     icon: BarChart3,

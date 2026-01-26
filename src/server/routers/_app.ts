@@ -23,6 +23,7 @@ import { loadPlannerRouter } from './load-planner'
 import { loadPlannerQuotesRouter } from './loadPlannerQuotes'
 import { carriersRouter } from './carriers'
 import { loadHistoryRouter } from './loadHistory'
+import { truckTypesRouter } from './truckTypes'
 
 export const appRouter = router({
   user: userRouter,
@@ -50,6 +51,7 @@ export const appRouter = router({
   loadPlannerQuotes: loadPlannerQuotesRouter,
   carriers: carriersRouter,
   loadHistory: loadHistoryRouter,
+  truckTypes: truckTypesRouter,
 })
 
 export type AppRouter = typeof appRouter
