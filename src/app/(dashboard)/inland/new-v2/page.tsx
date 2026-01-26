@@ -48,6 +48,7 @@ import { SeasonalWarningBanner } from '@/components/load-planner/SeasonalWarning
 import { PlanComparisonPanel } from '@/components/load-planner/PlanComparisonPanel'
 import { PermitSummaryCard, PermitQuickActions } from '@/components/load-planner'
 import {
+  planLoads,
   generateSmartPlans,
   type LoadItem,
   type LoadPlan,
@@ -565,8 +566,8 @@ export default function NewInlandQuoteV2Page() {
 
     // Generate smart plans with multiple strategies
     const smartPlans = generateSmartPlans(parsedLoad, {
-      routeDistance: routeData?.distance ? routeData.distance / 1609.34 : 500, // Convert meters to miles
-      routeStates: routeData?.stateSegments?.map(s => s.stateCode) || [],
+      routeDistance: routeResult?.totalDistanceMiles || 500,
+      routeStates: routeResult?.stateSegments?.map((s: { stateCode: string }) => s.stateCode) || [],
     })
 
     setSmartPlanOptions(smartPlans)
@@ -580,7 +581,7 @@ export default function NewInlandQuoteV2Page() {
       setSelectedPlanOption(null)
       setLoadPlan(null)
     }
-  }, [cargoItems, routeData])
+  }, [cargoItems, routeResult])
 
   // Auto-populate dimensions when equipment model is selected
   useEffect(() => {
