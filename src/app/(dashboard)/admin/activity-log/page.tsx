@@ -32,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { trpc } from '@/lib/trpc/client'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 import {
   Search,
   ChevronLeft,
@@ -417,7 +417,7 @@ export default function AdminActivityLogPage() {
                           </Badge>
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          {formatDate(activity.created_at)}
+                          {formatDateTime(activity.created_at)}
                         </span>
                       </div>
 
@@ -513,7 +513,7 @@ export default function AdminActivityLogPage() {
                           <TableCell>
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Clock className="h-3 w-3" />
-                              {formatDate(activity.created_at)}
+                              {formatDateTime(activity.created_at)}
                             </div>
                           </TableCell>
                         </TableRow>

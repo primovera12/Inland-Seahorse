@@ -40,7 +40,7 @@ import {
   User,
   Trash2,
 } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 import type { ActivityType } from '@/types/crm'
 
 const ACTIVITY_ICONS: Record<ActivityType, typeof Phone> = {
@@ -331,7 +331,7 @@ export default function ActivityPage() {
                         )}
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {formatDate(new Date(activity.created_at))}
+                          {formatDateTime(new Date(activity.created_at))}
                         </span>
                       </div>
                     </div>
