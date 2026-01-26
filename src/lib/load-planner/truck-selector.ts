@@ -21,6 +21,12 @@ import type {
   FitOptimization,
 } from './types'
 import { trucks, LEGAL_LIMITS, SUPERLOAD_THRESHOLDS } from './trucks'
+import {
+  hasSeasonalRestrictions,
+  getSeasonalRestriction,
+  calculateAdjustedWeightLimits,
+  type SeasonalRestriction,
+} from './seasonal-restrictions'
 
 // =============================================================================
 // EQUIPMENT MATCHING PROFILES
@@ -286,12 +292,24 @@ function determinePermits(
  * @param historicalBonus - Optional bonus from historical success data (0-15)
  * @returns Object with final score and detailed breakdown
  */
+/**
+ * Context for seasonal weight restriction calculations
+ */
+export interface SeasonalContext {
+  routeStates: string[]
+  shipDate: Date
+  adjustedMaxWeight: number
+  mostRestrictiveState: string | null
+  reductionPercent: number
+}
+
 function calculateScore(
   cargo: ParsedLoad,
   truck: TruckType,
   fit: FitAnalysis,
   permits: PermitRequired[],
-  historicalBonus: number = 0
+  historicalBonus: number = 0,
+  seasonalContext?: SeasonalContext
 ): { score: number; breakdown: ScoreBreakdown } {
   const breakdown: ScoreBreakdown = {
     baseScore: 100,
@@ -304,6 +322,9 @@ function calculateScore(
     idealFitBonus: 0,
     equipmentMatchBonus: 0,
     historicalBonus: 0,
+    seasonalPenalty: 0,
+    bridgePenalty: 0,
+    escortProximityWarning: false,
     finalScore: 0,
   }
 
@@ -367,6 +388,36 @@ function calculateScore(
   if (historicalBonus > 0) {
     breakdown.historicalBonus = Math.min(15, historicalBonus)
     score += breakdown.historicalBonus
+  }
+
+  // OPTIMIZATION #6: Seasonal restriction penalty
+  // If route traverses states with active seasonal weight restrictions,
+  // penalize trucks that would be overweight under the reduced limits
+  if (seasonalContext && seasonalContext.adjustedMaxWeight < LEGAL_LIMITS.GROSS_WEIGHT) {
+    const truckGrossWeight = cargo.weight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+    if (truckGrossWeight > seasonalContext.adjustedMaxWeight) {
+      // Calculate how much over the seasonal limit
+      const excessPercent = ((truckGrossWeight - seasonalContext.adjustedMaxWeight) / seasonalContext.adjustedMaxWeight) * 100
+      // Penalty based on severity: 10-25 points
+      breakdown.seasonalPenalty = Math.min(25, Math.max(10, Math.round(excessPercent / 2)))
+      score -= breakdown.seasonalPenalty
+    }
+  }
+
+  // OPTIMIZATION #7: Escort proximity warning
+  // Flag when cargo dimensions are within 6 inches of common escort thresholds
+  // This helps users know they're close to incurring significant additional costs
+  const escortWidthThresholds = [12, 14, 16] // feet - common escort requirement triggers
+  const escortHeightThreshold = 14.5 // feet - height requiring route survey
+
+  for (const threshold of escortWidthThresholds) {
+    if (cargo.width > threshold - 0.5 && cargo.width <= threshold) {
+      breakdown.escortProximityWarning = true
+      break
+    }
+  }
+  if (fit.totalHeight > escortHeightThreshold - 0.5 && fit.totalHeight <= escortHeightThreshold) {
+    breakdown.escortProximityWarning = true
   }
 
   // Ensure score is within bounds
@@ -579,6 +630,10 @@ export interface TruckSelectionOptions {
   historicalBonuses?: Record<string, number>
   /** Include fit alternatives for borderline loads */
   includeFitAlternatives?: boolean
+  /** States that the route will traverse (for seasonal restrictions) */
+  routeStates?: string[]
+  /** Ship date for checking seasonal restrictions (defaults to today) */
+  shipDate?: Date
 }
 
 /**
@@ -592,6 +647,24 @@ export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions)
   const recommendations: TruckRecommendation[] = []
   const historicalBonuses = options?.historicalBonuses || {}
 
+  // Calculate seasonal restriction context if route states are provided
+  let seasonalContext: SeasonalContext | undefined
+  if (options?.routeStates && options.routeStates.length > 0) {
+    const shipDate = options.shipDate || new Date()
+    const adjustedLimits = calculateAdjustedWeightLimits(options.routeStates, LEGAL_LIMITS.GROSS_WEIGHT, shipDate)
+
+    // Only create seasonal context if there are active restrictions
+    if (adjustedLimits.reductionPercent > 0) {
+      seasonalContext = {
+        routeStates: options.routeStates,
+        shipDate,
+        adjustedMaxWeight: adjustedLimits.adjustedMaxWeight,
+        mostRestrictiveState: adjustedLimits.mostRestrictiveState,
+        reductionPercent: adjustedLimits.reductionPercent,
+      }
+    }
+  }
+
   for (const truck of trucks) {
     const fit = analyzeFit(cargo, truck)
     const permits = determinePermits(cargo, fit)
@@ -599,9 +672,25 @@ export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions)
     // Get historical bonus for this truck category (if available)
     const historicalBonus = historicalBonuses[truck.category] || 0
 
-    const { score, breakdown } = calculateScore(cargo, truck, fit, permits, historicalBonus)
+    const { score, breakdown } = calculateScore(cargo, truck, fit, permits, historicalBonus, seasonalContext)
     const reason = generateReason(truck, fit, permits)
-    const warnings = generateWarnings(cargo, truck, fit, permits)
+    let warnings = generateWarnings(cargo, truck, fit, permits)
+
+    // Add seasonal restriction warning if applicable
+    if (seasonalContext && breakdown.seasonalPenalty > 0) {
+      warnings = [
+        `Spring weight restrictions active in ${seasonalContext.mostRestrictiveState} - max ${(seasonalContext.adjustedMaxWeight / 1000).toFixed(0)}k lbs (${seasonalContext.reductionPercent}% reduction)`,
+        ...warnings,
+      ]
+    }
+
+    // Add escort proximity warning if applicable
+    if (breakdown.escortProximityWarning) {
+      warnings = [
+        `Cargo dimensions are near escort thresholds - consider slight reduction to avoid escort costs`,
+        ...warnings,
+      ]
+    }
 
     // OPTIMIZATION #5: Analyze fit alternatives for borderline loads
     const fitAlternatives = options?.includeFitAlternatives

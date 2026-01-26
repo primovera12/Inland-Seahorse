@@ -107,6 +107,9 @@ export interface ScoreBreakdown {
   idealFitBonus: number          // Bonus for optimal height clearance
   equipmentMatchBonus: number    // Bonus for matching loading method
   historicalBonus: number        // Bonus from historical success data
+  seasonalPenalty: number        // Penalty for seasonal weight restrictions
+  bridgePenalty: number          // Penalty for low-clearance bridges on route
+  escortProximityWarning: boolean // True if cargo is near escort thresholds
   finalScore: number             // Final calculated score (0-100)
 }
 
@@ -317,6 +320,10 @@ export interface PlannedLoad {
   // Truck recommendation for this specific load
   recommendedTruck: TruckType
   truckScore: number
+  // Detailed score breakdown for "Why This Truck?" display
+  scoreBreakdown?: ScoreBreakdown
+  // Smart fit alternatives for borderline loads
+  fitAlternatives?: FitOptimization[]
   // Item placements for visualization
   placements: ItemPlacement[]
   // Permits needed

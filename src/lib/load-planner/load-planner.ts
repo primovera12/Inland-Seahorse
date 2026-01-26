@@ -29,7 +29,10 @@ import type {
   SecurementPlan,
   SmartEscortRequirements,
   TripHOSValidation,
+  ScoreBreakdown,
+  FitOptimization,
 } from './types'
+import { selectTrucks } from './truck-selector'
 import { trucks, LEGAL_LIMITS } from './trucks'
 
 // Smart module imports
@@ -63,6 +66,10 @@ export interface PlannedLoad {
   // Truck recommendation for this specific load
   recommendedTruck: TruckType
   truckScore: number
+  // Detailed score breakdown for "Why This Truck?" display
+  scoreBreakdown?: ScoreBreakdown
+  // Smart fit alternatives for borderline loads
+  fitAlternatives?: FitOptimization[]
   // Item placements for visualization
   placements: ItemPlacement[]
   // Permits needed
@@ -274,12 +281,35 @@ function isAreaOccupied(
 
 /**
  * Find the best truck for a specific item based on its dimensions
+ * Returns score breakdown for "Why This Truck?" display
  */
-function findBestTruckForItem(item: LoadItem): { truck: TruckType; score: number; isLegal: boolean; permits: string[] } {
+function findBestTruckForItem(item: LoadItem): {
+  truck: TruckType
+  score: number
+  isLegal: boolean
+  permits: string[]
+  scoreBreakdown: ScoreBreakdown
+} {
   let bestTruck = trucks[0]
   let bestScore = 0
   let bestIsLegal = false
   let bestPermits: string[] = []
+  let bestBreakdown: ScoreBreakdown = {
+    baseScore: 100,
+    fitPenalty: 0,
+    heightPenalty: 0,
+    widthPenalty: 0,
+    weightPenalty: 0,
+    overkillPenalty: 0,
+    permitPenalty: 0,
+    idealFitBonus: 0,
+    equipmentMatchBonus: 0,
+    historicalBonus: 0,
+    seasonalPenalty: 0,
+    bridgePenalty: 0,
+    escortProximityWarning: false,
+    finalScore: 0,
+  }
 
   for (const truck of trucks) {
     const totalHeight = item.height + truck.deckHeight
@@ -305,37 +335,85 @@ function findBestTruckForItem(item: LoadItem): { truck: TruckType; score: number
     if (exceedsWidth) permits.push(`Oversize Width (${item.width.toFixed(1)}' > 8.5')`)
     if (exceedsWeight) permits.push(`Overweight (${totalWeight.toLocaleString()} lbs > 80,000 lbs)`)
 
-    // Score this truck for this item
+    // Build score breakdown
+    const breakdown: ScoreBreakdown = {
+      baseScore: 100,
+      fitPenalty: 0,
+      heightPenalty: 0,
+      widthPenalty: 0,
+      weightPenalty: 0,
+      overkillPenalty: 0,
+      permitPenalty: 0,
+      idealFitBonus: 0,
+      equipmentMatchBonus: 0,
+      historicalBonus: 0,
+      seasonalPenalty: 0,
+      bridgePenalty: 0,
+      escortProximityWarning: false,
+      finalScore: 0,
+    }
+
     let score = 100
 
     // Deduct for permits needed
-    score -= permits.length * 15
+    breakdown.permitPenalty = permits.length * 15
+    score -= breakdown.permitPenalty
 
     // Deduct for overkill (using lowboy for small cargo)
     const heightClearance = LEGAL_LIMITS.HEIGHT - totalHeight
-    if (heightClearance > 4) score -= 10 // Too much clearance = overkill
+    if (heightClearance > 4) {
+      breakdown.overkillPenalty = 10
+      score -= 10
+    }
 
     // Bonus for ideal fit
-    if (heightClearance >= 0 && heightClearance <= 2) score += 10
+    if (heightClearance >= 0 && heightClearance <= 2) {
+      breakdown.idealFitBonus = 10
+      score += 10
+    }
 
     // Bonus for matching loading method
     if (truck.loadingMethod === 'drive-on' &&
         item.description?.toLowerCase().match(/excavator|dozer|loader|tractor|tracked/)) {
+      breakdown.equipmentMatchBonus = 15
       score += 15
     }
 
-    // Prefer legal options
-    if (isLegal) score += 20
+    // Prefer legal options (counted as negative permit penalty avoided)
+    if (isLegal) {
+      score += 20
+    }
+
+    // Check escort proximity warning
+    const escortWidthThresholds = [12, 14, 16]
+    for (const threshold of escortWidthThresholds) {
+      if (item.width > threshold - 0.5 && item.width <= threshold) {
+        breakdown.escortProximityWarning = true
+        break
+      }
+    }
+    if (totalHeight > 14 && totalHeight <= 14.5) {
+      breakdown.escortProximityWarning = true
+    }
+
+    breakdown.finalScore = Math.max(0, Math.min(100, Math.round(score)))
 
     if (score > bestScore) {
       bestScore = score
       bestTruck = truck
       bestIsLegal = isLegal
       bestPermits = permits
+      bestBreakdown = breakdown
     }
   }
 
-  return { truck: bestTruck, score: bestScore, isLegal: bestIsLegal, permits: bestPermits }
+  return {
+    truck: bestTruck,
+    score: bestScore,
+    isLegal: bestIsLegal,
+    permits: bestPermits,
+    scoreBreakdown: bestBreakdown,
+  }
 }
 
 /**
@@ -445,7 +523,13 @@ function canShareTruck(item1: LoadItem, item2: LoadItem, truck: TruckType): bool
 /**
  * Find best truck for an entire load (multiple items)
  */
-function findBestTruckForLoad(load: PlannedLoad): { truck: TruckType; score: number; isLegal: boolean; permits: string[] } {
+function findBestTruckForLoad(load: PlannedLoad): {
+  truck: TruckType
+  score: number
+  isLegal: boolean
+  permits: string[]
+  scoreBreakdown: ScoreBreakdown
+} {
   // Use the max dimensions from all items in the load
   const maxLength = Math.max(...load.items.map(i => i.length))
   const maxWidth = Math.max(...load.items.map(i => i.width))
@@ -570,7 +654,7 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
     const itemWeight = getItemWeight(item)
 
     // Find the best truck for this individual item
-    const { truck: bestTruck, score, isLegal, permits } = findBestTruckForItem(item)
+    const { truck: bestTruck, score, isLegal, permits, scoreBreakdown } = findBestTruckForItem(item)
 
     // Check if item is too large for any truck
     const fitsAnyTruck = trucks.some(t =>
@@ -650,10 +734,11 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
       bestLoad.height = Math.max(bestLoad.height, item.height)
 
       // Re-evaluate truck choice for combined load
-      const { truck: newBestTruck, score: newScore, isLegal: newIsLegal, permits: newPermits } =
+      const { truck: newBestTruck, score: newScore, isLegal: newIsLegal, permits: newPermits, scoreBreakdown: newBreakdown } =
         findBestTruckForLoad(bestLoad)
       bestLoad.recommendedTruck = newBestTruck
       bestLoad.truckScore = newScore
+      bestLoad.scoreBreakdown = newBreakdown
       bestLoad.isLegal = newIsLegal
       bestLoad.permitsRequired = newPermits
       // Recalculate placements with new item
@@ -674,6 +759,24 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
         loadWarnings.push('Width over 12\' requires escort vehicles')
       }
 
+      // Get fit alternatives for borderline loads (when permits are required)
+      let fitAlternatives: FitOptimization[] | undefined
+      if (permits.length > 0) {
+        // Use selectTrucks with fit alternatives enabled to get suggestions
+        const itemAsParsedLoad: ParsedLoad = {
+          id: item.id,
+          items: [item],
+          length: item.length,
+          width: item.width,
+          height: item.height,
+          weight: itemWeight,
+          confidence: 100, // Internal use, always confident
+        }
+        const recommendations = selectTrucks(itemAsParsedLoad, { includeFitAlternatives: true })
+        const matchingRec = recommendations.find(r => r.truck.id === bestTruck.id)
+        fitAlternatives = matchingRec?.fitAlternatives
+      }
+
       loads.push({
         id: `load-${loads.length + 1}`,
         items: [item],
@@ -683,6 +786,8 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
         weight: itemWeight,
         recommendedTruck: bestTruck,
         truckScore: score,
+        scoreBreakdown,
+        fitAlternatives,
         placements: calculatePlacements([item], bestTruck),
         permitsRequired: permits,
         warnings: loadWarnings,

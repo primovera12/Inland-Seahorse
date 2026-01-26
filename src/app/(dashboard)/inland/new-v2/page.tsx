@@ -28,14 +28,23 @@ import {
   Trash2,
   FileText,
   FileWarning,
+  Copy,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  Layers,
 } from 'lucide-react'
 
 // Load Planner Components
 import { UniversalDropzone } from '@/components/load-planner/UniversalDropzone'
 import { ExtractedItemsList } from '@/components/load-planner/ExtractedItemsList'
+import { BulkCargoEntry } from '@/components/load-planner/BulkCargoEntry'
 import { TrailerDiagram } from '@/components/load-planner/TrailerDiagram'
 import { TruckSelector } from '@/components/load-planner/TruckSelector'
 import { RouteIntelligence } from '@/components/load-planner/RouteIntelligence'
+import { ScoreBreakdownPanel } from '@/components/load-planner/ScoreBreakdownPanel'
+import { FitAlternativesPanel } from '@/components/load-planner/FitAlternativesPanel'
+import { SeasonalWarningBanner } from '@/components/load-planner/SeasonalWarningBanner'
 import {
   planLoads,
   type LoadItem,
@@ -90,7 +99,17 @@ interface ServiceItem {
   quantity: number
   total: number // in cents
   truckIndex?: number // optional - for per-truck pricing
+  notes?: string // optional notes for this service
+  showNotes?: boolean // UI state - whether notes input is expanded
 }
+
+// Service bundles for quick-add functionality
+const SERVICE_BUNDLES = [
+  { name: 'Standard Flatbed', services: ['Line Haul', 'Fuel Surcharge', 'Tarp'] },
+  { name: 'Heavy Haul', services: ['Line Haul', 'Fuel Surcharge', 'Oversize Permit', 'Escort Service'] },
+  { name: 'Local Delivery', services: ['Line Haul', 'Loading', 'Unloading'] },
+  { name: 'Team Expedited', services: ['Line Haul', 'Fuel Surcharge', 'Team Drivers', 'Expedited Service'] },
+]
 
 // Editable permit costs - allows user to override calculated values
 interface EditablePermitCost {
@@ -152,6 +171,63 @@ export default function NewInlandQuoteV2Page() {
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedCargoTypeId, setSelectedCargoTypeId] = useState<string | null>(null)
+
+  // Last added item (for duplicate functionality) - stores form values in current unit system
+  const [lastAddedItem, setLastAddedItem] = useState<{
+    description: string
+    length: string
+    width: string
+    height: string
+    weight: string
+    unitSystem: 'imperial' | 'metric'
+  } | null>(null)
+
+  // Recent items for quick-add (stored in localStorage, always in imperial/feet)
+  interface RecentCargoItem {
+    id: string
+    description: string
+    length: number // feet
+    width: number // feet
+    height: number // feet
+    weight: number // lbs
+  }
+  const [recentItems, setRecentItems] = useState<RecentCargoItem[]>([])
+
+  // Unit preference state (imperial = ft/lbs, metric = m/kg)
+  const [unitSystem, setUnitSystem] = useState<'imperial' | 'metric'>('imperial')
+
+  // Load preferences from localStorage on mount
+  useEffect(() => {
+    // Unit preference
+    const savedUnit = localStorage.getItem('cargoUnitPreference')
+    if (savedUnit === 'metric' || savedUnit === 'imperial') {
+      setUnitSystem(savedUnit)
+    }
+    // Recent items
+    try {
+      const savedRecent = localStorage.getItem('recentCargoItems')
+      if (savedRecent) {
+        const parsed = JSON.parse(savedRecent)
+        if (Array.isArray(parsed)) {
+          setRecentItems(parsed.slice(0, 5))
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [])
+
+  // Save unit preference to localStorage when changed
+  const handleUnitSystemChange = useCallback((newSystem: 'imperial' | 'metric') => {
+    setUnitSystem(newSystem)
+    localStorage.setItem('cargoUnitPreference', newSystem)
+  }, [])
+
+  // Unit conversion helpers
+  const metersToFeet = (m: number) => m * 3.28084
+  const feetToMeters = (ft: number) => ft / 3.28084
+  const kgToLbs = (kg: number) => kg * 2.20462
+  const lbsToKg = (lbs: number) => lbs / 2.20462
 
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
@@ -412,10 +488,10 @@ export default function NewInlandQuoteV2Page() {
 
   // Handler for adding a manual cargo item
   const handleAddManualItem = useCallback(() => {
-    const length = parseFloat(manualLength) || 0
-    const width = parseFloat(manualWidth) || 0
-    const height = parseFloat(manualHeight) || 0
-    const weight = parseFloat(manualWeight) || 0
+    const rawLength = parseFloat(manualLength) || 0
+    const rawWidth = parseFloat(manualWidth) || 0
+    const rawHeight = parseFloat(manualHeight) || 0
+    const rawWeight = parseFloat(manualWeight) || 0
     const quantity = parseInt(manualQuantity) || 1
 
     if (!manualDescription.trim()) {
@@ -423,10 +499,16 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
-    if (length <= 0 || width <= 0 || height <= 0) {
+    if (rawLength <= 0 || rawWidth <= 0 || rawHeight <= 0) {
       toast.error('Please enter valid dimensions')
       return
     }
+
+    // Convert to imperial (feet/lbs) if user entered metric values
+    const length = unitSystem === 'metric' ? metersToFeet(rawLength) : rawLength
+    const width = unitSystem === 'metric' ? metersToFeet(rawWidth) : rawWidth
+    const height = unitSystem === 'metric' ? metersToFeet(rawHeight) : rawHeight
+    const weight = unitSystem === 'metric' ? kgToLbs(rawWeight) : rawWeight
 
     // Find the make and model names from the selected IDs
     const makeName = selectedMakeId
@@ -440,10 +522,10 @@ export default function NewInlandQuoteV2Page() {
       id: `manual-${Date.now()}`,
       description: manualDescription.trim(),
       quantity,
-      length, // in feet
+      length, // always stored in feet
       width,
       height,
-      weight,
+      weight, // always stored in lbs
       stackable: true,
       // Equipment fields (mapped for later use)
       ...(isEquipmentMode && selectedMakeId && selectedModelId && {
@@ -457,6 +539,33 @@ export default function NewInlandQuoteV2Page() {
     setCargoItems(prev => {
       const updated = [...prev, newItem]
       toast.success(`Item added! ${updated.length} total item${updated.length > 1 ? 's' : ''}.`)
+      return updated
+    })
+
+    // Save last added item for duplicate feature (save raw input values)
+    setLastAddedItem({
+      description: manualDescription.trim(),
+      length: manualLength,
+      width: manualWidth,
+      height: manualHeight,
+      weight: manualWeight,
+      unitSystem,
+    })
+
+    // Add to recent items (stored in imperial units)
+    const newRecentItem: RecentCargoItem = {
+      id: `recent-${Date.now()}`,
+      description: manualDescription.trim(),
+      length, // already converted to feet
+      width,
+      height,
+      weight, // already converted to lbs
+    }
+    setRecentItems(prev => {
+      // Remove duplicate if exists (same description)
+      const filtered = prev.filter(item => item.description.toLowerCase() !== newRecentItem.description.toLowerCase())
+      const updated = [newRecentItem, ...filtered].slice(0, 5) // Keep only 5
+      localStorage.setItem('recentCargoItems', JSON.stringify(updated))
       return updated
     })
 
@@ -483,7 +592,76 @@ export default function NewInlandQuoteV2Page() {
     selectedModelId,
     equipmentMakes,
     equipmentModels,
+    unitSystem,
   ])
+
+  // Duplicate last item - fills form with previous item's data
+  const handleDuplicateLastItem = useCallback(() => {
+    if (!lastAddedItem) {
+      toast.error('No previous item to duplicate')
+      return
+    }
+
+    // If the last item was added in a different unit system, convert
+    if (lastAddedItem.unitSystem !== unitSystem) {
+      const l = parseFloat(lastAddedItem.length) || 0
+      const w = parseFloat(lastAddedItem.width) || 0
+      const h = parseFloat(lastAddedItem.height) || 0
+      const wt = parseFloat(lastAddedItem.weight) || 0
+
+      if (lastAddedItem.unitSystem === 'imperial' && unitSystem === 'metric') {
+        // Convert from feet/lbs to meters/kg
+        setManualLength(feetToMeters(l).toFixed(2))
+        setManualWidth(feetToMeters(w).toFixed(2))
+        setManualHeight(feetToMeters(h).toFixed(2))
+        setManualWeight(lbsToKg(wt).toFixed(1))
+      } else {
+        // Convert from meters/kg to feet/lbs
+        setManualLength(metersToFeet(l).toFixed(2))
+        setManualWidth(metersToFeet(w).toFixed(2))
+        setManualHeight(metersToFeet(h).toFixed(2))
+        setManualWeight(kgToLbs(wt).toFixed(1))
+      }
+    } else {
+      // Same unit system, use values directly
+      setManualLength(lastAddedItem.length)
+      setManualWidth(lastAddedItem.width)
+      setManualHeight(lastAddedItem.height)
+      setManualWeight(lastAddedItem.weight)
+    }
+
+    setManualDescription(lastAddedItem.description)
+    setManualQuantity('1')
+    toast.success('Form filled with last item - edit as needed')
+  }, [lastAddedItem, unitSystem])
+
+  // Quick-add from recent items - fills form with selected recent item
+  const handleQuickAddRecent = useCallback((item: RecentCargoItem) => {
+    // Recent items are stored in imperial (feet/lbs)
+    if (unitSystem === 'metric') {
+      // Convert to metric for display
+      setManualLength(feetToMeters(item.length).toFixed(2))
+      setManualWidth(feetToMeters(item.width).toFixed(2))
+      setManualHeight(feetToMeters(item.height).toFixed(2))
+      setManualWeight(lbsToKg(item.weight).toFixed(1))
+    } else {
+      setManualLength(item.length.toFixed(1))
+      setManualWidth(item.width.toFixed(1))
+      setManualHeight(item.height.toFixed(1))
+      setManualWeight(item.weight.toFixed(0))
+    }
+    setManualDescription(item.description)
+    setManualQuantity('1')
+    toast.success(`Loaded "${item.description}" - adjust quantity and add`)
+  }, [unitSystem])
+
+  // Handle Enter key to add item (for manual entry form)
+  const handleManualEntryKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleAddManualItem()
+    }
+  }, [handleAddManualItem])
 
   // Calculate totals from service items
   const servicesTotal = useMemo(() => {
@@ -509,11 +687,32 @@ export default function NewInlandQuoteV2Page() {
       quantity: 1,
       total: 0,
       truckIndex: pricingPerTruck ? truckIndex : undefined,
+      notes: '',
+      showNotes: false,
     }
     setServiceItems([...serviceItems, newService])
   }
 
-  const updateServiceItem = (index: number, field: keyof ServiceItem, value: string | number) => {
+  const duplicateServiceItem = (index: number) => {
+    const original = serviceItems[index]
+    const duplicate: ServiceItem = {
+      ...original,
+      id: crypto.randomUUID(),
+      showNotes: false,
+    }
+    const newServices = [...serviceItems]
+    newServices.splice(index + 1, 0, duplicate)
+    setServiceItems(newServices)
+    toast.success('Service duplicated')
+  }
+
+  const toggleServiceNotes = (index: number) => {
+    const newServices = [...serviceItems]
+    newServices[index] = { ...newServices[index], showNotes: !newServices[index].showNotes }
+    setServiceItems(newServices)
+  }
+
+  const updateServiceItem = (index: number, field: keyof ServiceItem, value: string | number | boolean) => {
     const newServices = [...serviceItems]
     const service = { ...newServices[index] }
 
@@ -525,6 +724,10 @@ export default function NewInlandQuoteV2Page() {
       service.total = service.rate * service.quantity
     } else if (field === 'name') {
       service.name = String(value)
+    } else if (field === 'notes') {
+      service.notes = String(value)
+    } else if (field === 'showNotes') {
+      service.showNotes = Boolean(value)
     }
 
     newServices[index] = service
@@ -533,6 +736,36 @@ export default function NewInlandQuoteV2Page() {
 
   const removeServiceItem = (index: number) => {
     setServiceItems(serviceItems.filter((_, i) => i !== index))
+  }
+
+  const addServiceBundle = (bundleName: string, truckIndex?: number) => {
+    const bundle = SERVICE_BUNDLES.find(b => b.name === bundleName)
+    if (!bundle) return
+
+    const newServices = bundle.services.map(serviceName => {
+      const matchedOption = serviceOptions.find(s => s.label === serviceName)
+      let defaultRate = 0
+      if (matchedOption && serviceTypes) {
+        const dbService = serviceTypes.find(s => s.id === matchedOption.value)
+        if (dbService && dbService.default_rate_cents > 0) {
+          defaultRate = dbService.default_rate_cents
+        }
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        name: serviceName,
+        rate: defaultRate,
+        quantity: 1,
+        total: defaultRate,
+        truckIndex: pricingPerTruck ? truckIndex : undefined,
+        notes: '',
+        showNotes: false,
+      }
+    })
+
+    setServiceItems([...serviceItems, ...newServices])
+    toast.success(`Added ${bundle.services.length} services from "${bundleName}"`)
   }
 
   // Accessorial charge functions
@@ -1495,6 +1728,28 @@ export default function NewInlandQuoteV2Page() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Recent Items Quick-Add */}
+                    {recentItems.length > 0 && (
+                      <div className="p-3 bg-muted/30 rounded-lg border border-dashed">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-medium text-muted-foreground">Quick Add Recent:</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {recentItems.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleQuickAddRecent(item)}
+                              className="px-3 py-1.5 text-xs bg-background border rounded-full hover:bg-accent hover:border-primary transition-colors truncate max-w-[200px]"
+                              title={`${item.description} (${item.length.toFixed(1)}×${item.width.toFixed(1)}×${item.height.toFixed(1)} ft, ${item.weight.toFixed(0)} lbs)`}
+                            >
+                              {item.description}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Equipment Mode Toggle */}
                     <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div className="flex items-center gap-2">
@@ -1516,6 +1771,43 @@ export default function NewInlandQuoteV2Page() {
                           }
                         }}
                       />
+                    </div>
+
+                    {/* Unit System Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📐</span>
+                        <div>
+                          <span className="text-sm font-medium">Unit System</span>
+                          <p className="text-xs text-muted-foreground">
+                            {unitSystem === 'imperial' ? 'Feet & Pounds' : 'Meters & Kilograms'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 bg-background rounded-md p-1 border">
+                        <button
+                          type="button"
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            unitSystem === 'imperial'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          onClick={() => handleUnitSystemChange('imperial')}
+                        >
+                          Imperial
+                        </button>
+                        <button
+                          type="button"
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            unitSystem === 'metric'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          onClick={() => handleUnitSystemChange('metric')}
+                        >
+                          Metric
+                        </button>
+                      </div>
                     </div>
 
                     {/* Equipment Selection - shown when equipment mode is on */}
@@ -1637,7 +1929,7 @@ export default function NewInlandQuoteV2Page() {
 
                       <div className="grid grid-cols-4 gap-3">
                         <div>
-                          <Label className="text-xs font-medium">Length (ft)</Label>
+                          <Label className="text-xs font-medium">Length ({unitSystem === 'imperial' ? 'ft' : 'm'})</Label>
                           <Input
                             type="number"
                             step="0.1"
@@ -1647,7 +1939,7 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs font-medium">Width (ft)</Label>
+                          <Label className="text-xs font-medium">Width ({unitSystem === 'imperial' ? 'ft' : 'm'})</Label>
                           <Input
                             type="number"
                             step="0.1"
@@ -1657,7 +1949,7 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs font-medium">Height (ft)</Label>
+                          <Label className="text-xs font-medium">Height ({unitSystem === 'imperial' ? 'ft' : 'm'})</Label>
                           <Input
                             type="number"
                             step="0.1"
@@ -1667,11 +1959,12 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs font-medium">Weight (lbs)</Label>
+                          <Label className="text-xs font-medium">Weight ({unitSystem === 'imperial' ? 'lbs' : 'kg'})</Label>
                           <Input
                             type="number"
                             value={manualWeight}
                             onChange={(e) => setManualWeight(e.target.value)}
+                            onKeyDown={handleManualEntryKeyDown}
                             placeholder="0"
                           />
                         </div>
@@ -1685,12 +1978,23 @@ export default function NewInlandQuoteV2Page() {
                             min="1"
                             value={manualQuantity}
                             onChange={(e) => setManualQuantity(e.target.value)}
+                            onKeyDown={handleManualEntryKeyDown}
                           />
                         </div>
                         <Button onClick={handleAddManualItem} className="flex-1">
                           <Plus className="h-4 w-4 mr-2" />
                           Add Item
                         </Button>
+                        {lastAddedItem && (
+                          <Button
+                            variant="outline"
+                            onClick={handleDuplicateLastItem}
+                            title="Fill form with last added item"
+                          >
+                            <Copy className="h-4 w-4 mr-2" />
+                            Duplicate
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -1798,17 +2102,38 @@ export default function NewInlandQuoteV2Page() {
                   {!pricingPerTruck ? (
                     // Regular pricing - all services together
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <Label className="text-sm font-medium">Services</Label>
-                        <Button variant="outline" size="sm" onClick={() => addServiceItem()}>
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add Service
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <SearchableSelect
+                            value=""
+                            onChange={(value) => addServiceBundle(value)}
+                            options={SERVICE_BUNDLES.map(b => ({ value: b.name, label: b.name }))}
+                            placeholder="Add Bundle"
+                            className="w-[140px]"
+                          />
+                          <Button variant="outline" size="sm" onClick={() => addServiceItem()}>
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Service
+                          </Button>
+                        </div>
                       </div>
 
                       {serviceItems.length === 0 ? (
-                        <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg bg-muted/30">
-                          No services added. Click &quot;Add Service&quot; to add line haul, fuel surcharge, and other charges.
+                        <div className="text-center py-8 border rounded-lg bg-muted/30">
+                          <DollarSign className="h-10 w-10 mx-auto text-muted-foreground/50 mb-2" />
+                          <p className="text-muted-foreground font-medium">No services added yet</p>
+                          <p className="text-sm text-muted-foreground/70 mt-1 mb-4">Add services like Line Haul, Fuel Surcharge, and other charges</p>
+                          <div className="flex justify-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => addServiceBundle('Standard Flatbed')}>
+                              <Layers className="h-3 w-3 mr-1" />
+                              Standard Flatbed
+                            </Button>
+                            <Button variant="default" size="sm" onClick={() => addServiceItem()}>
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add Service
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -1818,7 +2143,8 @@ export default function NewInlandQuoteV2Page() {
                             const dropdownValue = matchedService?.value || 'custom'
 
                             return (
-                              <div key={service.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30">
+                              <div key={service.id} className="space-y-1">
+                                <div className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30">
                                 <SearchableSelect
                                   value={dropdownValue}
                                   onChange={(value) => {
@@ -1869,15 +2195,45 @@ export default function NewInlandQuoteV2Page() {
                                 <span className="w-20 sm:w-24 text-right font-mono text-sm">
                                   ${formatWholeDollars(service.total)}
                                 </span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removeServiceItem(index)}
-                                  className="shrink-0"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => toggleServiceNotes(index)}
+                                    className={service.notes ? 'text-blue-500' : ''}
+                                    title="Add notes"
+                                  >
+                                    <MessageSquare className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => duplicateServiceItem(index)}
+                                    title="Duplicate"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeServiceItem(index)}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
+                              {service.showNotes && (
+                                <div className="pl-2 pb-1">
+                                  <Input
+                                    className="text-sm"
+                                    placeholder="Add notes for this service..."
+                                    value={service.notes || ''}
+                                    onChange={(e) => updateServiceItem(index, 'notes', e.target.value)}
+                                  />
+                                </div>
+                              )}
+                            </div>
                             )
                           })}
                         </div>
@@ -1896,10 +2252,19 @@ export default function NewInlandQuoteV2Page() {
                                 </div>
                                 <Label className="font-medium">{load.recommendedTruck.name}</Label>
                               </div>
-                              <Button variant="outline" size="sm" onClick={() => addServiceItem(truckIndex)}>
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <SearchableSelect
+                                  value=""
+                                  onChange={(value) => addServiceBundle(value, truckIndex)}
+                                  options={SERVICE_BUNDLES.map(b => ({ value: b.name, label: b.name }))}
+                                  placeholder="Bundle"
+                                  className="w-[100px]"
+                                />
+                                <Button variant="outline" size="sm" onClick={() => addServiceItem(truckIndex)}>
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add
+                                </Button>
+                              </div>
                             </div>
 
                             <div className="space-y-2">
@@ -1912,12 +2277,13 @@ export default function NewInlandQuoteV2Page() {
                                   const dropdownValue = matchedService?.value || 'custom'
 
                                   return (
-                                    <div key={service.id} className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30">
-                                      <SearchableSelect
-                                        value={dropdownValue}
-                                        onChange={(value) => {
-                                          const selected = serviceOptions.find(s => s.value === value)
-                                          if (selected) {
+                                    <div key={service.id} className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-2 p-2 rounded bg-muted/30">
+                                        <SearchableSelect
+                                          value={dropdownValue}
+                                          onChange={(value) => {
+                                            const selected = serviceOptions.find(s => s.value === value)
+                                            if (selected) {
                                             updateServiceItem(index, 'name', selected.label)
                                             if (serviceTypes && value !== 'custom') {
                                               const dbService = serviceTypes.find(s => s.id === value)
@@ -1961,10 +2327,45 @@ export default function NewInlandQuoteV2Page() {
                                       <span className="w-20 text-right font-mono text-sm">
                                         ${formatWholeDollars(service.total)}
                                       </span>
-                                      <Button variant="ghost" size="icon" onClick={() => removeServiceItem(index)}>
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => toggleServiceNotes(index)}
+                                          className={service.notes ? 'text-blue-500' : ''}
+                                          title="Add notes"
+                                        >
+                                          <MessageSquare className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => duplicateServiceItem(index)}
+                                          title="Duplicate"
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removeServiceItem(index)}
+                                          title="Delete"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
                                     </div>
+                                    {service.showNotes && (
+                                      <div className="pl-2 pb-1">
+                                        <Input
+                                          className="text-sm"
+                                          placeholder="Add notes for this service..."
+                                          value={service.notes || ''}
+                                          onChange={(e) => updateServiceItem(index, 'notes', e.target.value)}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
                                   )
                                 })}
                             </div>
@@ -2186,6 +2587,14 @@ export default function NewInlandQuoteV2Page() {
                     </div>
                   ) : loadPlan && loadPlan.loads.length > 0 ? (
                     <div className="space-y-4">
+                      {/* Seasonal Restriction Warning Banner */}
+                      {routeResult?.statesTraversed && routeResult.statesTraversed.length > 0 && (
+                        <SeasonalWarningBanner
+                          routeStates={routeResult.statesTraversed}
+                          className="mb-2"
+                        />
+                      )}
+
                       {loadPlan.warnings.length > 0 && (
                         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <div className="flex items-center gap-2 text-yellow-800 mb-1">
@@ -2202,20 +2611,51 @@ export default function NewInlandQuoteV2Page() {
 
                       {loadPlan.loads.map((load, index) => {
                         if (!load.recommendedTruck) return null
+                        const cardBorderColor = load.isLegal
+                          ? 'border-l-green-500'
+                          : load.permitsRequired.length > 0
+                            ? 'border-l-orange-500'
+                            : 'border-l-blue-500'
+                        const numberBgColor = load.isLegal
+                          ? 'bg-green-500'
+                          : load.permitsRequired.length > 0
+                            ? 'bg-orange-500'
+                            : 'bg-blue-500'
                         return (
-                          <Card key={load.id} className="border-l-4 border-l-blue-500">
+                          <Card key={load.id} className={`border-l-4 ${cardBorderColor}`}>
                             <CardHeader className="pb-2">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                                  <div className={`w-8 h-8 rounded-lg ${numberBgColor} flex items-center justify-center text-white font-bold text-sm`}>
                                     {index + 1}
                                   </div>
                                   <div>
-                                    <div className="font-medium">{load.recommendedTruck.name}</div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{load.recommendedTruck.name}</span>
+                                      {load.isLegal && (
+                                        <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded border border-green-200">
+                                          Legal Load
+                                        </span>
+                                      )}
+                                      {!load.isLegal && load.permitsRequired.length > 0 && (
+                                        <span className="px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded border border-orange-200">
+                                          {load.permitsRequired.length} Permit{load.permitsRequired.length > 1 ? 's' : ''}
+                                        </span>
+                                      )}
+                                      {load.scoreBreakdown?.escortProximityWarning && (
+                                        <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded border border-purple-200" title="Cargo is near escort thresholds">
+                                          Near Escort
+                                        </span>
+                                      )}
+                                    </div>
                                     <div className="text-sm text-muted-foreground">
                                       {load.items.length} items &bull; {(load.weight / 1000).toFixed(1)}k lbs
                                     </div>
                                   </div>
+                                  <ScoreBreakdownPanel
+                                    score={load.truckScore}
+                                    breakdown={load.scoreBreakdown}
+                                  />
                                 </div>
                                 <TruckSelector
                                   currentTruck={load.recommendedTruck}
@@ -2228,6 +2668,13 @@ export default function NewInlandQuoteV2Page() {
                               </div>
                             </CardHeader>
                             <CardContent>
+                              {/* Fit Alternatives - show when permits are required */}
+                              {load.fitAlternatives && load.fitAlternatives.length > 0 && (
+                                <FitAlternativesPanel
+                                  alternatives={load.fitAlternatives}
+                                  className="mb-4"
+                                />
+                              )}
                               <TrailerDiagram
                                 truck={load.recommendedTruck}
                                 items={load.items}
