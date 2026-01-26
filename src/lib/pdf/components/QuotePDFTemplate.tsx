@@ -485,6 +485,52 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
         </div>
       )}
 
+      {/* Load Compliance Info - Warnings & Permits */}
+      {((block.warnings && block.warnings.length > 0) || (block.permits_required && block.permits_required.length > 0)) && (
+        <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
+          <div className="px-6 py-3 flex items-center justify-between" style={{ backgroundColor: block.is_legal === false ? 'rgb(254, 243, 199)' : 'rgb(220, 252, 231)' }}>
+            <h4 className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: block.is_legal === false ? '#92400e' : '#166534' }}>
+              Load Compliance
+            </h4>
+            <span className={cn(
+              'text-[9px] font-bold px-2 py-0.5 rounded uppercase',
+              block.is_legal === false ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+            )}>
+              {block.is_legal === false ? 'Permits Required' : 'Legal Load'}
+            </span>
+          </div>
+          <div className="px-6 py-3 space-y-2">
+            {/* Permits Required */}
+            {block.permits_required && block.permits_required.length > 0 && (
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-500 tracking-widest mb-1">Permits Required</p>
+                <div className="flex flex-wrap gap-1">
+                  {block.permits_required.map((permit, idx) => (
+                    <span key={idx} className="text-[10px] px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">
+                      {permit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Warnings */}
+            {block.warnings && block.warnings.length > 0 && (
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-500 tracking-widest mb-1">Warnings</p>
+                <ul className="text-xs text-amber-700 space-y-0.5">
+                  {block.warnings.map((warning, idx) => (
+                    <li key={idx} className="flex items-start gap-1">
+                      <span className="text-amber-500 mt-0.5">•</span>
+                      <span>{warning}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Cargo Items Details */}
       {block.cargo_items && block.cargo_items.length > 0 && (
         <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
@@ -998,6 +1044,10 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                     // Load diagram data
                     placements: loadBlock.placements,
                     truck_specs: loadBlock.truck_specs,
+                    // Load compliance info
+                    warnings: loadBlock.warnings,
+                    permits_required: loadBlock.permits_required,
+                    is_legal: loadBlock.is_legal,
                   }
                   return renderLoadBlock(formattedBlock, loadIndex, dest.load_blocks.length > 1)
                 })}

@@ -18,6 +18,10 @@ import {
   Building2,
   DollarSign,
   Info,
+  Moon,
+  Car,
+  Ruler,
+  Siren,
 } from 'lucide-react'
 import type { LatLng, StateSegment, RouteResult } from '@/lib/load-planner/route-calculator'
 import type { SeasonalRestriction } from '@/lib/load-planner/seasonal-restrictions'
@@ -908,25 +912,118 @@ interface PermitBreakdownCardProps {
 function PermitBreakdownCard({ permit, isExpanded, onToggle }: PermitBreakdownCardProps) {
   const hasPermitRequired = permit.oversizeRequired || permit.overweightRequired
 
+  // Determine row color based on permit type
+  const getRowColors = () => {
+    if (permit.isSuperload) {
+      return {
+        bg: 'bg-red-50',
+        hover: 'hover:bg-red-100',
+        border: 'border-red-200',
+      }
+    }
+    if (permit.overweightRequired) {
+      return {
+        bg: 'bg-orange-50',
+        hover: 'hover:bg-orange-100',
+        border: 'border-orange-200',
+      }
+    }
+    if (permit.oversizeRequired) {
+      return {
+        bg: 'bg-amber-50',
+        hover: 'hover:bg-amber-100',
+        border: 'border-amber-200',
+      }
+    }
+    return {
+      bg: 'bg-green-50',
+      hover: 'hover:bg-green-100',
+      border: 'border-green-200',
+    }
+  }
+
+  const colors = getRowColors()
+
+  // Parse restriction icons
+  const hasNightRestriction = permit.travelRestrictions.some(r => r.toLowerCase().includes('night'))
+  const hasWeekendRestriction = permit.travelRestrictions.some(r => r.toLowerCase().includes('weekend'))
+  const hasSeasonalRestriction = permit.travelRestrictions.some(r =>
+    r.toLowerCase().includes('spring') || r.toLowerCase().includes('season')
+  )
+
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className={`border rounded-lg overflow-hidden ${colors.border}`}>
       {/* Header - always visible */}
       <button
         onClick={onToggle}
-        className="w-full flex justify-between items-center p-3 bg-slate-50 hover:bg-slate-100 text-left"
+        className={`w-full flex justify-between items-center p-3 ${colors.bg} ${colors.hover} text-left`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium">{permit.state}</span>
+          <Badge variant="outline" className="text-xs font-mono">
+            {permit.stateCode}
+          </Badge>
           <span className="text-sm text-muted-foreground">
             {permit.distanceInState > 0 ? `${permit.distanceInState.toFixed(0)} mi` : ''}
           </span>
+
+          {/* Status badges */}
+          {permit.isSuperload && (
+            <Badge className="text-xs bg-red-100 text-red-700 border-red-200">
+              Superload
+            </Badge>
+          )}
+          {permit.overweightRequired && !permit.isSuperload && (
+            <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200">
+              Overweight
+            </Badge>
+          )}
+          {permit.oversizeRequired && !permit.overweightRequired && !permit.isSuperload && (
+            <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">
+              Oversize
+            </Badge>
+          )}
           {!hasPermitRequired && (
-            <Badge variant="secondary" className="text-xs">No Permit</Badge>
+            <Badge className="text-xs bg-green-100 text-green-700 border-green-200">
+              Legal
+            </Badge>
+          )}
+
+          {/* Restriction icons */}
+          <div className="flex items-center gap-1 ml-1">
+            {hasNightRestriction && (
+              <Moon className="h-3.5 w-3.5 text-indigo-500" title="No night travel" />
+            )}
+            {hasWeekendRestriction && (
+              <Calendar className="h-3.5 w-3.5 text-purple-500" title="No weekend travel" />
+            )}
+            {hasSeasonalRestriction && (
+              <Snowflake className="h-3.5 w-3.5 text-blue-500" title="Seasonal restrictions" />
+            )}
+          </div>
+
+          {/* Escort icons */}
+          {(permit.escortsRequired > 0 || permit.poleCarRequired || permit.policeEscortRequired) && (
+            <div className="flex items-center gap-0.5 ml-1">
+              {permit.escortsRequired > 0 && (
+                <div className="flex" title={`${permit.escortsRequired} escort(s)`}>
+                  {Array.from({ length: Math.min(permit.escortsRequired, 2) }).map((_, i) => (
+                    <Car key={i} className="h-3.5 w-3.5 text-amber-600" />
+                  ))}
+                </div>
+              )}
+              {permit.poleCarRequired && (
+                <Ruler className="h-3.5 w-3.5 text-blue-600" title="Pole car required" />
+              )}
+              {permit.policeEscortRequired && (
+                <Siren className="h-3.5 w-3.5 text-red-600" title="Police escort required" />
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
           {hasPermitRequired && (
-            <span className="font-bold text-green-600">${permit.estimatedFee}</span>
+            <span className="font-bold text-slate-700">${permit.estimatedFee}</span>
           )}
           {isExpanded ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />

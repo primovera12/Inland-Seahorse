@@ -30,3 +30,8 @@ export {
 // Route Intelligence (Phase 8)
 export { RouteIntelligence } from './RouteIntelligence'
 export type { RouteIntelligenceProps, RouteIntelligenceState } from './RouteIntelligence'
+
+// Permit Components (Phase 9)
+export { PermitSummaryCard } from './PermitSummaryCard'
+export { PermitQuickActions } from './PermitQuickActions'
+export { PermitPortalLinks } from './PermitPortalLinks'

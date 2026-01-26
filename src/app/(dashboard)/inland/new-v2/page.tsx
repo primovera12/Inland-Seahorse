@@ -45,6 +45,7 @@ import { RouteIntelligence } from '@/components/load-planner/RouteIntelligence'
 import { ScoreBreakdownPanel } from '@/components/load-planner/ScoreBreakdownPanel'
 import { FitAlternativesPanel } from '@/components/load-planner/FitAlternativesPanel'
 import { SeasonalWarningBanner } from '@/components/load-planner/SeasonalWarningBanner'
+import { PermitSummaryCard, PermitQuickActions } from '@/components/load-planner'
 import {
   planLoads,
   type LoadItem,
@@ -266,6 +267,8 @@ export default function NewInlandQuoteV2Page() {
 
   // Editable permit costs - allows overriding calculated values
   const [editablePermitCosts, setEditablePermitCosts] = useState<EditablePermitCost[]>([])
+  // Full permit summary for display components
+  const [permitSummary, setPermitSummary] = useState<DetailedRoutePermitSummary | null>(null)
 
   // Track if form has been populated from edit data
   const [hasPopulatedFromEdit, setHasPopulatedFromEdit] = useState(false)
@@ -988,6 +991,9 @@ export default function NewInlandQuoteV2Page() {
 
   // Handle permit data calculated from RouteIntelligence
   const handlePermitDataCalculated = useCallback((permitData: DetailedRoutePermitSummary | null) => {
+    // Store the full permit summary for display components
+    setPermitSummary(permitData)
+
     if (!permitData) {
       setEditablePermitCosts([])
       return
@@ -2807,24 +2813,37 @@ export default function NewInlandQuoteV2Page() {
                   </CardContent>
                 </Card>
               ) : (
-                <RouteIntelligence
-                  origin={pickupAddress}
-                  destination={dropoffAddress}
-                  cargoSpecs={cargoSpecs}
-                  perTruckCargoSpecs={perTruckCargoSpecs}
-                  routeData={routeResult || undefined}
-                  onRouteCalculated={(result) => {
-                    setRouteResult(result)
-                    // Only update distance if not already set from SimpleRouteMap
-                    if (!distanceMiles) {
-                      setDistanceMiles(result.totalDistanceMiles)
-                    }
-                  }}
-                  onPermitDataCalculated={handlePermitDataCalculated}
-                />
+                <>
+                  {/* Permit Summary Dashboard */}
+                  <PermitSummaryCard permitSummary={permitSummary} />
+
+                  {/* Quick Actions */}
+                  <PermitQuickActions
+                    permitSummary={permitSummary}
+                    origin={pickupAddress}
+                    destination={dropoffAddress}
+                  />
+
+                  {/* Route Intelligence with detailed per-state breakdown */}
+                  <RouteIntelligence
+                    origin={pickupAddress}
+                    destination={dropoffAddress}
+                    cargoSpecs={cargoSpecs}
+                    perTruckCargoSpecs={perTruckCargoSpecs}
+                    routeData={routeResult || undefined}
+                    onRouteCalculated={(result) => {
+                      setRouteResult(result)
+                      // Only update distance if not already set from SimpleRouteMap
+                      if (!distanceMiles) {
+                        setDistanceMiles(result.totalDistanceMiles)
+                      }
+                    }}
+                    onPermitDataCalculated={handlePermitDataCalculated}
+                  />
+                </>
               )}
 
-              {/* Editable Permits & Escort Costs Table */}
+              {/* Editable Permits & Escort Costs */}
               {editablePermitCosts.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -2837,7 +2856,64 @@ export default function NewInlandQuoteV2Page() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto">
+                    {/* Mobile: Card layout */}
+                    <div className="space-y-3 sm:hidden">
+                      {editablePermitCosts.map((permit) => (
+                        <div key={permit.id} className="p-3 border rounded-lg space-y-2">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="font-medium">{permit.stateName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {permit.stateCode} • {permit.distanceMiles?.toFixed(0) || '—'} mi
+                              </div>
+                            </div>
+                            <div className="text-right font-mono font-medium">
+                              {formatCurrency(permit.permitFee + permit.escortCost)}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Permit Fee</Label>
+                              <div className="relative mt-1">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                <Input
+                                  className="pl-5 text-right font-mono h-8 text-sm"
+                                  value={formatWholeDollars(permit.permitFee)}
+                                  onChange={(e) => updatePermitCost(permit.id, 'permitFee', parseWholeDollarsToCents(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Escort Cost</Label>
+                              <div className="relative mt-1">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                <Input
+                                  className="pl-5 text-right font-mono h-8 text-sm"
+                                  value={formatWholeDollars(permit.escortCost)}
+                                  onChange={(e) => updatePermitCost(permit.id, 'escortCost', parseWholeDollarsToCents(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {/* Mobile totals */}
+                      <div className="p-3 bg-slate-50 border-2 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">Total</span>
+                          <span className="font-mono font-bold text-lg text-primary">
+                            {formatCurrency(permitTotals.total)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm text-muted-foreground mt-1">
+                          <span>Permits: {formatCurrency(permitTotals.permits)}</span>
+                          <span>Escorts: {formatCurrency(permitTotals.escorts)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop: Table layout */}
+                    <div className="hidden sm:block overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b">

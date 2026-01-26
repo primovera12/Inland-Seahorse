@@ -137,6 +137,11 @@ export interface InlandLoadBlock {
   // Load diagram data (from load planner)
   placements?: InlandCargoPlacement[]
   truck_specs?: InlandTruckSpecs
+
+  // Load compliance info (from load planner)
+  warnings?: string[] // Warnings about this load (oversize, bridge clearance, etc.)
+  permits_required?: string[] // Permits needed for this load
+  is_legal?: boolean // Whether this load is legal without permits
 }
 
 // Placement info for cargo items on trailer (for load diagrams)
