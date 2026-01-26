@@ -1345,7 +1345,7 @@ function calculatePlanMetrics(plan: LoadPlan): {
   const legalLoads = plan.loads.filter(l => l.isLegal).length
   const permitCount = plan.loads.reduce((sum, l) => sum + l.permitsRequired.length, 0)
   const escortRequired = plan.loads.some(l =>
-    l.escortRequirements?.leadRequired || l.escortRequirements?.followRequired
+    l.escortRequirements?.frontPilot || l.escortRequirements?.rearPilot
   )
 
   // Estimate total cost
