@@ -151,6 +151,7 @@ export default function NewInlandQuoteV2Page() {
   const [isEquipmentMode, setIsEquipmentMode] = useState(false)
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
+  const [selectedCargoTypeId, setSelectedCargoTypeId] = useState<string | null>(null)
 
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
@@ -202,15 +203,29 @@ export default function NewInlandQuoteV2Page() {
   )
 
   // Equipment database queries (for manual entry mode)
-  const { data: equipmentMakes } = trpc.equipment.getMakes.useQuery()
-  const { data: equipmentModels } = trpc.equipment.getModels.useQuery(
+  const { data: equipmentMakes, isLoading: isLoadingMakes, error: makesError } = trpc.equipment.getMakes.useQuery()
+  const { data: equipmentModels, isLoading: isLoadingModels, error: modelsError } = trpc.equipment.getModels.useQuery(
     { makeId: selectedMakeId! },
     { enabled: !!selectedMakeId }
   )
-  const { data: equipmentDimensions } = trpc.equipment.getDimensions.useQuery(
+  const { data: equipmentDimensions, isLoading: isLoadingDimensions, error: dimensionsError } = trpc.equipment.getDimensions.useQuery(
     { modelId: selectedModelId! },
     { enabled: !!selectedModelId }
   )
+
+  // Show toast errors for equipment queries
+  useEffect(() => {
+    if (makesError) toast.error('Failed to load equipment makes')
+  }, [makesError])
+  useEffect(() => {
+    if (modelsError) toast.error('Failed to load equipment models')
+  }, [modelsError])
+  useEffect(() => {
+    if (dimensionsError) toast.error('Failed to load equipment dimensions')
+  }, [dimensionsError])
+
+  // Load types query (for cargo type dropdown)
+  const { data: loadTypes } = trpc.inland.getLoadTypes.useQuery()
 
   // Generate quote number on mount (only for new quotes)
   useEffect(() => {
@@ -388,10 +403,10 @@ export default function NewInlandQuoteV2Page() {
   useEffect(() => {
     if (equipmentDimensions && isEquipmentMode) {
       // Convert inches to feet for display (dimensions come in inches from DB)
-      setManualLength((equipmentDimensions.length / 12).toFixed(2))
-      setManualWidth((equipmentDimensions.width / 12).toFixed(2))
-      setManualHeight((equipmentDimensions.height / 12).toFixed(2))
-      setManualWeight(equipmentDimensions.weight.toString())
+      setManualLength((equipmentDimensions.length_inches / 12).toFixed(2))
+      setManualWidth((equipmentDimensions.width_inches / 12).toFixed(2))
+      setManualHeight((equipmentDimensions.height_inches / 12).toFixed(2))
+      setManualWeight(equipmentDimensions.weight_lbs?.toString() || '')
     }
   }, [equipmentDimensions, isEquipmentMode])
 
@@ -439,7 +454,11 @@ export default function NewInlandQuoteV2Page() {
       }),
     }
 
-    setCargoItems(prev => [...prev, newItem])
+    setCargoItems(prev => {
+      const updated = [...prev, newItem]
+      toast.success(`Item added! ${updated.length} total item${updated.length > 1 ? 's' : ''}.`)
+      return updated
+    })
 
     // Reset form
     setManualDescription('')
@@ -452,8 +471,6 @@ export default function NewInlandQuoteV2Page() {
       setSelectedMakeId(null)
       setSelectedModelId(null)
     }
-
-    toast.success('Cargo item added')
   }, [
     manualDescription,
     manualLength,
@@ -818,6 +835,15 @@ export default function NewInlandQuoteV2Page() {
 
   // TRPC utils
   const utils = trpc.useUtils()
+
+  // Create load type mutation (for custom cargo types)
+  const createLoadType = trpc.inland.createLoadType.useMutation({
+    onSuccess: () => {
+      utils.inland.getLoadTypes.invalidate()
+      toast.success('Custom cargo type added')
+    },
+    onError: () => toast.error('Failed to create cargo type')
+  })
 
   // Create quote mutation (saves to load_planner_quotes table)
   const createQuote = trpc.loadPlannerQuotes.create.useMutation({
@@ -1509,7 +1535,8 @@ export default function NewInlandQuoteV2Page() {
                                 label: make.name,
                               })) || []
                             }
-                            placeholder="Select make..."
+                            placeholder={isLoadingMakes ? "Loading makes..." : "Select make..."}
+                            disabled={isLoadingMakes}
                           />
                         </div>
                         <div>
@@ -1533,13 +1560,29 @@ export default function NewInlandQuoteV2Page() {
                                 label: model.name,
                               })) || []
                             }
-                            placeholder={selectedMakeId ? "Select model..." : "Select make first"}
-                            disabled={!selectedMakeId}
+                            placeholder={
+                              !selectedMakeId
+                                ? "Select make first"
+                                : isLoadingModels
+                                  ? "Loading models..."
+                                  : "Select model..."
+                            }
+                            disabled={!selectedMakeId || isLoadingModels}
                           />
                         </div>
-                        {equipmentDimensions && (
+                        {isLoadingDimensions && selectedModelId && (
+                          <div className="col-span-2 text-xs text-blue-600 bg-blue-50 p-2 rounded animate-pulse">
+                            Loading dimensions...
+                          </div>
+                        )}
+                        {equipmentDimensions && !isLoadingDimensions && (
                           <div className="col-span-2 text-xs text-green-600 bg-green-50 p-2 rounded">
                             Dimensions loaded from database - you can still modify them below
+                          </div>
+                        )}
+                        {selectedModelId && !isLoadingDimensions && !equipmentDimensions && (
+                          <div className="col-span-2 text-xs text-yellow-600 bg-yellow-50 p-2 rounded">
+                            No dimensions in database for this model - please enter manually
                           </div>
                         )}
                       </div>
@@ -1547,6 +1590,42 @@ export default function NewInlandQuoteV2Page() {
 
                     {/* Manual Entry Form */}
                     <div className="space-y-4">
+                      {/* Cargo Type Selector - shown when not in equipment mode */}
+                      {!isEquipmentMode && (
+                        <div>
+                          <Label className="text-xs font-medium">Cargo Type</Label>
+                          <SearchableSelect
+                            value={selectedCargoTypeId || ''}
+                            onChange={(value) => {
+                              setSelectedCargoTypeId(value || null)
+                              if (value) {
+                                const loadType = loadTypes?.find(lt => lt.id === value)
+                                if (loadType) {
+                                  setManualDescription(loadType.name)
+                                }
+                              }
+                            }}
+                            options={
+                              loadTypes?.map((lt) => ({
+                                value: lt.id,
+                                label: lt.name,
+                                description: lt.description || undefined,
+                              })) || []
+                            }
+                            placeholder="Select cargo type or enter custom..."
+                            allowCustom={true}
+                            customPlaceholder="Enter custom cargo type name..."
+                            onCustomAdd={(customName) => {
+                              createLoadType.mutate({
+                                name: customName,
+                                description: 'Custom cargo type',
+                              })
+                              setManualDescription(customName)
+                            }}
+                          />
+                        </div>
+                      )}
+
                       <div>
                         <Label className="text-xs font-medium">Description</Label>
                         <Input
@@ -1636,30 +1715,46 @@ export default function NewInlandQuoteV2Page() {
                 </Card>
               )}
 
-              {/* Load Plan Summary - Links to Trucks tab for details */}
+              {/* Smart Truck Recommendation - Shows automatically calculated load plan */}
               {loadPlan && loadPlan.loads.length > 0 && (
-                <Card className="border-l-4 border-l-blue-500">
+                <Card className="border-l-4 border-l-green-500">
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Truck className="h-5 w-5 text-blue-500" />
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <Truck className="h-5 w-5 text-green-600" />
+                        </div>
                         <div>
-                          <div className="font-medium">
-                            {loadPlan.totalTrucks} truck{loadPlan.totalTrucks > 1 ? 's' : ''} required
+                          <div className="font-medium text-green-700">
+                            Smart Recommendation: {loadPlan.totalTrucks} {loadPlan.loads[0]?.recommendedTruck?.name || 'truck'}{loadPlan.totalTrucks > 1 ? 's' : ''}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {loadPlan.totalItems} items &bull; {(loadPlan.totalWeight / 1000).toFixed(1)}k lbs
+                            {loadPlan.totalItems} item{loadPlan.totalItems !== 1 ? 's' : ''} &bull; {(loadPlan.totalWeight / 1000).toFixed(1)}k lbs total weight
                           </div>
                         </div>
                       </div>
                       <Button variant="outline" size="sm" onClick={() => setActiveTab('trucks')}>
-                        View Details
+                        Customize
                       </Button>
                     </div>
                     {loadPlan.warnings.length > 0 && (
-                      <div className="mt-3 flex items-center gap-2 text-yellow-600 text-sm">
-                        <AlertTriangle className="w-4 h-4" />
-                        <span>{loadPlan.warnings.length} warning{loadPlan.warnings.length > 1 ? 's' : ''}</span>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {loadPlan.warnings.slice(0, 3).map((warning, i) => (
+                          <Badge key={i} variant="outline" className="text-yellow-600 border-yellow-300">
+                            <AlertTriangle className="w-3 h-3 mr-1" />
+                            {warning}
+                          </Badge>
+                        ))}
+                        {loadPlan.warnings.length > 3 && (
+                          <Badge variant="outline" className="text-yellow-600 border-yellow-300">
+                            +{loadPlan.warnings.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    {loadPlan.loads.some(l => l.permitsRequired.length > 0) && (
+                      <div className="mt-2 text-xs text-orange-600">
+                        Permits may be required - see Trucks tab for details
                       </div>
                     )}
                   </CardContent>
