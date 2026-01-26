@@ -47,6 +47,12 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Slider } from '@/components/ui/slider'
+import {
   Truck,
   Plus,
   Search,
@@ -60,6 +66,9 @@ import {
   ArrowUpDown,
   Filter,
   ChevronDown,
+  ChevronUp,
+  X,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -73,6 +82,16 @@ import {
   type TruckTypeRecord,
 } from '@/types/truck-types'
 
+// Quick filter presets
+const QUICK_FILTERS = [
+  { label: 'Low Deck (<3ft)', filter: { maxDeckHeight: 3 } },
+  { label: 'Heavy Haul (>60k lbs)', filter: { minWeight: 60000 } },
+  { label: 'Drive-On', filter: { loadingMethod: 'drive-on' as LoadingMethod } },
+  { label: 'Crane Loading', filter: { loadingMethod: 'crane' as LoadingMethod } },
+  { label: 'Long (>53ft)', filter: { minLength: 53 } },
+  { label: 'Extra Wide (>8.5ft)', filter: { minWidth: 9 } },
+] as const
+
 // Format number with commas
 function formatNumber(num: number): string {
   return num.toLocaleString()
@@ -84,9 +103,20 @@ export default function TruckTypesPage() {
   // State
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<TruckCategory | 'all'>('all')
+  const [loadingMethodFilter, setLoadingMethodFilter] = useState<LoadingMethod | 'all'>('all')
   const [showInactive, setShowInactive] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTruck, setEditingTruck] = useState<TruckTypeRecord | null>(null)
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
+
+  // Range filters
+  const [minDeckLength, setMinDeckLength] = useState<number | ''>('')
+  const [maxDeckLength, setMaxDeckLength] = useState<number | ''>('')
+  const [minDeckHeight, setMinDeckHeight] = useState<number | ''>('')
+  const [maxDeckHeight, setMaxDeckHeight] = useState<number | ''>('')
+  const [minWeight, setMinWeight] = useState<number | ''>('')
+  const [maxWeight, setMaxWeight] = useState<number | ''>('')
+  const [minWidth, setMinWidth] = useState<number | ''>('')
 
   // Form state
   const [formData, setFormData] = useState({
@@ -250,20 +280,102 @@ export default function TruckTypesPage() {
     }
   }
 
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    return (
+      categoryFilter !== 'all' ||
+      loadingMethodFilter !== 'all' ||
+      minDeckLength !== '' ||
+      maxDeckLength !== '' ||
+      minDeckHeight !== '' ||
+      maxDeckHeight !== '' ||
+      minWeight !== '' ||
+      maxWeight !== '' ||
+      minWidth !== '' ||
+      search !== ''
+    )
+  }, [categoryFilter, loadingMethodFilter, minDeckLength, maxDeckLength, minDeckHeight, maxDeckHeight, minWeight, maxWeight, minWidth, search])
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSearch('')
+    setCategoryFilter('all')
+    setLoadingMethodFilter('all')
+    setMinDeckLength('')
+    setMaxDeckLength('')
+    setMinDeckHeight('')
+    setMaxDeckHeight('')
+    setMinWeight('')
+    setMaxWeight('')
+    setMinWidth('')
+  }
+
+  // Apply quick filter
+  const applyQuickFilter = (filter: typeof QUICK_FILTERS[number]['filter']) => {
+    if ('maxDeckHeight' in filter) setMaxDeckHeight(filter.maxDeckHeight)
+    if ('minWeight' in filter) setMinWeight(filter.minWeight)
+    if ('loadingMethod' in filter) setLoadingMethodFilter(filter.loadingMethod)
+    if ('minLength' in filter) setMinDeckLength(filter.minLength)
+    if ('minWidth' in filter) setMinWidth(filter.minWidth)
+  }
+
+  // Apply client-side filters
+  const filteredTrucks = useMemo(() => {
+    if (!truckTypesData?.data) return []
+
+    return truckTypesData.data.filter((truck) => {
+      // Loading method filter
+      if (loadingMethodFilter !== 'all' && truck.loadingMethod !== loadingMethodFilter) {
+        return false
+      }
+
+      // Deck length filters
+      if (minDeckLength !== '' && truck.deckLengthFt < minDeckLength) {
+        return false
+      }
+      if (maxDeckLength !== '' && truck.deckLengthFt > maxDeckLength) {
+        return false
+      }
+
+      // Deck height filters
+      if (minDeckHeight !== '' && truck.deckHeightFt < minDeckHeight) {
+        return false
+      }
+      if (maxDeckHeight !== '' && truck.deckHeightFt > maxDeckHeight) {
+        return false
+      }
+
+      // Weight filters
+      if (minWeight !== '' && truck.maxCargoWeightLbs < minWeight) {
+        return false
+      }
+      if (maxWeight !== '' && truck.maxCargoWeightLbs > maxWeight) {
+        return false
+      }
+
+      // Width filter
+      if (minWidth !== '' && truck.deckWidthFt < minWidth) {
+        return false
+      }
+
+      return true
+    })
+  }, [truckTypesData, loadingMethodFilter, minDeckLength, maxDeckLength, minDeckHeight, maxDeckHeight, minWeight, maxWeight, minWidth])
+
   // Group trucks by category for display
   const groupedTrucks = useMemo(() => {
-    if (!truckTypesData?.data) return {}
     const grouped: Record<string, TruckTypeListItem[]> = {}
-    for (const truck of truckTypesData.data) {
+    for (const truck of filteredTrucks) {
       if (!grouped[truck.category]) {
         grouped[truck.category] = []
       }
       grouped[truck.category].push(truck)
     }
     return grouped
-  }, [truckTypesData])
+  }, [filteredTrucks])
 
   const totalCount = truckTypesData?.total || 0
+  const filteredCount = filteredTrucks.length
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -308,9 +420,35 @@ export default function TruckTypesPage() {
         ))}
       </div>
 
+      {/* Quick Filters */}
+      <div className="flex flex-wrap gap-2">
+        <span className="text-sm text-muted-foreground self-center mr-2">Quick filters:</span>
+        {QUICK_FILTERS.map((qf) => (
+          <Badge
+            key={qf.label}
+            variant="outline"
+            className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+            onClick={() => applyQuickFilter(qf.filter)}
+          >
+            {qf.label}
+          </Badge>
+        ))}
+        {hasActiveFilters && (
+          <Badge
+            variant="destructive"
+            className="cursor-pointer"
+            onClick={clearAllFilters}
+          >
+            <X className="h-3 w-3 mr-1" />
+            Clear All
+          </Badge>
+        )}
+      </div>
+
       {/* Filters */}
       <Card>
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-4">
+          {/* Primary Filters Row */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -333,7 +471,23 @@ export default function TruckTypesPage() {
                 <SelectItem value="all">All Categories</SelectItem>
                 {TRUCK_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>
-                    {TRUCK_CATEGORY_LABELS[cat]}
+                    {TRUCK_CATEGORY_LABELS[cat]} {categoryCounts?.[cat] ? `(${categoryCounts[cat]})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={loadingMethodFilter}
+              onValueChange={(v) => setLoadingMethodFilter(v as LoadingMethod | 'all')}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Loading Method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Loading Methods</SelectItem>
+                {LOADING_METHODS.map((method) => (
+                  <SelectItem key={method} value={method}>
+                    {LOADING_METHOD_LABELS[method]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -344,13 +498,197 @@ export default function TruckTypesPage() {
                 onCheckedChange={setShowInactive}
                 id="show-inactive"
               />
-              <Label htmlFor="show-inactive" className="text-sm">
+              <Label htmlFor="show-inactive" className="text-sm whitespace-nowrap">
                 Show Inactive
               </Label>
             </div>
           </div>
+
+          {/* Advanced Filters */}
+          <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <SlidersHorizontal className="h-4 w-4" />
+                Advanced Filters
+                {advancedFiltersOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Deck Length */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Ruler className="h-4 w-4" />
+                    Deck Length (ft)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={minDeckLength}
+                      onChange={(e) => setMinDeckLength(e.target.value ? parseFloat(e.target.value) : '')}
+                      className="w-20"
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={maxDeckLength}
+                      onChange={(e) => setMaxDeckLength(e.target.value ? parseFloat(e.target.value) : '')}
+                      className="w-20"
+                    />
+                  </div>
+                </div>
+
+                {/* Deck Height */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    Deck Height (ft)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      step="0.5"
+                      value={minDeckHeight}
+                      onChange={(e) => setMinDeckHeight(e.target.value ? parseFloat(e.target.value) : '')}
+                      className="w-20"
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      step="0.5"
+                      value={maxDeckHeight}
+                      onChange={(e) => setMaxDeckHeight(e.target.value ? parseFloat(e.target.value) : '')}
+                      className="w-20"
+                    />
+                  </div>
+                </div>
+
+                {/* Max Cargo Weight */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Weight className="h-4 w-4" />
+                    Max Cargo Weight (lbs)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      step="1000"
+                      value={minWeight}
+                      onChange={(e) => setMinWeight(e.target.value ? parseInt(e.target.value) : '')}
+                      className="w-24"
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      step="1000"
+                      value={maxWeight}
+                      onChange={(e) => setMaxWeight(e.target.value ? parseInt(e.target.value) : '')}
+                      className="w-24"
+                    />
+                  </div>
+                </div>
+
+                {/* Deck Width */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Min Deck Width (ft)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 8.5"
+                    step="0.5"
+                    value={minWidth}
+                    onChange={(e) => setMinWidth(e.target.value ? parseFloat(e.target.value) : '')}
+                    className="w-24"
+                  />
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Active Filters Display */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t">
+              <span className="text-sm text-muted-foreground self-center">Active:</span>
+              {categoryFilter !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  Category: {TRUCK_CATEGORY_LABELS[categoryFilter]}
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setCategoryFilter('all')} />
+                </Badge>
+              )}
+              {loadingMethodFilter !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  Loading: {LOADING_METHOD_LABELS[loadingMethodFilter]}
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setLoadingMethodFilter('all')} />
+                </Badge>
+              )}
+              {minDeckLength !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Length ≥ {minDeckLength}ft
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMinDeckLength('')} />
+                </Badge>
+              )}
+              {maxDeckLength !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Length ≤ {maxDeckLength}ft
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMaxDeckLength('')} />
+                </Badge>
+              )}
+              {minDeckHeight !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Height ≥ {minDeckHeight}ft
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMinDeckHeight('')} />
+                </Badge>
+              )}
+              {maxDeckHeight !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Height ≤ {maxDeckHeight}ft
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMaxDeckHeight('')} />
+                </Badge>
+              )}
+              {minWeight !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Weight ≥ {formatNumber(minWeight)} lbs
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMinWeight('')} />
+                </Badge>
+              )}
+              {maxWeight !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Weight ≤ {formatNumber(maxWeight)} lbs
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMaxWeight('')} />
+                </Badge>
+              )}
+              {minWidth !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Width ≥ {minWidth}ft
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setMinWidth('')} />
+                </Badge>
+              )}
+              {search !== '' && (
+                <Badge variant="secondary" className="gap-1">
+                  Search: "{search}"
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setSearch('')} />
+                </Badge>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Results Count */}
+      {hasActiveFilters && (
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredCount} of {totalCount} truck types
+        </div>
+      )}
 
       {/* Truck Types Table */}
       {isLoading ? (
@@ -360,15 +698,24 @@ export default function TruckTypesPage() {
             <p className="text-muted-foreground mt-2">Loading truck types...</p>
           </CardContent>
         </Card>
-      ) : !truckTypesData?.data?.length ? (
+      ) : !filteredTrucks.length ? (
         <Card>
           <CardContent className="py-10 text-center">
             <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No truck types found</p>
-            <Button variant="outline" className="mt-4" onClick={openCreateDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add First Truck Type
-            </Button>
+            <p className="text-muted-foreground">
+              {hasActiveFilters ? 'No truck types match your filters' : 'No truck types found'}
+            </p>
+            {hasActiveFilters ? (
+              <Button variant="outline" className="mt-4" onClick={clearAllFilters}>
+                <X className="h-4 w-4 mr-2" />
+                Clear Filters
+              </Button>
+            ) : (
+              <Button variant="outline" className="mt-4" onClick={openCreateDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Truck Type
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -388,7 +735,7 @@ export default function TruckTypesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {truckTypesData.data.map((truck) => (
+                {filteredTrucks.map((truck) => (
                   <TableRow key={truck.id} className={!truck.isActive ? 'opacity-50' : ''}>
                     <TableCell>
                       <div>
