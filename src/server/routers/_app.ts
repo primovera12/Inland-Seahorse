@@ -20,6 +20,9 @@ import { rateCardsRouter } from './rateCards'
 import { crmRouter } from './crm'
 import { permissionsRouter } from './permissions'
 import { loadPlannerRouter } from './load-planner'
+import { loadPlannerQuotesRouter } from './loadPlannerQuotes'
+import { carriersRouter } from './carriers'
+import { loadHistoryRouter } from './loadHistory'
 
 export const appRouter = router({
   user: userRouter,
@@ -44,6 +47,9 @@ export const appRouter = router({
   crm: crmRouter,
   permissions: permissionsRouter,
   loadPlanner: loadPlannerRouter,
+  loadPlannerQuotes: loadPlannerQuotesRouter,
+  carriers: carriersRouter,
+  loadHistory: loadHistoryRouter,
 })
 
 export type AppRouter = typeof appRouter

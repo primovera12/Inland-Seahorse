@@ -8,6 +8,7 @@ export const ACCESSORIAL_BILLING_UNITS = [
   'week',
   'month',
   'stop',
+  'mile',
 ] as const
 
 export type AccessorialBillingUnit = (typeof ACCESSORIAL_BILLING_UNITS)[number]
@@ -88,8 +89,17 @@ export interface InlandDestinationBlock {
   duration_minutes?: number
   route_polyline?: string
 
+  // Static map URL for PDF display
+  static_map_url?: string
+
   // Load blocks for this destination
   load_blocks: InlandLoadBlock[]
+
+  // Destination-level services (V2 format - consolidated at destination level instead of per-load)
+  service_items?: ServiceItem[]
+
+  // Destination-level accessorial charges (V2 format)
+  accessorial_charges?: AccessorialCharge[]
 
   // Destination totals (services only)
   subtotal: number

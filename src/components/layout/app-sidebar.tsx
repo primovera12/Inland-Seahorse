@@ -17,6 +17,9 @@ import {
   MessageSquare,
   Kanban,
   ScrollText,
+  ClipboardList,
+  Users,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -82,11 +85,6 @@ const inlandItems: NavItem[] = [
     icon: Truck,
   },
   {
-    title: 'Load Planner (Testing)',
-    url: '/inland/new-v2',
-    icon: Package,
-  },
-  {
     title: 'Inland History',
     url: '/inland/history',
     icon: History,
@@ -96,6 +94,29 @@ const inlandItems: NavItem[] = [
     url: '/settings/inland',
     icon: Settings,
     roles: ADMIN_ROLES,
+  },
+]
+
+const operationsItems: NavItem[] = [
+  {
+    title: 'Load Planner',
+    url: '/inland/new-v2',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Quote History',
+    url: '/load-planner/history',
+    icon: History,
+  },
+  {
+    title: 'Carriers',
+    url: '/carriers',
+    icon: Users,
+  },
+  {
+    title: 'Load History',
+    url: '/load-history',
+    icon: BarChart3,
   },
 ]
 
@@ -170,6 +191,11 @@ export function AppSidebar() {
     [userRole]
   )
 
+  const filteredOperationsItems = useMemo(
+    () => operationsItems.filter((item) => canAccess(item, userRole)),
+    [userRole]
+  )
+
   const filteredCrmItems = useMemo(
     () => crmItems.filter((item) => canAccess(item, userRole)),
     [userRole]
@@ -238,6 +264,31 @@ export function AppSidebar() {
                         href={item.url}
                         className={cn(
                           pathname === item.url && 'bg-sidebar-accent'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {filteredOperationsItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Operations</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredOperationsItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url || pathname.startsWith(item.url + '/')}>
+                      <Link
+                        href={item.url}
+                        className={cn(
+                          (pathname === item.url || pathname.startsWith(item.url + '/')) && 'bg-sidebar-accent'
                         )}
                       >
                         <item.icon className="h-4 w-4" />

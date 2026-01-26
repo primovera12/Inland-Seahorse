@@ -168,22 +168,26 @@ export default function PublicQuotePage() {
         accessorials_total?: number
       }> | undefined
 
+      // V2 quotes store pickup/dropoff in quote_data, older quotes use top-level fields
+      const pickupData = quoteData?.pickup as { address?: string; city?: string; state?: string; zip?: string } | undefined
+      const dropoffData = quoteData?.dropoff as { address?: string; city?: string; state?: string; zip?: string } | undefined
+
       // Build inland transport info
       const inlandTransport: InlandTransportInfo = {
         enabled: true,
         pickup: {
-          address: (quote as { origin_address?: string }).origin_address || '',
-          city: (quote as { origin_city?: string }).origin_city || '',
-          state: (quote as { origin_state?: string }).origin_state || '',
-          zip: (quote as { origin_zip?: string }).origin_zip || '',
+          address: (quote as { origin_address?: string }).origin_address || pickupData?.address || '',
+          city: (quote as { origin_city?: string }).origin_city || pickupData?.city || '',
+          state: (quote as { origin_state?: string }).origin_state || pickupData?.state || '',
+          zip: (quote as { origin_zip?: string }).origin_zip || pickupData?.zip || '',
         },
         dropoff: {
-          address: (quote as { destination_address?: string }).destination_address || '',
-          city: (quote as { destination_city?: string }).destination_city || '',
-          state: (quote as { destination_state?: string }).destination_state || '',
-          zip: (quote as { destination_zip?: string }).destination_zip || '',
+          address: (quote as { destination_address?: string }).destination_address || dropoffData?.address || '',
+          city: (quote as { destination_city?: string }).destination_city || dropoffData?.city || '',
+          state: (quote as { destination_state?: string }).destination_state || dropoffData?.state || '',
+          zip: (quote as { destination_zip?: string }).destination_zip || dropoffData?.zip || '',
         },
-        distance_miles: (quote as { distance_miles?: number }).distance_miles,
+        distance_miles: (quote as { distance_miles?: number }).distance_miles || (quoteData?.distance_miles as number | undefined),
         static_map_url: quoteData?.static_map_url as string | undefined,
         total: quote.total || 0,
         accessorials_total: quoteData?.accessorials_total as number | undefined,
@@ -200,18 +204,21 @@ export default function PublicQuotePage() {
           dropoff_zip: dest.dropoff_zip,
           distance_miles: dest.distance_miles,
           static_map_url: dest.static_map_url,
-          load_blocks: dest.load_blocks.map(lb => ({
+          load_blocks: (dest.load_blocks || []).map(lb => ({
             id: lb.id,
             truck_type_id: lb.truck_type_id,
             truck_type_name: lb.truck_type_name,
             cargo_items: lb.cargo_items || [],
-            service_items: lb.service_items,
-            accessorial_charges: lb.accessorial_charges,
-            subtotal: lb.subtotal,
+            service_items: lb.service_items || [],
+            accessorial_charges: lb.accessorial_charges || [],
+            subtotal: lb.subtotal || 0,
             accessorials_total: lb.accessorials_total || 0,
           })),
-          subtotal: dest.subtotal,
-          accessorials_total: dest.accessorials_total,
+          // Service items and accessorial charges at destination level (V2 format)
+          service_items: (dest as any).service_items || [],
+          accessorial_charges: (dest as any).accessorial_charges || [],
+          subtotal: (dest as any).subtotal || 0,
+          accessorials_total: (dest as any).accessorials_total || 0,
         })) as InlandTransportInfo['destinationBlocks'],
       }
 
@@ -244,8 +251,8 @@ export default function PublicQuotePage() {
         miscFeesTotal: 0,
         inlandTotal: quote.total || 0,
         grandTotal: quote.total || 0,
-        customerNotes: quoteData?.notes as string | undefined,
-        termsAndConditions: (settings as { quote_terms?: string }).quote_terms || '',
+        customerNotes: (quoteData?.notes || quoteData?.quoteNotes) as string | undefined,
+        termsAndConditions: (settings as { terms_inland?: string }).terms_inland || '',
       }
     } else {
       // Dismantle quote transformation

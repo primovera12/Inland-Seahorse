@@ -47,7 +47,7 @@ import type { RouteResult } from '@/lib/load-planner/route-calculator'
 import type { DetailedRoutePermitSummary } from '@/lib/load-planner/types'
 import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
 import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DEFAULT_ACCESSORIAL_TYPES,
   ACCESSORIAL_BILLING_UNITS,
@@ -108,6 +108,11 @@ interface EditablePermitCost {
 
 export default function NewInlandQuoteV2Page() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Edit mode - detect if we're editing an existing quote
+  const editQuoteId = searchParams.get('edit')
+  const isEditMode = !!editQuoteId
 
   // Tab state - Customer is first tab
   const [activeTab, setActiveTab] = useState('customer')
@@ -183,9 +188,18 @@ export default function NewInlandQuoteV2Page() {
   // Editable permit costs - allows overriding calculated values
   const [editablePermitCosts, setEditablePermitCosts] = useState<EditablePermitCost[]>([])
 
+  // Track if form has been populated from edit data
+  const [hasPopulatedFromEdit, setHasPopulatedFromEdit] = useState(false)
+
   // Fetch settings for PDF and service types
   const { data: settings } = trpc.settings.get.useQuery()
   const { data: serviceTypes } = trpc.inland.getServiceTypes.useQuery()
+
+  // Fetch existing quote data when in edit mode
+  const { data: editQuoteData, isLoading: isLoadingEditQuote } = trpc.loadPlannerQuotes.getById.useQuery(
+    { id: editQuoteId! },
+    { enabled: isEditMode && !!editQuoteId }
+  )
 
   // Equipment database queries (for manual entry mode)
   const { data: equipmentMakes } = trpc.equipment.getMakes.useQuery()
@@ -198,10 +212,138 @@ export default function NewInlandQuoteV2Page() {
     { enabled: !!selectedModelId }
   )
 
-  // Generate quote number on mount
+  // Generate quote number on mount (only for new quotes)
   useEffect(() => {
-    setQuoteNumber(generateInlandQuoteNumber())
-  }, [])
+    if (!isEditMode) {
+      setQuoteNumber(generateInlandQuoteNumber())
+    }
+  }, [isEditMode])
+
+  // Populate form when editing an existing quote
+  useEffect(() => {
+    if (!editQuoteData || hasPopulatedFromEdit || !isEditMode) return
+
+    // Mark as populated to prevent re-runs
+    setHasPopulatedFromEdit(true)
+
+    // Set quote number
+    setQuoteNumber(editQuoteData.quoteNumber)
+
+    // Customer tab
+    setCustomerName(editQuoteData.customerName || '')
+    setCustomerEmail(editQuoteData.customerEmail || '')
+    setCustomerPhone(editQuoteData.customerPhone || '')
+    setCustomerCompany(editQuoteData.customerCompany || '')
+    setSelectedCompanyId(editQuoteData.companyId || null)
+    setCustomerAddress({
+      address: editQuoteData.customerAddressLine1 || '',
+      city: editQuoteData.customerAddressCity || '',
+      state: editQuoteData.customerAddressState || '',
+      zip: editQuoteData.customerAddressZip || '',
+    })
+
+    // Route tab
+    setPickupAddress(editQuoteData.pickupAddress || '')
+    setPickupCity(editQuoteData.pickupCity || '')
+    setPickupState(editQuoteData.pickupState || '')
+    setPickupZip(editQuoteData.pickupZip || '')
+    setPickupLat(editQuoteData.pickupLat ?? undefined)
+    setPickupLng(editQuoteData.pickupLng ?? undefined)
+    setDropoffAddress(editQuoteData.dropoffAddress || '')
+    setDropoffCity(editQuoteData.dropoffCity || '')
+    setDropoffState(editQuoteData.dropoffState || '')
+    setDropoffZip(editQuoteData.dropoffZip || '')
+    setDropoffLat(editQuoteData.dropoffLat ?? undefined)
+    setDropoffLng(editQuoteData.dropoffLng ?? undefined)
+    setDistanceMiles(editQuoteData.distanceMiles)
+    setDurationMinutes(editQuoteData.durationMinutes)
+    setRoutePolyline(editQuoteData.routePolyline || '')
+
+    // Cargo tab - convert from database format (inches) to form format (feet)
+    if (editQuoteData.cargoItems && editQuoteData.cargoItems.length > 0) {
+      const loadItems: LoadItem[] = editQuoteData.cargoItems.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        length: (item.lengthIn || 0) / 12, // Convert inches to feet
+        width: (item.widthIn || 0) / 12,
+        height: (item.heightIn || 0) / 12,
+        weight: item.weightLbs || 0,
+        stackable: item.stackable,
+        bottomOnly: item.bottomOnly,
+        maxLayers: item.maxLayers ?? undefined,
+        fragile: item.fragile,
+        hazmat: item.hazmat,
+        notes: item.notes ?? undefined,
+        orientation: item.orientation,
+        geometry: item.geometry as 'box' | 'cylinder' | 'hollow-cylinder',
+        equipmentMakeId: item.equipmentMakeId ?? undefined,
+        equipmentModelId: item.equipmentModelId ?? undefined,
+        equipmentMatched: !!item.equipmentMakeId,
+        dimensionsSource: item.dimensionsSource ?? undefined,
+        imageUrl: item.imageUrl ?? undefined,
+        imageUrl2: item.imageUrl2 ?? undefined,
+        frontImageUrl: item.frontImageUrl ?? undefined,
+        sideImageUrl: item.sideImageUrl ?? undefined,
+        assignedTruckIndex: item.assignedTruckIndex ?? undefined,
+        placementX: item.placementX ?? undefined,
+        placementY: item.placementY ?? undefined,
+        placementZ: item.placementZ ?? undefined,
+        placementRotation: item.placementRotation ?? undefined,
+      }))
+      setCargoItems(loadItems)
+    }
+
+    // Pricing tab - service items
+    if (editQuoteData.serviceItems && editQuoteData.serviceItems.length > 0) {
+      const services: ServiceItem[] = editQuoteData.serviceItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        rate: item.rateCents,
+        quantity: item.quantity,
+        total: item.totalCents,
+        truckIndex: item.truckIndex ?? undefined,
+      }))
+      setServiceItems(services)
+    }
+
+    // Pricing tab - accessorial charges
+    if (editQuoteData.accessorials && editQuoteData.accessorials.length > 0) {
+      const accessorials: AccessorialCharge[] = editQuoteData.accessorials.map((item) => ({
+        id: item.id,
+        accessorial_type_id: item.accessorialTypeId || '',
+        name: item.name,
+        billing_unit: item.billingUnit,
+        rate: item.rateCents,
+        quantity: item.quantity,
+        total: item.totalCents,
+        notes: item.notes ?? undefined,
+      }))
+      setAccessorialItems(accessorials)
+    }
+
+    // Permits tab
+    if (editQuoteData.permits && editQuoteData.permits.length > 0) {
+      const permits: EditablePermitCost[] = editQuoteData.permits.map((permit) => ({
+        id: permit.id,
+        stateCode: permit.stateCode,
+        stateName: permit.stateName || '',
+        permitFee: permit.permitFeeCents ?? permit.calculatedPermitFeeCents ?? 0,
+        escortCost: permit.escortCostCents ?? permit.calculatedEscortCostCents ?? 0,
+        calculatedPermitFee: permit.calculatedPermitFeeCents ?? undefined,
+        calculatedEscortCost: permit.calculatedEscortCostCents ?? undefined,
+        distanceMiles: permit.distanceMiles ?? undefined,
+        notes: permit.notes ?? undefined,
+      }))
+      setEditablePermitCosts(permits)
+    }
+
+    // Notes
+    setInternalNotes(editQuoteData.internalNotes || '')
+    setQuoteNotes(editQuoteData.quoteNotes || '')
+
+    toast.success('Quote loaded for editing')
+  }, [editQuoteData, hasPopulatedFromEdit, isEditMode])
 
   // Auto-calculate load plan when cargo changes
   useEffect(() => {
@@ -677,15 +819,28 @@ export default function NewInlandQuoteV2Page() {
   // TRPC utils
   const utils = trpc.useUtils()
 
-  // Create quote mutation
-  const createQuote = trpc.inland.create.useMutation({
+  // Create quote mutation (saves to load_planner_quotes table)
+  const createQuote = trpc.loadPlannerQuotes.create.useMutation({
     onSuccess: () => {
       toast.success('Quote created successfully')
-      utils.inland.getHistory.invalidate()
-      router.push('/inland/history')
+      utils.loadPlannerQuotes.getAll.invalidate()
+      router.push('/load-planner/history')
     },
     onError: (error) => {
       toast.error(`Failed to create quote: ${error.message}`)
+    },
+  })
+
+  // Update quote mutation (for edit mode)
+  const updateQuote = trpc.loadPlannerQuotes.update.useMutation({
+    onSuccess: () => {
+      toast.success('Quote updated successfully')
+      utils.loadPlannerQuotes.getAll.invalidate()
+      utils.loadPlannerQuotes.getById.invalidate({ id: editQuoteId! })
+      router.push('/load-planner/history')
+    },
+    onError: (error) => {
+      toast.error(`Failed to update quote: ${error.message}`)
     },
   })
 
@@ -699,78 +854,143 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
-    // Convert LoadItems (feet) back to legacy format (inches) for storage
-    const legacyCargoItems = cargoItems.map((item) => ({
-      id: item.id,
-      description: item.description,
-      quantity: item.quantity,
-      length_inches: item.length * 12,
-      width_inches: item.width * 12,
-      height_inches: item.height * 12,
-      weight_lbs: item.weight,
-      is_oversize: item.width > 8.5 || item.height > 10,
-      is_overweight: item.weight > 48000,
-    }))
+    // Build quote data for load_planner_quotes table
+    const quoteData = {
+      // Customer
+      customerName: customerName || undefined,
+      customerEmail: customerEmail || undefined,
+      customerPhone: customerPhone || undefined,
+      customerCompany: customerCompany || undefined,
+      companyId: selectedCompanyId || undefined,
 
-    createQuote.mutate({
-      quote_number: quoteNumber,
-      status: 'draft',
-      customer_name: customerName,
-      customer_email: customerEmail || undefined,
-      customer_phone: customerPhone || undefined,
-      customer_company: customerCompany || undefined,
-      company_id: selectedCompanyId || undefined,
-      subtotal: grandTotal,
-      total: grandTotal,
-      quote_data: {
-        version: 2, // Mark as v2 quote with load planner
-        pickup: {
-          address: pickupAddress,
-          city: pickupCity,
-          state: pickupState,
-          zip: pickupZip,
-          lat: pickupLat,
-          lng: pickupLng,
-        },
-        dropoff: {
-          address: dropoffAddress,
-          city: dropoffCity,
-          state: dropoffState,
-          zip: dropoffZip,
-          lat: dropoffLat,
-          lng: dropoffLng,
-        },
-        distance_miles: distanceMiles,
-        duration_minutes: durationMinutes,
-        route_polyline: routePolyline,
-        cargo_items: legacyCargoItems,
-        load_plan: loadPlan
-          ? {
-              totalTrucks: loadPlan.totalTrucks,
-              totalWeight: loadPlan.totalWeight,
-              totalItems: loadPlan.totalItems,
-              loads: loadPlan.loads.map((load) => ({
-                id: load.id,
-                truck: {
-                  id: load.recommendedTruck.id,
-                  name: load.recommendedTruck.name,
-                  category: load.recommendedTruck.category,
-                },
-                items: load.items.map((i) => i.id),
-                placements: load.placements,
-                weight: load.weight,
-                warnings: load.warnings,
-              })),
-              warnings: loadPlan.warnings,
-            }
-          : null,
-        service_items: serviceItems,
-        pricing_per_truck: pricingPerTruck,
-        internalNotes,
-        quoteNotes,
-        customerAddress,
-      },
-    })
+      // Customer address
+      customerAddressLine1: customerAddress.address || undefined,
+      customerAddressCity: customerAddress.city || undefined,
+      customerAddressState: customerAddress.state || undefined,
+      customerAddressZip: customerAddress.zip || undefined,
+
+      // Pickup
+      pickupAddress: pickupAddress || undefined,
+      pickupCity: pickupCity || undefined,
+      pickupState: pickupState || undefined,
+      pickupZip: pickupZip || undefined,
+      pickupLat: pickupLat,
+      pickupLng: pickupLng,
+
+      // Dropoff
+      dropoffAddress: dropoffAddress || undefined,
+      dropoffCity: dropoffCity || undefined,
+      dropoffState: dropoffState || undefined,
+      dropoffZip: dropoffZip || undefined,
+      dropoffLat: dropoffLat,
+      dropoffLng: dropoffLng,
+
+      // Route
+      distanceMiles: distanceMiles ?? undefined,
+      durationMinutes: durationMinutes ?? undefined,
+      routePolyline: routePolyline || undefined,
+
+      // Totals
+      subtotalCents: grandTotal,
+      totalCents: grandTotal,
+
+      // Notes
+      internalNotes: internalNotes || undefined,
+      quoteNotes: quoteNotes || undefined,
+
+      // Cargo items - convert feet to inches for database storage
+      cargoItems: cargoItems.map((item, index) => ({
+        description: item.description,
+        quantity: item.quantity,
+        lengthIn: Math.round(item.length * 12),
+        widthIn: Math.round(item.width * 12),
+        heightIn: Math.round(item.height * 12),
+        weightLbs: Math.round(item.weight),
+        stackable: item.stackable || false,
+        bottomOnly: item.bottomOnly || false,
+        maxLayers: item.maxLayers,
+        fragile: item.fragile || false,
+        hazmat: item.hazmat || false,
+        notes: item.notes,
+        orientation: item.orientation || 1,
+        geometry: (item.geometry || 'box') as 'box' | 'cylinder' | 'hollow-cylinder',
+        equipmentMakeId: item.equipmentMakeId,
+        equipmentModelId: item.equipmentModelId,
+        dimensionsSource: item.dimensionsSource as 'ai' | 'database' | 'manual' | undefined,
+        imageUrl: item.imageUrl,
+        imageUrl2: item.imageUrl2,
+        frontImageUrl: item.frontImageUrl,
+        sideImageUrl: item.sideImageUrl,
+        assignedTruckIndex: (item as any).assignedTruckIndex,
+        placementX: (item as any).placementX,
+        placementY: (item as any).placementY,
+        placementZ: (item as any).placementZ,
+        placementRotation: (item as any).placementRotation,
+        sortOrder: index,
+      })),
+
+      // Trucks from load plan
+      trucks: loadPlan?.loads.map((load, index) => ({
+        truckIndex: index,
+        truckTypeId: load.recommendedTruck.id,
+        truckName: load.recommendedTruck.name,
+        truckCategory: load.recommendedTruck.category,
+        deckLengthFt: load.recommendedTruck.deckLength,
+        deckWidthFt: load.recommendedTruck.deckWidth,
+        deckHeightFt: load.recommendedTruck.deckHeight,
+        wellLengthFt: load.recommendedTruck.wellLength,
+        maxCargoWeightLbs: load.recommendedTruck.maxCargoWeight,
+        totalWeightLbs: load.weight,
+        totalItems: load.items.length,
+        isLegal: load.isLegal ?? true,
+        permitsRequired: load.permitsRequired,
+        warnings: load.warnings,
+        truckScore: load.truckScore,
+      })) || [],
+
+      // Service items
+      serviceItems: serviceItems.map((item, index) => ({
+        name: item.name,
+        rateCents: item.rate,
+        quantity: item.quantity,
+        totalCents: item.total,
+        truckIndex: item.truckIndex,
+        sortOrder: index,
+      })),
+
+      // Accessorials
+      accessorials: accessorialItems.map((item, index) => ({
+        name: item.name,
+        billingUnit: item.billing_unit as 'flat' | 'hour' | 'day' | 'way' | 'week' | 'month' | 'stop' | 'mile',
+        rateCents: item.rate,
+        quantity: item.quantity,
+        totalCents: item.total,
+        notes: item.notes,
+        sortOrder: index,
+      })),
+
+      // Permits
+      permits: editablePermitCosts.map((permit) => ({
+        stateCode: permit.stateCode,
+        stateName: permit.stateName,
+        calculatedPermitFeeCents: permit.calculatedPermitFee,
+        calculatedEscortCostCents: permit.calculatedEscortCost,
+        permitFeeCents: permit.permitFee,
+        escortCostCents: permit.escortCost,
+        distanceMiles: permit.distanceMiles,
+        notes: permit.notes,
+      })),
+    }
+
+    // Call update or create based on mode
+    if (isEditMode && editQuoteId) {
+      updateQuote.mutate({
+        id: editQuoteId,
+        ...quoteData,
+      })
+    } else {
+      createQuote.mutate(quoteData)
+    }
   }
 
   // Build PDF data for automatic preview
@@ -889,6 +1109,7 @@ export default function NewInlandQuoteV2Page() {
           // Accessorial charges at destination level
           accessorial_charges: accessorialItems.map(a => ({
             id: a.id,
+            accessorial_type_id: a.accessorial_type_id,
             name: a.name,
             billing_unit: a.billing_unit,
             rate: a.rate,
@@ -973,17 +1194,28 @@ export default function NewInlandQuoteV2Page() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">New Inland Quote</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                {isEditMode ? 'Edit Quote' : 'New Inland Quote'}
+              </h1>
               <Badge variant="secondary" className="text-xs">
                 v2 with Load Planner
               </Badge>
+              {isLoadingEditQuote && (
+                <Badge variant="outline" className="text-xs">
+                  Loading...
+                </Badge>
+              )}
             </div>
             <p className="text-sm sm:text-base text-muted-foreground">Quote #{quoteNumber}</p>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
-            <Button onClick={handleSaveQuote} disabled={createQuote.isPending}>
+            <Button onClick={handleSaveQuote} disabled={createQuote.isPending || updateQuote.isPending}>
               <Save className="h-4 w-4 mr-2" />
-              {createQuote.isPending ? 'Saving...' : 'Save Quote'}
+              {createQuote.isPending || updateQuote.isPending
+                ? 'Saving...'
+                : isEditMode
+                  ? 'Update Quote'
+                  : 'Save Quote'}
             </Button>
             <Button variant="outline" onClick={resetForm}>
               <Trash2 className="h-4 w-4 mr-2" />

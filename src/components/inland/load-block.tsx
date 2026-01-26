@@ -37,6 +37,7 @@ const BILLING_UNIT_LABELS: Record<AccessorialBillingUnit, string> = {
   week: '/wk',
   month: '/mo',
   stop: '/stop',
+  mile: '/mi',
 }
 
 // Predefined service types for inland transportation
