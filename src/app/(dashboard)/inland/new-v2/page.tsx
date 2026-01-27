@@ -262,7 +262,8 @@ export default function NewInlandQuoteV2Page() {
     width: string
     height: string
     weight: string
-    unitSystem: 'imperial' | 'metric'
+    lengthUnit: 'mm' | 'cm' | 'm' | 'ft'
+    weightUnit: 'lbs' | 'kg' | 'ton'
   } | null>(null)
 
   // Recent items for quick-add (stored in localStorage, always in imperial/feet)
@@ -276,15 +277,38 @@ export default function NewInlandQuoteV2Page() {
   }
   const [recentItems, setRecentItems] = useState<RecentCargoItem[]>([])
 
-  // Unit preference state (imperial = ft/lbs, metric = m/kg)
-  const [unitSystem, setUnitSystem] = useState<'imperial' | 'metric'>('imperial')
+  // Unit preference state - separate dropdowns for length and weight
+  type LengthUnit = 'mm' | 'cm' | 'm' | 'ft'
+  type WeightUnit = 'lbs' | 'kg' | 'ton'
+  const [lengthUnit, setLengthUnit] = useState<LengthUnit>('ft')
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs')
+
+  // Length unit options for dropdown
+  const lengthUnitOptions: { value: LengthUnit; label: string }[] = [
+    { value: 'mm', label: 'Millimeters (mm)' },
+    { value: 'cm', label: 'Centimeters (cm)' },
+    { value: 'm', label: 'Meters (m)' },
+    { value: 'ft', label: 'Feet (ft)' },
+  ]
+
+  // Weight unit options for dropdown
+  const weightUnitOptions: { value: WeightUnit; label: string }[] = [
+    { value: 'lbs', label: 'Pounds (lbs)' },
+    { value: 'kg', label: 'Kilograms (kg)' },
+    { value: 'ton', label: 'Tons (ton)' },
+  ]
 
   // Load preferences from localStorage on mount
   useEffect(() => {
-    // Unit preference
-    const savedUnit = localStorage.getItem('cargoUnitPreference')
-    if (savedUnit === 'metric' || savedUnit === 'imperial') {
-      setUnitSystem(savedUnit)
+    // Length unit preference
+    const savedLengthUnit = localStorage.getItem('cargoLengthUnit')
+    if (savedLengthUnit && ['mm', 'cm', 'm', 'ft'].includes(savedLengthUnit)) {
+      setLengthUnit(savedLengthUnit as LengthUnit)
+    }
+    // Weight unit preference
+    const savedWeightUnit = localStorage.getItem('cargoWeightUnit')
+    if (savedWeightUnit && ['lbs', 'kg', 'ton'].includes(savedWeightUnit)) {
+      setWeightUnit(savedWeightUnit as WeightUnit)
     }
     // Recent items
     try {
@@ -300,17 +324,56 @@ export default function NewInlandQuoteV2Page() {
     }
   }, [])
 
-  // Save unit preference to localStorage when changed
-  const handleUnitSystemChange = useCallback((newSystem: 'imperial' | 'metric') => {
-    setUnitSystem(newSystem)
-    localStorage.setItem('cargoUnitPreference', newSystem)
+  // Save unit preferences to localStorage when changed
+  const handleLengthUnitChange = useCallback((newUnit: LengthUnit) => {
+    setLengthUnit(newUnit)
+    localStorage.setItem('cargoLengthUnit', newUnit)
   }, [])
 
-  // Unit conversion helpers
+  const handleWeightUnitChange = useCallback((newUnit: WeightUnit) => {
+    setWeightUnit(newUnit)
+    localStorage.setItem('cargoWeightUnit', newUnit)
+  }, [])
+
+  // Unit conversion helpers - convert any length unit to feet (internal storage)
+  const lengthToFeet = (value: number, unit: LengthUnit): number => {
+    switch (unit) {
+      case 'mm': return value / 304.8
+      case 'cm': return value / 30.48
+      case 'm': return value * 3.28084
+      case 'ft': return value
+    }
+  }
+
+  const feetToLengthUnit = (feet: number, unit: LengthUnit): number => {
+    switch (unit) {
+      case 'mm': return feet * 304.8
+      case 'cm': return feet * 30.48
+      case 'm': return feet / 3.28084
+      case 'ft': return feet
+    }
+  }
+
+  // Unit conversion helpers - convert any weight unit to lbs (internal storage)
+  const weightToLbs = (value: number, unit: WeightUnit): number => {
+    switch (unit) {
+      case 'lbs': return value
+      case 'kg': return value * 2.20462
+      case 'ton': return value * 2000
+    }
+  }
+
+  const lbsToWeightUnit = (lbs: number, unit: WeightUnit): number => {
+    switch (unit) {
+      case 'lbs': return lbs
+      case 'kg': return lbs / 2.20462
+      case 'ton': return lbs / 2000
+    }
+  }
+
+  // Legacy conversion helpers for compatibility with BulkCargoEntry
   const metersToFeet = (m: number) => m * 3.28084
-  const feetToMeters = (ft: number) => ft / 3.28084
   const kgToLbs = (kg: number) => kg * 2.20462
-  const lbsToKg = (lbs: number) => lbs / 2.20462
 
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
@@ -612,11 +675,11 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
-    // Convert to imperial (feet/lbs) if user entered metric values
-    const length = unitSystem === 'metric' ? metersToFeet(rawLength) : rawLength
-    const width = unitSystem === 'metric' ? metersToFeet(rawWidth) : rawWidth
-    const height = unitSystem === 'metric' ? metersToFeet(rawHeight) : rawHeight
-    const weight = unitSystem === 'metric' ? kgToLbs(rawWeight) : rawWeight
+    // Convert to imperial (feet/lbs) for internal storage
+    const length = lengthToFeet(rawLength, lengthUnit)
+    const width = lengthToFeet(rawWidth, lengthUnit)
+    const height = lengthToFeet(rawHeight, lengthUnit)
+    const weight = weightToLbs(rawWeight, weightUnit)
 
     // Find the make and model names from the selected IDs
     const makeName = selectedMakeId
@@ -657,7 +720,8 @@ export default function NewInlandQuoteV2Page() {
       width: manualWidth,
       height: manualHeight,
       weight: manualWeight,
-      unitSystem,
+      lengthUnit,
+      weightUnit,
     })
 
     // Add to recent items (stored in imperial units)
@@ -700,7 +764,10 @@ export default function NewInlandQuoteV2Page() {
     selectedModelId,
     equipmentMakes,
     equipmentModels,
-    unitSystem,
+    lengthUnit,
+    weightUnit,
+    lengthToFeet,
+    weightToLbs,
   ])
 
   // Duplicate last item - fills form with previous item's data
@@ -710,58 +777,51 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
-    // If the last item was added in a different unit system, convert
-    if (lastAddedItem.unitSystem !== unitSystem) {
-      const l = parseFloat(lastAddedItem.length) || 0
-      const w = parseFloat(lastAddedItem.width) || 0
-      const h = parseFloat(lastAddedItem.height) || 0
-      const wt = parseFloat(lastAddedItem.weight) || 0
+    const l = parseFloat(lastAddedItem.length) || 0
+    const w = parseFloat(lastAddedItem.width) || 0
+    const h = parseFloat(lastAddedItem.height) || 0
+    const wt = parseFloat(lastAddedItem.weight) || 0
 
-      if (lastAddedItem.unitSystem === 'imperial' && unitSystem === 'metric') {
-        // Convert from feet/lbs to meters/kg
-        setManualLength(feetToMeters(l).toFixed(2))
-        setManualWidth(feetToMeters(w).toFixed(2))
-        setManualHeight(feetToMeters(h).toFixed(2))
-        setManualWeight(lbsToKg(wt).toFixed(1))
-      } else {
-        // Convert from meters/kg to feet/lbs
-        setManualLength(metersToFeet(l).toFixed(2))
-        setManualWidth(metersToFeet(w).toFixed(2))
-        setManualHeight(metersToFeet(h).toFixed(2))
-        setManualWeight(kgToLbs(wt).toFixed(1))
-      }
+    // Convert dimensions if length units differ
+    if (lastAddedItem.lengthUnit !== lengthUnit) {
+      // Convert: old unit -> feet -> new unit
+      const lFeet = lengthToFeet(l, lastAddedItem.lengthUnit)
+      const wFeet = lengthToFeet(w, lastAddedItem.lengthUnit)
+      const hFeet = lengthToFeet(h, lastAddedItem.lengthUnit)
+      setManualLength(feetToLengthUnit(lFeet, lengthUnit).toFixed(2))
+      setManualWidth(feetToLengthUnit(wFeet, lengthUnit).toFixed(2))
+      setManualHeight(feetToLengthUnit(hFeet, lengthUnit).toFixed(2))
     } else {
-      // Same unit system, use values directly
       setManualLength(lastAddedItem.length)
       setManualWidth(lastAddedItem.width)
       setManualHeight(lastAddedItem.height)
+    }
+
+    // Convert weight if weight units differ
+    if (lastAddedItem.weightUnit !== weightUnit) {
+      // Convert: old unit -> lbs -> new unit
+      const wtLbs = weightToLbs(wt, lastAddedItem.weightUnit)
+      setManualWeight(lbsToWeightUnit(wtLbs, weightUnit).toFixed(2))
+    } else {
       setManualWeight(lastAddedItem.weight)
     }
 
     setManualDescription(lastAddedItem.description)
     setManualQuantity('1')
     toast.success('Form filled with last item - edit as needed')
-  }, [lastAddedItem, unitSystem])
+  }, [lastAddedItem, lengthUnit, weightUnit, lengthToFeet, feetToLengthUnit, weightToLbs, lbsToWeightUnit])
 
   // Quick-add from recent items - fills form with selected recent item
   const handleQuickAddRecent = useCallback((item: RecentCargoItem) => {
-    // Recent items are stored in imperial (feet/lbs)
-    if (unitSystem === 'metric') {
-      // Convert to metric for display
-      setManualLength(feetToMeters(item.length).toFixed(2))
-      setManualWidth(feetToMeters(item.width).toFixed(2))
-      setManualHeight(feetToMeters(item.height).toFixed(2))
-      setManualWeight(lbsToKg(item.weight).toFixed(1))
-    } else {
-      setManualLength(item.length.toFixed(1))
-      setManualWidth(item.width.toFixed(1))
-      setManualHeight(item.height.toFixed(1))
-      setManualWeight(item.weight.toFixed(0))
-    }
+    // Recent items are stored in imperial (feet/lbs), convert to current units
+    setManualLength(feetToLengthUnit(item.length, lengthUnit).toFixed(2))
+    setManualWidth(feetToLengthUnit(item.width, lengthUnit).toFixed(2))
+    setManualHeight(feetToLengthUnit(item.height, lengthUnit).toFixed(2))
+    setManualWeight(lbsToWeightUnit(item.weight, weightUnit).toFixed(2))
     setManualDescription(item.description)
     setManualQuantity('1')
     toast.success(`Loaded "${item.description}" - adjust quantity and add`)
-  }, [unitSystem])
+  }, [lengthUnit, weightUnit, feetToLengthUnit, lbsToWeightUnit])
 
   // Handle Enter key to add item (for manual entry form)
   const handleManualEntryKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -1906,40 +1966,31 @@ export default function NewInlandQuoteV2Page() {
                       />
                     </div>
 
-                    {/* Unit System Toggle */}
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    {/* Unit System Selectors */}
+                    <div className="p-3 bg-muted/50 rounded-lg space-y-3">
                       <div className="flex items-center gap-2">
                         <span className="text-sm">📐</span>
-                        <div>
-                          <span className="text-sm font-medium">Unit System</span>
-                          <p className="text-xs text-muted-foreground">
-                            {unitSystem === 'imperial' ? 'Feet & Pounds' : 'Meters & Kilograms'}
-                          </p>
-                        </div>
+                        <span className="text-sm font-medium">Units</span>
                       </div>
-                      <div className="flex items-center gap-1 bg-background rounded-md p-1 border">
-                        <button
-                          type="button"
-                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                            unitSystem === 'imperial'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                          onClick={() => handleUnitSystemChange('imperial')}
-                        >
-                          Imperial
-                        </button>
-                        <button
-                          type="button"
-                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                            unitSystem === 'metric'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                          onClick={() => handleUnitSystemChange('metric')}
-                        >
-                          Metric
-                        </button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">Dimensions</Label>
+                          <SearchableSelect
+                            value={lengthUnit}
+                            onChange={(value) => handleLengthUnitChange(value as LengthUnit)}
+                            options={lengthUnitOptions.map(opt => ({ value: opt.value, label: opt.label }))}
+                            placeholder="Select unit"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">Weight</Label>
+                          <SearchableSelect
+                            value={weightUnit}
+                            onChange={(value) => handleWeightUnitChange(value as WeightUnit)}
+                            options={weightUnitOptions.map(opt => ({ value: opt.value, label: opt.label }))}
+                            placeholder="Select unit"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -1963,10 +2014,11 @@ export default function NewInlandQuoteV2Page() {
                     {/* Bulk Entry Component or Single Entry Form */}
                     {isBulkEntryMode ? (
                       <BulkCargoEntry
-                        unitSystem={unitSystem}
+                        lengthUnit={lengthUnit}
+                        weightUnit={weightUnit}
                         onAddItems={handleBulkAddItems}
-                        metersToFeet={metersToFeet}
-                        kgToLbs={kgToLbs}
+                        lengthToFeet={lengthToFeet}
+                        weightToLbs={weightToLbs}
                       />
                     ) : (
                       <>
@@ -2055,18 +2107,11 @@ export default function NewInlandQuoteV2Page() {
                                 const stdType = STANDARD_CARGO_TYPES.find(st => st.id === value)
                                 if (stdType) {
                                   setManualDescription(stdType.name)
-                                  // Auto-fill dimensions (convert to metric if needed)
-                                  if (unitSystem === 'metric') {
-                                    setManualLength(feetToMeters(stdType.length).toFixed(2))
-                                    setManualWidth(feetToMeters(stdType.width).toFixed(2))
-                                    setManualHeight(feetToMeters(stdType.height).toFixed(2))
-                                    setManualWeight(lbsToKg(stdType.weight).toFixed(0))
-                                  } else {
-                                    setManualLength(stdType.length.toString())
-                                    setManualWidth(stdType.width.toString())
-                                    setManualHeight(stdType.height.toString())
-                                    setManualWeight(stdType.weight.toString())
-                                  }
+                                  // Auto-fill dimensions (convert from feet/lbs to current units)
+                                  setManualLength(feetToLengthUnit(stdType.length, lengthUnit).toFixed(2))
+                                  setManualWidth(feetToLengthUnit(stdType.width, lengthUnit).toFixed(2))
+                                  setManualHeight(feetToLengthUnit(stdType.height, lengthUnit).toFixed(2))
+                                  setManualWeight(lbsToWeightUnit(stdType.weight, weightUnit).toFixed(0))
                                 } else {
                                   // Check database load types
                                   const loadType = loadTypes?.find(lt => lt.id === value)
@@ -2115,7 +2160,7 @@ export default function NewInlandQuoteV2Page() {
 
                       <div className="grid grid-cols-4 gap-3">
                         <div>
-                          <Label className="text-xs font-medium">Length ({unitSystem === 'imperial' ? 'ft' : 'm'})</Label>
+                          <Label className="text-xs font-medium">Length ({lengthUnit})</Label>
                           <Input
                             type="number"
                             step="0.1"
@@ -2125,7 +2170,7 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs font-medium">Width ({unitSystem === 'imperial' ? 'ft' : 'm'})</Label>
+                          <Label className="text-xs font-medium">Width ({lengthUnit})</Label>
                           <Input
                             type="number"
                             step="0.1"
@@ -2135,7 +2180,7 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs font-medium">Height ({unitSystem === 'imperial' ? 'ft' : 'm'})</Label>
+                          <Label className="text-xs font-medium">Height ({lengthUnit})</Label>
                           <Input
                             type="number"
                             step="0.1"
@@ -2145,7 +2190,7 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs font-medium">Weight ({unitSystem === 'imperial' ? 'lbs' : 'kg'})</Label>
+                          <Label className="text-xs font-medium">Weight ({weightUnit})</Label>
                           <Input
                             type="number"
                             value={manualWeight}

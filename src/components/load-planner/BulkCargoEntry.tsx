@@ -18,11 +18,15 @@ interface BulkEntryRow {
   quantity: string
 }
 
+type LengthUnit = 'mm' | 'cm' | 'm' | 'ft'
+type WeightUnit = 'lbs' | 'kg' | 'ton'
+
 interface BulkCargoEntryProps {
-  unitSystem: 'imperial' | 'metric'
+  lengthUnit: LengthUnit
+  weightUnit: WeightUnit
   onAddItems: (items: LoadItem[]) => void
-  metersToFeet: (m: number) => number
-  kgToLbs: (kg: number) => number
+  lengthToFeet: (value: number, unit: LengthUnit) => number
+  weightToLbs: (value: number, unit: WeightUnit) => number
 }
 
 const createEmptyRow = (): BulkEntryRow => ({
@@ -36,10 +40,11 @@ const createEmptyRow = (): BulkEntryRow => ({
 })
 
 export function BulkCargoEntry({
-  unitSystem,
+  lengthUnit,
+  weightUnit,
   onAddItems,
-  metersToFeet,
-  kgToLbs,
+  lengthToFeet,
+  weightToLbs,
 }: BulkCargoEntryProps) {
   const [rows, setRows] = useState<BulkEntryRow[]>([
     createEmptyRow(),
@@ -121,11 +126,11 @@ export function BulkCargoEntry({
         continue
       }
 
-      // Convert to imperial if needed
-      const length = unitSystem === 'metric' ? metersToFeet(rawLength) : rawLength
-      const width = unitSystem === 'metric' ? metersToFeet(rawWidth) : rawWidth
-      const height = unitSystem === 'metric' ? metersToFeet(rawHeight) : rawHeight
-      const weight = unitSystem === 'metric' ? kgToLbs(rawWeight) : rawWeight
+      // Convert to imperial (feet/lbs) for internal storage
+      const length = lengthToFeet(rawLength, lengthUnit)
+      const width = lengthToFeet(rawWidth, lengthUnit)
+      const height = lengthToFeet(rawHeight, lengthUnit)
+      const weight = weightToLbs(rawWeight, weightUnit)
 
       validItems.push({
         id: `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -155,10 +160,11 @@ export function BulkCargoEntry({
     } else {
       toast.success(`Added ${validItems.length} items`)
     }
-  }, [rows, unitSystem, metersToFeet, kgToLbs, onAddItems])
+  }, [rows, lengthUnit, weightUnit, lengthToFeet, weightToLbs, onAddItems])
 
-  const dimUnit = unitSystem === 'imperial' ? 'ft' : 'm'
-  const weightUnit = unitSystem === 'imperial' ? 'lbs' : 'kg'
+  // Display units directly from props
+  const dimUnit = lengthUnit
+  const wtUnit = weightUnit
 
   return (
     <div className="space-y-4">
@@ -178,7 +184,7 @@ export function BulkCargoEntry({
         <span>L ({dimUnit})</span>
         <span>W ({dimUnit})</span>
         <span>H ({dimUnit})</span>
-        <span>Wt ({weightUnit})</span>
+        <span>Wt ({wtUnit})</span>
         <span>Qty</span>
         <span></span>
       </div>
