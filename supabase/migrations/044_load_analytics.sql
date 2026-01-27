@@ -176,10 +176,6 @@ $$ LANGUAGE plpgsql;
 -- Additional indexes on load_history for analytics queries
 -- ============================================================================
 
--- Index for month-based aggregations
-CREATE INDEX IF NOT EXISTS idx_lh_pickup_month
-ON load_history (DATE_TRUNC('month', pickup_date));
-
 -- Composite index for lane + date queries
 CREATE INDEX IF NOT EXISTS idx_lh_lane_date
 ON load_history (origin_state, destination_state, pickup_date DESC);
@@ -188,6 +184,11 @@ ON load_history (origin_state, destination_state, pickup_date DESC);
 CREATE INDEX IF NOT EXISTS idx_lh_equipment_date
 ON load_history (equipment_type_used, pickup_date DESC)
 WHERE equipment_type_used IS NOT NULL;
+
+-- Index for pickup_date to support month/week aggregations
+CREATE INDEX IF NOT EXISTS idx_lh_pickup_date
+ON load_history (pickup_date DESC)
+WHERE pickup_date IS NOT NULL;
 
 -- ============================================================================
 -- Trigger: Auto-refresh daily stats when load_history changes
