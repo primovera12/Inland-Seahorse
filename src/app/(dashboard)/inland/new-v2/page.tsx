@@ -669,6 +669,10 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
+    if (rawWeight <= 0) {
+      toast.warning('No weight entered - you can still add this item but automatic truck recommendations won\'t work. You can manually select a truck.')
+    }
+
     // Convert to imperial (feet/lbs) for internal storage
     const length = lengthToFeet(rawLength, lengthUnit)
     const width = lengthToFeet(rawWidth, lengthUnit)
@@ -2039,8 +2043,14 @@ export default function NewInlandQuoteV2Page() {
                           </div>
                         )}
                         {equipmentDimensions && !isLoadingDimensions && (
-                          <div className="col-span-2 text-xs text-green-600 bg-green-50 p-2 rounded">
-                            Dimensions loaded from database - you can still modify them below
+                          <div className={`col-span-2 text-xs p-2 rounded ${
+                            !equipmentDimensions.weight_lbs
+                              ? 'text-amber-600 bg-amber-50'
+                              : 'text-green-600 bg-green-50'
+                          }`}>
+                            {!equipmentDimensions.weight_lbs
+                              ? 'Dimensions loaded but weight is missing - please enter weight below'
+                              : 'Dimensions loaded from database - you can still modify them below'}
                           </div>
                         )}
                         {selectedModelId && !isLoadingDimensions && !equipmentDimensions && (

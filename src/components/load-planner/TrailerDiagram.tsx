@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { TruckType, LoadItem, ItemPlacement } from '@/lib/load-planner/types'
-import { getItemColor } from './LoadPlanVisualizer'
+import { getItemColor, getItemColorConfig, ITEM_COLOR_CONFIG } from './LoadPlanVisualizer'
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 
 interface TrailerDiagramProps {
@@ -105,47 +105,121 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
         <h4 className="text-sm font-medium text-gray-600 mb-2">Top View (Looking Down)</h4>
         <div className="bg-gray-100 rounded-lg p-2 overflow-x-auto">
           <svg
-            width={topViewWidth}
+            width={topViewWidth + 40}
             height={topViewHeight}
-            viewBox={`0 0 ${topViewWidth} ${topViewHeight}`}
+            viewBox={`0 0 ${topViewWidth + 40} ${topViewHeight}`}
             className="mx-auto"
           >
-            {/* Trailer Deck */}
-            <rect
-              x={PADDING}
-              y={PADDING}
-              width={deckLength * SCALE}
-              height={deckWidth * SCALE}
-              fill="#f3f4f6"
-              stroke="#9ca3af"
-              strokeWidth="2"
-            />
+            {/* Gradient and Filter Definitions */}
+            <defs>
+              {/* Trailer deck gradient */}
+              <linearGradient id="deckGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#e5e7eb" />
+                <stop offset="50%" stopColor="#f3f4f6" />
+                <stop offset="100%" stopColor="#d1d5db" />
+              </linearGradient>
 
-            {/* Grid Lines */}
-            {Array.from({ length: Math.floor(deckLength / 5) + 1 }).map((_, i) => (
-              <line
-                key={`v-${i}`}
-                x1={PADDING + i * 5 * SCALE}
-                y1={PADDING}
-                x2={PADDING + i * 5 * SCALE}
-                y2={PADDING + deckWidth * SCALE}
-                stroke="#e5e7eb"
-                strokeWidth="1"
-                strokeDasharray="2,2"
+              {/* Metal gradient for gooseneck */}
+              <linearGradient id="metalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#9ca3af" />
+                <stop offset="40%" stopColor="#6b7280" />
+                <stop offset="100%" stopColor="#4b5563" />
+              </linearGradient>
+
+              {/* Drop shadow filter */}
+              <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="2" dy="2" stdDeviation="2" floodOpacity="0.15" />
+              </filter>
+
+              {/* Item gradients for 3D effect */}
+              {ITEM_COLOR_CONFIG.map((color, i) => (
+                <linearGradient key={`itemGrad-${i}`} id={`itemGradient-${i}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={color.light} />
+                  <stop offset="50%" stopColor={color.base} />
+                  <stop offset="100%" stopColor={color.dark} />
+                </linearGradient>
+              ))}
+            </defs>
+
+            {/* Trailer Deck with gradient and shadow */}
+            <g filter="url(#dropShadow)">
+              <rect
+                x={PADDING}
+                y={PADDING}
+                width={deckLength * SCALE}
+                height={deckWidth * SCALE}
+                fill="url(#deckGradient)"
+                stroke="#6b7280"
+                strokeWidth="2"
+                rx="3"
               />
+              {/* Inner deck border highlight */}
+              <rect
+                x={PADDING + 3}
+                y={PADDING + 3}
+                width={deckLength * SCALE - 6}
+                height={deckWidth * SCALE - 6}
+                fill="none"
+                stroke="#9ca3af"
+                strokeWidth="1"
+                rx="2"
+                opacity="0.4"
+              />
+            </g>
+
+            {/* Grid Lines with labels */}
+            {Array.from({ length: Math.floor(deckLength / 5) + 1 }).map((_, i) => (
+              <g key={`grid-${i}`}>
+                <line
+                  x1={PADDING + i * 5 * SCALE}
+                  y1={PADDING}
+                  x2={PADDING + i * 5 * SCALE}
+                  y2={PADDING + deckWidth * SCALE}
+                  stroke="#d1d5db"
+                  strokeWidth="1"
+                  strokeDasharray="4,4"
+                  opacity="0.6"
+                />
+                {/* Grid label every 10 feet */}
+                {i % 2 === 0 && i > 0 && (
+                  <text
+                    x={PADDING + i * 5 * SCALE}
+                    y={PADDING - 6}
+                    textAnchor="middle"
+                    fill="#9ca3af"
+                    fontSize="8"
+                  >
+                    {i * 5}'
+                  </text>
+                )}
+              </g>
             ))}
 
-            {/* Gooseneck indicator (front of trailer) */}
-            <polygon
-              points={`
-                ${PADDING - 10},${PADDING + deckWidth * SCALE / 2 - 15}
-                ${PADDING},${PADDING + deckWidth * SCALE / 2}
-                ${PADDING - 10},${PADDING + deckWidth * SCALE / 2 + 15}
-              `}
-              fill="#6b7280"
-            />
+            {/* Enhanced Gooseneck with kingpin */}
+            <g>
+              <polygon
+                points={`
+                  ${PADDING - 12},${PADDING + deckWidth * SCALE / 2 - 18}
+                  ${PADDING},${PADDING + deckWidth * SCALE / 2 - 6}
+                  ${PADDING},${PADDING + deckWidth * SCALE / 2 + 6}
+                  ${PADDING - 12},${PADDING + deckWidth * SCALE / 2 + 18}
+                `}
+                fill="url(#metalGradient)"
+                stroke="#4b5563"
+                strokeWidth="1"
+              />
+              {/* Kingpin */}
+              <circle
+                cx={PADDING - 6}
+                cy={PADDING + deckWidth * SCALE / 2}
+                r={4}
+                fill="#374151"
+                stroke="#1f2937"
+                strokeWidth="1"
+              />
+            </g>
 
-            {/* Cargo Items */}
+            {/* Cargo Items with 3D effect */}
             {items.map((item, index) => {
               const placement = getPlacement(item.id)
               if (!placement) return null
@@ -153,6 +227,15 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
               const itemLength = placement.rotated ? item.width : item.length
               const itemWidth = placement.rotated ? item.length : item.width
               const isHovered = hoveredItem === item.id
+              const colorConfig = getItemColorConfig(index)
+              const x = PADDING + placement.x * SCALE
+              const y = PADDING + placement.z * SCALE
+              const w = itemLength * SCALE
+              const h = itemWidth * SCALE
+
+              // Check oversize/overweight
+              const isOversize = item.width > 8.5 || item.height > 13.5 || item.length > 53
+              const isOverweight = item.weight > 20000
 
               return (
                 <g
@@ -161,79 +244,178 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                   onMouseLeave={() => setHoveredItem(null)}
                   className="cursor-pointer"
                 >
+                  {/* Drop shadow */}
                   <rect
-                    x={PADDING + placement.x * SCALE}
-                    y={PADDING + placement.z * SCALE}
-                    width={itemLength * SCALE}
-                    height={itemWidth * SCALE}
-                    fill={getItemColor(index)}
-                    fillOpacity={isHovered ? "1" : "0.8"}
-                    stroke={isHovered ? "#3b82f6" : getItemColor(index)}
-                    strokeWidth={isHovered ? "3" : "2"}
-                    rx="2"
+                    x={x + 3}
+                    y={y + 3}
+                    width={w}
+                    height={h}
+                    fill="rgba(0,0,0,0.2)"
+                    rx="3"
+                    style={{
+                      opacity: isHovered ? 0.3 : 0.2,
+                      transition: 'opacity 0.15s ease'
+                    }}
+                  />
+
+                  {/* Main block with gradient */}
+                  <rect
+                    x={x}
+                    y={y}
+                    width={w}
+                    height={h}
+                    fill={`url(#itemGradient-${index % ITEM_COLOR_CONFIG.length})`}
+                    stroke={isHovered ? '#1f2937' : colorConfig.dark}
+                    strokeWidth={isHovered ? 2.5 : 1.5}
+                    rx="3"
                     style={{ transition: 'all 0.15s ease' }}
                   />
-                  {/* Item label */}
-                  {itemLength * SCALE > 40 && itemWidth * SCALE > 20 && (
+
+                  {/* Top highlight for 3D effect */}
+                  <rect
+                    x={x + 2}
+                    y={y + 2}
+                    width={w - 4}
+                    height={Math.min(h * 0.25, 8)}
+                    fill="rgba(255,255,255,0.3)"
+                    rx="2"
+                  />
+
+                  {/* Bottom shadow for 3D effect */}
+                  <rect
+                    x={x + 2}
+                    y={y + h - Math.min(h * 0.15, 5)}
+                    width={w - 4}
+                    height={Math.min(h * 0.15, 5)}
+                    fill="rgba(0,0,0,0.15)"
+                    rx="2"
+                  />
+
+                  {/* Oversize/Overweight indicator stripe */}
+                  {(isOversize || isOverweight) && (
+                    <rect
+                      x={x}
+                      y={y}
+                      width={4}
+                      height={h}
+                      fill={isOverweight ? '#dc2626' : '#f59e0b'}
+                      rx="3"
+                      style={{ clipPath: 'inset(0 0 0 0 round 3px 0 0 3px)' }}
+                    />
+                  )}
+
+                  {/* Warning badge for oversize/overweight */}
+                  {(isOversize || isOverweight) && w > 35 && h > 25 && (
+                    <g>
+                      <circle
+                        cx={x + w - 10}
+                        cy={y + 10}
+                        r={7}
+                        fill={isOverweight ? '#dc2626' : '#f59e0b'}
+                        stroke="white"
+                        strokeWidth="1.5"
+                      />
+                      <text
+                        x={x + w - 10}
+                        y={y + 13}
+                        textAnchor="middle"
+                        fill="white"
+                        fontSize="10"
+                        fontWeight="bold"
+                      >
+                        !
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Item label with better readability */}
+                  {w > 45 && h > 22 && (
                     <text
-                      x={PADDING + placement.x * SCALE + (itemLength * SCALE) / 2}
-                      y={PADDING + placement.z * SCALE + (itemWidth * SCALE) / 2}
+                      x={x + w / 2}
+                      y={y + h / 2 - (w > 60 ? 4 : 0)}
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fill="white"
                       fontSize="10"
-                      fontWeight="bold"
+                      fontWeight="600"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
                     >
-                      {item.description.slice(0, 12)}
+                      {item.description.slice(0, 10)}{item.description.length > 10 ? '..' : ''}
                     </text>
                   )}
+
                   {/* Dimensions */}
-                  {itemLength * SCALE > 60 && (
+                  {w > 60 && h > 35 && (
                     <text
-                      x={PADDING + placement.x * SCALE + (itemLength * SCALE) / 2}
-                      y={PADDING + placement.z * SCALE + (itemWidth * SCALE) / 2 + 12}
+                      x={x + w / 2}
+                      y={y + h / 2 + 12}
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      fill="white"
+                      fill="rgba(255,255,255,0.9)"
                       fontSize="8"
-                      opacity="0.8"
+                      fontWeight="500"
                     >
-                      {itemLength.toFixed(1)}' x {itemWidth.toFixed(1)}'
+                      {itemLength.toFixed(1)}' × {itemWidth.toFixed(1)}'
                     </text>
                   )}
                 </g>
               )
             })}
 
-            {/* Labels */}
-            <text
-              x={PADDING - 5}
-              y={PADDING + deckWidth * SCALE / 2}
-              textAnchor="end"
-              dominantBaseline="middle"
-              fill="#6b7280"
-              fontSize="10"
-            >
-              FRONT
-            </text>
-            <text
-              x={PADDING + deckLength * SCALE + 5}
-              y={PADDING + deckWidth * SCALE / 2}
-              textAnchor="start"
-              dominantBaseline="middle"
-              fill="#6b7280"
-              fontSize="10"
-            >
-              REAR
-            </text>
+            {/* Front label with badge style */}
+            <g>
+              <rect
+                x={PADDING - 42}
+                y={PADDING + deckWidth * SCALE / 2 - 10}
+                width="28"
+                height="20"
+                fill="#374151"
+                rx="4"
+              />
+              <text
+                x={PADDING - 28}
+                y={PADDING + deckWidth * SCALE / 2 + 4}
+                textAnchor="middle"
+                fill="white"
+                fontSize="9"
+                fontWeight="600"
+              >
+                FRONT
+              </text>
+            </g>
+
+            {/* Rear label with badge style */}
+            <g>
+              <rect
+                x={PADDING + deckLength * SCALE + 8}
+                y={PADDING + deckWidth * SCALE / 2 - 10}
+                width="28"
+                height="20"
+                fill="#6b7280"
+                rx="4"
+              />
+              <text
+                x={PADDING + deckLength * SCALE + 22}
+                y={PADDING + deckWidth * SCALE / 2 + 4}
+                textAnchor="middle"
+                fill="white"
+                fontSize="9"
+                fontWeight="600"
+              >
+                REAR
+              </text>
+            </g>
+
+            {/* Dimensions label */}
             <text
               x={PADDING + deckLength * SCALE / 2}
               y={topViewHeight - 5}
               textAnchor="middle"
-              fill="#9ca3af"
+              fill="#6b7280"
               fontSize="10"
+              fontWeight="500"
             >
-              {deckLength}' x {deckWidth}'
+              {deckLength}' × {deckWidth}'
             </text>
           </svg>
         </div>
@@ -244,77 +426,145 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
         <h4 className="text-sm font-medium text-gray-600 mb-2">Side View</h4>
         <div className="bg-gray-100 rounded-lg p-2 overflow-x-auto">
           <svg
-            width={sideViewWidth}
-            height={sideViewHeight}
-            viewBox={`0 0 ${sideViewWidth} ${sideViewHeight}`}
+            width={sideViewWidth + 20}
+            height={sideViewHeight + 15}
+            viewBox={`0 0 ${sideViewWidth + 20} ${sideViewHeight + 15}`}
             className="mx-auto"
           >
+            {/* Gradient definitions for side view */}
+            <defs>
+              <linearGradient id="sideMetalGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#9ca3af" />
+                <stop offset="50%" stopColor="#6b7280" />
+                <stop offset="100%" stopColor="#4b5563" />
+              </linearGradient>
+              <radialGradient id="wheelGradient" cx="30%" cy="30%">
+                <stop offset="0%" stopColor="#4b5563" />
+                <stop offset="70%" stopColor="#1f2937" />
+                <stop offset="100%" stopColor="#111827" />
+              </radialGradient>
+              {/* Item gradients for side view */}
+              {ITEM_COLOR_CONFIG.map((color, i) => (
+                <linearGradient key={`sideItemGrad-${i}`} id={`sideItemGradient-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={color.light} />
+                  <stop offset="50%" stopColor={color.base} />
+                  <stop offset="100%" stopColor={color.dark} />
+                </linearGradient>
+              ))}
+            </defs>
+
+            {/* Ground line */}
+            <line
+              x1={PADDING - 30}
+              y1={PADDING + maxLegalHeight * SCALE + 12}
+              x2={PADDING + deckLength * SCALE + 30}
+              y2={PADDING + maxLegalHeight * SCALE + 12}
+              stroke="#d1d5db"
+              strokeWidth="2"
+            />
+
             {/* Legal Height Line */}
             <line
               x1={PADDING}
-              y1={PADDING + (maxLegalHeight - maxLegalHeight) * SCALE}
+              y1={PADDING}
               x2={PADDING + deckLength * SCALE}
-              y2={PADDING + (maxLegalHeight - maxLegalHeight) * SCALE}
+              y2={PADDING}
               stroke="#ef4444"
-              strokeWidth="1"
-              strokeDasharray="4,4"
+              strokeWidth="1.5"
+              strokeDasharray="6,4"
             />
-            <text
-              x={PADDING + deckLength * SCALE + 5}
-              y={PADDING + 5}
-              fill="#ef4444"
-              fontSize="8"
-            >
-              13.5' Legal
-            </text>
+            <g>
+              <rect
+                x={PADDING + deckLength * SCALE + 8}
+                y={PADDING - 8}
+                width="50"
+                height="16"
+                fill="#fef2f2"
+                stroke="#fecaca"
+                strokeWidth="1"
+                rx="3"
+              />
+              <text
+                x={PADDING + deckLength * SCALE + 33}
+                y={PADDING + 4}
+                textAnchor="middle"
+                fill="#dc2626"
+                fontSize="9"
+                fontWeight="500"
+              >
+                13.5' Legal
+              </text>
+            </g>
 
-            {/* Deck */}
-            <rect
-              x={PADDING}
-              y={PADDING + (maxLegalHeight - deckHeight) * SCALE}
-              width={deckLength * SCALE}
-              height={deckHeight * SCALE}
-              fill="#9ca3af"
-            />
+            {/* Deck with gradient */}
+            <g>
+              <rect
+                x={PADDING}
+                y={PADDING + (maxLegalHeight - deckHeight) * SCALE}
+                width={deckLength * SCALE}
+                height={deckHeight * SCALE}
+                fill="url(#sideMetalGradient)"
+                stroke="#4b5563"
+                strokeWidth="1.5"
+              />
+              {/* Deck surface highlight */}
+              <line
+                x1={PADDING}
+                y1={PADDING + (maxLegalHeight - deckHeight) * SCALE + 2}
+                x2={PADDING + deckLength * SCALE}
+                y2={PADDING + (maxLegalHeight - deckHeight) * SCALE + 2}
+                stroke="#d1d5db"
+                strokeWidth="1"
+                opacity="0.6"
+              />
+            </g>
 
-            {/* Wheels (simplified) */}
-            <circle
-              cx={PADDING + 20}
-              cy={PADDING + maxLegalHeight * SCALE}
-              r={8}
-              fill="#374151"
-            />
-            <circle
-              cx={PADDING + 40}
-              cy={PADDING + maxLegalHeight * SCALE}
-              r={8}
-              fill="#374151"
-            />
-            <circle
-              cx={PADDING + deckLength * SCALE - 40}
-              cy={PADDING + maxLegalHeight * SCALE}
-              r={8}
-              fill="#374151"
-            />
-            <circle
-              cx={PADDING + deckLength * SCALE - 20}
-              cy={PADDING + maxLegalHeight * SCALE}
-              r={8}
-              fill="#374151"
-            />
+            {/* Enhanced Wheels with hubs */}
+            {[25, 50, deckLength * SCALE - 50, deckLength * SCALE - 25].map((offset, i) => (
+              <g key={`wheel-${i}`}>
+                {/* Tire */}
+                <circle
+                  cx={PADDING + offset}
+                  cy={PADDING + maxLegalHeight * SCALE + 2}
+                  r={10}
+                  fill="url(#wheelGradient)"
+                  stroke="#111827"
+                  strokeWidth="2"
+                />
+                {/* Hub */}
+                <circle
+                  cx={PADDING + offset}
+                  cy={PADDING + maxLegalHeight * SCALE + 2}
+                  r={4}
+                  fill="#6b7280"
+                  stroke="#4b5563"
+                  strokeWidth="1"
+                />
+                {/* Hub center */}
+                <circle
+                  cx={PADDING + offset}
+                  cy={PADDING + maxLegalHeight * SCALE + 2}
+                  r={1.5}
+                  fill="#9ca3af"
+                />
+              </g>
+            ))}
 
-            {/* Gooseneck */}
-            <polygon
-              points={`
-                ${PADDING - 15},${PADDING + (maxLegalHeight - deckHeight) * SCALE}
-                ${PADDING},${PADDING + (maxLegalHeight - deckHeight) * SCALE}
-                ${PADDING - 10},${PADDING + maxLegalHeight * SCALE - 10}
-                ${PADDING - 25},${PADDING + maxLegalHeight * SCALE - 10}
+            {/* Enhanced Gooseneck */}
+            <path
+              d={`
+                M ${PADDING} ${PADDING + (maxLegalHeight - deckHeight) * SCALE}
+                L ${PADDING - 18} ${PADDING + (maxLegalHeight - deckHeight) * SCALE}
+                L ${PADDING - 25} ${PADDING + maxLegalHeight * SCALE - 8}
+                L ${PADDING - 8} ${PADDING + maxLegalHeight * SCALE - 8}
+                L ${PADDING} ${PADDING + maxLegalHeight * SCALE}
               `}
-              fill="#6b7280"
+              fill="url(#sideMetalGradient)"
+              stroke="#4b5563"
+              strokeWidth="1"
             />
 
-            {/* Cargo Items (side view shows height) */}
+            {/* Cargo Items with 3D effect (side view shows height) */}
             {items.map((item, index) => {
               const placement = getPlacement(item.id)
               if (!placement) return null
@@ -322,6 +572,14 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
               const itemLength = placement.rotated ? item.width : item.length
               const itemHeight = item.height
               const isHovered = hoveredItem === item.id
+              const colorConfig = getItemColorConfig(index)
+              const x = PADDING + placement.x * SCALE
+              const y = PADDING + (maxLegalHeight - deckHeight - itemHeight) * SCALE
+              const w = itemLength * SCALE
+              const h = itemHeight * SCALE
+
+              // Check if exceeds legal height
+              const exceedsHeight = item.height + deckHeight > maxLegalHeight
 
               return (
                 <g
@@ -330,28 +588,62 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                   onMouseLeave={() => setHoveredItem(null)}
                   className="cursor-pointer"
                 >
+                  {/* Drop shadow */}
                   <rect
-                    x={PADDING + placement.x * SCALE}
-                    y={PADDING + (maxLegalHeight - deckHeight - itemHeight) * SCALE}
-                    width={itemLength * SCALE}
-                    height={itemHeight * SCALE}
-                    fill={getItemColor(index)}
-                    fillOpacity={isHovered ? "1" : "0.8"}
-                    stroke={isHovered ? "#3b82f6" : getItemColor(index)}
-                    strokeWidth={isHovered ? "3" : "2"}
-                    rx="2"
+                    x={x + 2}
+                    y={y + 2}
+                    width={w}
+                    height={h}
+                    fill="rgba(0,0,0,0.15)"
+                    rx="3"
+                  />
+
+                  {/* Main block with gradient */}
+                  <rect
+                    x={x}
+                    y={y}
+                    width={w}
+                    height={h}
+                    fill={`url(#sideItemGradient-${index % ITEM_COLOR_CONFIG.length})`}
+                    stroke={isHovered ? '#1f2937' : exceedsHeight ? '#dc2626' : colorConfig.dark}
+                    strokeWidth={isHovered ? 2.5 : exceedsHeight ? 2 : 1.5}
+                    rx="3"
                     style={{ transition: 'all 0.15s ease' }}
                   />
+
+                  {/* Top highlight */}
+                  <rect
+                    x={x + 2}
+                    y={y + 2}
+                    width={w - 4}
+                    height={Math.min(h * 0.2, 6)}
+                    fill="rgba(255,255,255,0.3)"
+                    rx="2"
+                  />
+
+                  {/* Height exceeds legal indicator */}
+                  {exceedsHeight && (
+                    <line
+                      x1={x}
+                      y1={PADDING}
+                      x2={x + w}
+                      y2={PADDING}
+                      stroke="#dc2626"
+                      strokeWidth="3"
+                    />
+                  )}
+
                   {/* Height label */}
-                  {itemLength * SCALE > 30 && itemHeight * SCALE > 15 && (
+                  {w > 35 && h > 18 && (
                     <text
-                      x={PADDING + placement.x * SCALE + (itemLength * SCALE) / 2}
-                      y={PADDING + (maxLegalHeight - deckHeight - itemHeight / 2) * SCALE}
+                      x={x + w / 2}
+                      y={y + h / 2 + 3}
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fill="white"
                       fontSize="9"
-                      fontWeight="bold"
+                      fontWeight="600"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
                     >
                       {itemHeight.toFixed(1)}' H
                     </text>
@@ -363,12 +655,13 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
             {/* Dimension Labels */}
             <text
               x={PADDING + deckLength * SCALE / 2}
-              y={sideViewHeight - 5}
+              y={sideViewHeight + 8}
               textAnchor="middle"
-              fill="#9ca3af"
+              fill="#6b7280"
               fontSize="10"
+              fontWeight="500"
             >
-              {deckLength}' Length &bull; {deckHeight}' Deck Height
+              {deckLength}' Length · {deckHeight}' Deck Height
             </text>
           </svg>
         </div>

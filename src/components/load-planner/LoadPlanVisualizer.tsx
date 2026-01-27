@@ -269,18 +269,22 @@ function LoadCard({ load, loadIndex, isExpanded, onToggle, onTruckChange }: Load
   )
 }
 
-// Color palette for items
-const ITEM_COLORS = [
-  '#3B82F6', // Blue
-  '#10B981', // Green
-  '#F59E0B', // Amber
-  '#EF4444', // Red
-  '#8B5CF6', // Violet
-  '#EC4899', // Pink
-  '#06B6D4', // Cyan
-  '#F97316', // Orange
+// Enhanced color palette with gradient variants for 3D effects
+export const ITEM_COLOR_CONFIG = [
+  { base: '#3B82F6', light: '#60A5FA', dark: '#2563EB' }, // Blue
+  { base: '#10B981', light: '#34D399', dark: '#059669' }, // Green
+  { base: '#F59E0B', light: '#FBBF24', dark: '#D97706' }, // Amber
+  { base: '#EF4444', light: '#F87171', dark: '#DC2626' }, // Red
+  { base: '#8B5CF6', light: '#A78BFA', dark: '#7C3AED' }, // Violet
+  { base: '#EC4899', light: '#F472B6', dark: '#DB2777' }, // Pink
+  { base: '#06B6D4', light: '#22D3EE', dark: '#0891B2' }, // Cyan
+  { base: '#F97316', light: '#FB923C', dark: '#EA580C' }, // Orange
 ]
 
 export function getItemColor(index: number): string {
-  return ITEM_COLORS[index % ITEM_COLORS.length]
+  return ITEM_COLOR_CONFIG[index % ITEM_COLOR_CONFIG.length].base
+}
+
+export function getItemColorConfig(index: number) {
+  return ITEM_COLOR_CONFIG[index % ITEM_COLOR_CONFIG.length]
 }
