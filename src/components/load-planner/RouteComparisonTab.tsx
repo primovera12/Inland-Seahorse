@@ -248,9 +248,9 @@ function ScenarioCard({
             ) : (
               permits.statePermits.map((sp) => (
                 <div key={sp.stateCode} className="flex justify-between">
-                  <span className="font-medium">{sp.stateName}</span>
+                  <span className="font-medium">{sp.state}</span>
                   <span>
-                    {sp.permits.map((p) => p.type).join(', ')} — {formatCurrency(sp.totalCost)}
+                    {sp.reasons.slice(0, 2).join(', ')} — {formatCurrency(sp.estimatedFee)}
                   </span>
                 </div>
               ))
