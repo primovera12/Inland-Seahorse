@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Truck, FileCheck, DollarSign, AlertTriangle, Sparkles, Shield, Zap } from 'lucide-react'
+import { Check, Truck, FileCheck, DollarSign, AlertTriangle, Sparkles, Shield, Zap, ShieldCheck, Crosshair } from 'lucide-react'
 import type { SmartPlanOption, PlanStrategy } from '@/lib/load-planner'
 
 interface PlanComparisonPanelProps {
@@ -23,6 +23,10 @@ function getStrategyIcon(strategy: PlanStrategy) {
       return <Truck className="w-4 h-4" />
     case 'fastest':
       return <Zap className="w-4 h-4" />
+    case 'max-safety':
+      return <ShieldCheck className="w-4 h-4" />
+    case 'best-placement':
+      return <Crosshair className="w-4 h-4" />
     default:
       return <FileCheck className="w-4 h-4" />
   }
@@ -39,6 +43,12 @@ function getStrategyColor(strategy: PlanStrategy, isSelected: boolean) {
       return `${base} ${isSelected ? 'ring-amber-500 border-amber-500 bg-amber-50' : 'border-gray-200'}`
     case 'fewest-trucks':
       return `${base} ${isSelected ? 'ring-purple-500 border-purple-500 bg-purple-50' : 'border-gray-200'}`
+    case 'fastest':
+      return `${base} ${isSelected ? 'ring-orange-500 border-orange-500 bg-orange-50' : 'border-gray-200'}`
+    case 'max-safety':
+      return `${base} ${isSelected ? 'ring-teal-500 border-teal-500 bg-teal-50' : 'border-gray-200'}`
+    case 'best-placement':
+      return `${base} ${isSelected ? 'ring-indigo-500 border-indigo-500 bg-indigo-50' : 'border-gray-200'}`
     default:
       return `${base} ${isSelected ? 'ring-gray-500 border-gray-500 bg-gray-50' : 'border-gray-200'}`
   }
@@ -48,10 +58,12 @@ function PlanCard({
   plan,
   isSelected,
   onSelect,
+  compact = false,
 }: {
   plan: SmartPlanOption
   isSelected: boolean
   onSelect: () => void
+  compact?: boolean
 }) {
   const colorClass = getStrategyColor(plan.strategy, isSelected)
 
@@ -59,7 +71,7 @@ function PlanCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`relative w-full p-4 rounded-lg border-2 transition-all text-left ${colorClass}`}
+      className={`relative w-full ${compact ? 'p-3' : 'p-4'} rounded-lg border-2 transition-all text-left ${colorClass}`}
     >
       {/* Selection indicator */}
       {isSelected && (
@@ -77,6 +89,9 @@ function PlanCard({
           plan.strategy === 'legal-only' ? 'bg-green-100 text-green-600' :
           plan.strategy === 'cost-optimized' ? 'bg-amber-100 text-amber-600' :
           plan.strategy === 'fewest-trucks' ? 'bg-purple-100 text-purple-600' :
+          plan.strategy === 'fastest' ? 'bg-orange-100 text-orange-600' :
+          plan.strategy === 'max-safety' ? 'bg-teal-100 text-teal-600' :
+          plan.strategy === 'best-placement' ? 'bg-indigo-100 text-indigo-600' :
           'bg-gray-100 text-gray-600'
         }`}>
           {getStrategyIcon(plan.strategy)}
@@ -98,6 +113,9 @@ function PlanCard({
                 badge === 'No Permits' || badge === '100% Legal' ? 'bg-green-100 text-green-700' :
                 badge === 'Lowest Cost' ? 'bg-amber-100 text-amber-700' :
                 badge.includes('Truck') ? 'bg-purple-100 text-purple-700' :
+                badge === 'Quick Dispatch' ? 'bg-orange-100 text-orange-700' :
+                badge === 'Max Margins' ? 'bg-teal-100 text-teal-700' :
+                badge === 'Type Matched' ? 'bg-indigo-100 text-indigo-700' :
                 'bg-gray-100 text-gray-700'
               }`}
             >
@@ -174,13 +192,14 @@ export function PlanComparisonPanel({
         <span className="text-sm text-gray-500">({plans.length} options available)</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${plans.length > 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3`}>
         {plans.map((plan) => (
           <PlanCard
             key={plan.strategy}
             plan={plan}
             isSelected={selectedPlan?.strategy === plan.strategy}
             onSelect={() => onSelectPlan(plan)}
+            compact={plans.length > 4}
           />
         ))}
       </div>

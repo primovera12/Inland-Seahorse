@@ -3071,6 +3071,8 @@ export default function NewInlandQuoteV2Page() {
                                   maxItemLength={Math.max(...load.items.map((i) => i.length), 0)}
                                   maxItemWidth={Math.max(...load.items.map((i) => i.width), 0)}
                                   maxItemHeight={Math.max(...load.items.map((i) => i.height), 0)}
+                                  currentScore={load.truckScore}
+                                  itemDescriptions={load.items.map((i) => i.description || '')}
                                 />
                               </div>
                             </CardHeader>

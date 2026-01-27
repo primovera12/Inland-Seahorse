@@ -1193,7 +1193,9 @@ export type PlanStrategy =
   | 'legal-only'       // Minimize permits, even if more trucks needed
   | 'cost-optimized'   // Minimize total cost (may include permits)
   | 'fewest-trucks'    // Consolidate to minimum trucks (may need permits)
-  | 'fastest'          // Optimize for speed (team drivers, legal routes)
+  | 'fastest'          // Optimize for speed (legal loads, no permit delays)
+  | 'max-safety'       // Maximum margins, oversized trucks, extra clearance
+  | 'best-placement'   // Optimized by item type using equipment matching profiles
 
 /**
  * A smart plan option with strategy metadata
@@ -1314,6 +1316,62 @@ export function generateSmartPlans(
       ...consolidatedMetrics,
       isRecommended: false,
       badges,
+    })
+  }
+
+  // === Strategy 5: FASTEST (legal loads, no permit delays) ===
+  const fastestPlan = generateFastestPlan(parsedLoad)
+  const fastestMetrics = calculatePlanMetrics(fastestPlan)
+
+  // Include if meaningfully different (different truck types or fewer permits)
+  if (fastestMetrics.permitCount < recommendedMetrics.permitCount ||
+      fastestMetrics.totalTrucks !== recommendedMetrics.totalTrucks ||
+      hasDifferentTruckTypes(fastestPlan, recommendedPlan)) {
+    const badges: string[] = ['Quick Dispatch']
+    if (fastestMetrics.permitCount === 0) badges.push('No Permits')
+
+    smartOptions.push({
+      strategy: 'fastest',
+      name: 'Fastest Plan',
+      description: 'Legal loads with common trucks for quick dispatch',
+      plan: fastestPlan,
+      ...fastestMetrics,
+      isRecommended: false,
+      badges,
+    })
+  }
+
+  // === Strategy 6: MAX-SAFETY (maximum margins, extra clearance) ===
+  const safetyPlan = generateMaxSafetyPlan(parsedLoad)
+  const safetyMetrics = calculatePlanMetrics(safetyPlan)
+
+  if (hasDifferentTruckTypes(safetyPlan, recommendedPlan) ||
+      safetyMetrics.totalTrucks !== recommendedMetrics.totalTrucks) {
+    smartOptions.push({
+      strategy: 'max-safety',
+      name: 'Max Safety Plan',
+      description: 'Oversized trucks with maximum clearance margins',
+      plan: safetyPlan,
+      ...safetyMetrics,
+      isRecommended: false,
+      badges: ['Max Margins'],
+    })
+  }
+
+  // === Strategy 7: BEST-PLACEMENT (equipment-type optimized) ===
+  const placementPlan = generateBestPlacementPlan(parsedLoad)
+  const placementMetrics = calculatePlanMetrics(placementPlan)
+
+  if (hasDifferentTruckTypes(placementPlan, recommendedPlan) ||
+      placementMetrics.totalCost !== recommendedMetrics.totalCost) {
+    smartOptions.push({
+      strategy: 'best-placement',
+      name: 'Best Placement Plan',
+      description: 'Trucks matched by cargo type for ideal fit',
+      plan: placementPlan,
+      ...placementMetrics,
+      isRecommended: false,
+      badges: ['Type Matched'],
     })
   }
 
@@ -1620,6 +1678,307 @@ function generateConsolidatedPlan(parsedLoad: ParsedLoad): LoadPlan {
         isLegal,
       })
     }
+  }
+
+  return {
+    loads,
+    totalTrucks: loads.length,
+    totalWeight: loads.reduce((sum, l) => sum + l.weight, 0),
+    totalItems: items.length,
+    unassignedItems: [],
+    warnings,
+  }
+}
+
+/**
+ * Check if two plans use different truck types
+ */
+function hasDifferentTruckTypes(planA: LoadPlan, planB: LoadPlan): boolean {
+  const trucksA = new Set(planA.loads.map(l => l.recommendedTruck.id))
+  const trucksB = new Set(planB.loads.map(l => l.recommendedTruck.id))
+  if (trucksA.size !== trucksB.size) return true
+  for (const id of trucksA) {
+    if (!trucksB.has(id)) return true
+  }
+  return false
+}
+
+/**
+ * Generate a plan optimized for speed: prefer legal loads to avoid permit delays,
+ * use common truck types (flatbed, step deck) that are easy to dispatch quickly.
+ */
+function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
+  const items = [...parsedLoad.items]
+  const loads: PlannedLoad[] = []
+  const warnings: string[] = []
+  const commonCategories = ['FLATBED', 'STEP_DECK', 'DRY_VAN']
+
+  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+
+  for (const item of items) {
+    const itemWeight = item.weight * (item.quantity || 1)
+
+    // Prefer common trucks that can carry legally
+    const legalCommonTrucks = trucks.filter(truck => {
+      const totalHeight = item.height + truck.deckHeight
+      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+      return (
+        commonCategories.includes(truck.category) &&
+        item.length <= truck.deckLength &&
+        item.width <= truck.deckWidth &&
+        itemWeight <= truck.maxCargoWeight &&
+        totalHeight <= LEGAL_LIMITS.HEIGHT &&
+        item.width <= LEGAL_LIMITS.WIDTH &&
+        totalWeight <= LEGAL_LIMITS.GROSS_WEIGHT
+      )
+    })
+
+    // Fallback to any legal truck, then any truck
+    const legalTrucks = legalCommonTrucks.length > 0 ? legalCommonTrucks : trucks.filter(truck => {
+      const totalHeight = item.height + truck.deckHeight
+      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+      return (
+        item.length <= truck.deckLength &&
+        item.width <= truck.deckWidth &&
+        itemWeight <= truck.maxCargoWeight &&
+        totalHeight <= LEGAL_LIMITS.HEIGHT &&
+        item.width <= LEGAL_LIMITS.WIDTH &&
+        totalWeight <= LEGAL_LIMITS.GROSS_WEIGHT
+      )
+    })
+
+    if (legalTrucks.length > 0) {
+      // Pick the smallest fitting common truck
+      const bestTruck = legalTrucks.sort((a, b) => a.deckLength - b.deckLength)[0]
+      loads.push({
+        id: `load-${loads.length + 1}`,
+        items: [item],
+        length: item.length,
+        width: item.width,
+        height: item.height,
+        weight: itemWeight,
+        recommendedTruck: bestTruck,
+        truckScore: 75,
+        scoreBreakdown: {
+          baseScore: 100, fitPenalty: 0, heightPenalty: 0, widthPenalty: 0,
+          weightPenalty: 0, overkillPenalty: 0, permitPenalty: 0,
+          idealFitBonus: 0, equipmentMatchBonus: 0, historicalBonus: 0,
+          seasonalPenalty: 0, bridgePenalty: 0, escortProximityWarning: false,
+          finalScore: 75,
+        },
+        placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+        permitsRequired: [],
+        warnings: [],
+        isLegal: true,
+      })
+    } else {
+      // No legal option — use best fit
+      const { truck, score, isLegal, permits, scoreBreakdown } = findBestTruckForItem(item)
+      warnings.push(`Item "${item.description}" requires permits (no quick-dispatch option)`)
+      loads.push({
+        id: `load-${loads.length + 1}`,
+        items: [item],
+        length: item.length,
+        width: item.width,
+        height: item.height,
+        weight: itemWeight,
+        recommendedTruck: truck,
+        truckScore: score,
+        scoreBreakdown,
+        placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+        permitsRequired: permits,
+        warnings: ['No quick-dispatch truck available'],
+        isLegal: false,
+      })
+    }
+  }
+
+  return {
+    loads,
+    totalTrucks: loads.length,
+    totalWeight: loads.reduce((sum, l) => sum + l.weight, 0),
+    totalItems: items.length,
+    unassignedItems: [],
+    warnings,
+  }
+}
+
+/**
+ * Generate a plan with maximum safety margins: prefer oversized trucks
+ * with extra clearance in all dimensions. Avoid tight fits.
+ */
+function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
+  const items = [...parsedLoad.items]
+  const loads: PlannedLoad[] = []
+  const warnings: string[] = []
+
+  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+
+  for (const item of items) {
+    const itemWeight = item.weight * (item.quantity || 1)
+
+    // Score trucks by maximum clearance margins
+    let bestTruck = trucks[0]
+    let bestSafetyScore = -Infinity
+
+    for (const truck of trucks) {
+      if (item.length > truck.deckLength || item.width > truck.deckWidth || itemWeight > truck.maxCargoWeight) continue
+
+      const lengthMargin = truck.deckLength - item.length
+      const widthMargin = truck.deckWidth - item.width
+      const weightMargin = (truck.maxCargoWeight - itemWeight) / truck.maxCargoWeight
+      const heightClearance = truck.maxLegalCargoHeight - item.height
+
+      // Higher score = more margins
+      let safetyScore = lengthMargin * 2 + widthMargin * 3 + weightMargin * 50 + heightClearance * 5
+
+      // Bonus for heavy-haul categories
+      if (['RGN', 'LOWBOY', 'MULTI_AXLE'].includes(truck.category)) safetyScore += 10
+
+      if (safetyScore > bestSafetyScore) {
+        bestSafetyScore = safetyScore
+        bestTruck = truck
+      }
+    }
+
+    // Check if the safety-preferred truck fits legally
+    const totalHeight = item.height + bestTruck.deckHeight
+    const totalWeight = itemWeight + bestTruck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+    const safetyIsLegal = (
+      item.length <= bestTruck.deckLength &&
+      item.width <= bestTruck.deckWidth &&
+      itemWeight <= bestTruck.maxCargoWeight &&
+      totalHeight <= LEGAL_LIMITS.HEIGHT &&
+      item.width <= LEGAL_LIMITS.WIDTH &&
+      totalWeight <= LEGAL_LIMITS.GROSS_WEIGHT
+    )
+
+    const safetyFinalScore = Math.min(100, Math.max(0, Math.round(bestSafetyScore > 0 ? 80 : 50)))
+
+    loads.push({
+      id: `load-${loads.length + 1}`,
+      items: [item],
+      length: item.length,
+      width: item.width,
+      height: item.height,
+      weight: itemWeight,
+      recommendedTruck: bestTruck,
+      truckScore: safetyFinalScore,
+      scoreBreakdown: {
+        baseScore: 100, fitPenalty: bestSafetyScore <= 0 ? 50 : 0,
+        heightPenalty: 0, widthPenalty: 0, weightPenalty: 0,
+        overkillPenalty: 0, permitPenalty: safetyIsLegal ? 0 : 10,
+        idealFitBonus: 0, equipmentMatchBonus: 0, historicalBonus: 0,
+        seasonalPenalty: 0, bridgePenalty: 0, escortProximityWarning: false,
+        finalScore: safetyFinalScore,
+      },
+      placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+      permitsRequired: safetyIsLegal ? [] : ['Oversize/overweight permit'],
+      warnings: [],
+      isLegal: safetyIsLegal,
+    })
+  }
+
+  return {
+    loads,
+    totalTrucks: loads.length,
+    totalWeight: loads.reduce((sum, l) => sum + l.weight, 0),
+    totalItems: items.length,
+    unassignedItems: [],
+    warnings,
+  }
+}
+
+/**
+ * Generate a plan optimized by equipment type matching.
+ * Uses equipment profiles to pick the ideal truck for each cargo type.
+ */
+function generateBestPlacementPlan(parsedLoad: ParsedLoad): LoadPlan {
+  const items = [...parsedLoad.items]
+  const loads: PlannedLoad[] = []
+  const warnings: string[] = []
+
+  for (const item of items) {
+    const itemWeight = item.weight * (item.quantity || 1)
+
+    // Score all trucks with heavy emphasis on equipment matching
+    let bestTruck = trucks[0]
+    let bestScore = -Infinity
+    let bestIsLegal = false
+    let bestPermits: string[] = []
+
+    for (const truck of trucks) {
+      if (itemWeight > truck.maxCargoWeight) continue
+      if (item.length > truck.deckLength) continue
+
+      const totalHeight = item.height + truck.deckHeight
+      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+
+      const isLegal = (
+        item.width <= truck.deckWidth &&
+        totalHeight <= LEGAL_LIMITS.HEIGHT &&
+        item.width <= LEGAL_LIMITS.WIDTH &&
+        totalWeight <= LEGAL_LIMITS.GROSS_WEIGHT
+      )
+
+      // Base score focused on equipment matching
+      let score = 50
+
+      // Equipment match is the primary factor (heavy weight)
+      const description = item.description?.toLowerCase() || ''
+      // Check loading method preference
+      if (truck.loadingMethod === 'drive-on' && description.match(/excavator|dozer|loader|tractor|tracked|skid steer/)) {
+        score += 25
+      }
+      if (truck.loadingMethod === 'crane' && description.match(/transformer|tank|module|vessel|generator/)) {
+        score += 25
+      }
+
+      // Category-specific bonuses for known equipment types
+      if (description.match(/excavator|dozer|loader/) && ['RGN', 'LOWBOY'].includes(truck.category)) score += 20
+      if (description.match(/wind.*blade|blade/) && truck.category === 'BLADE') score += 30
+      if (description.match(/transformer|heavy.*equipment/) && ['MULTI_AXLE', 'SCHNABEL'].includes(truck.category)) score += 20
+      if (description.match(/boat|yacht/) && truck.category === 'SPECIALIZED') score += 20
+      if (description.match(/forklift|pallet|crate/) && ['FLATBED', 'DRY_VAN'].includes(truck.category)) score += 15
+
+      // Fit efficiency bonus
+      const heightClearance = truck.maxLegalCargoHeight - item.height
+      if (heightClearance >= 0 && heightClearance <= 2) score += 10
+
+      // Legal bonus
+      if (isLegal) score += 15
+
+      if (score > bestScore) {
+        bestScore = score
+        bestTruck = truck
+        bestIsLegal = isLegal
+        bestPermits = isLegal ? [] : ['Oversize/overweight permit']
+      }
+    }
+
+    loads.push({
+      id: `load-${loads.length + 1}`,
+      items: [item],
+      length: item.length,
+      width: item.width,
+      height: item.height,
+      weight: itemWeight,
+      recommendedTruck: bestTruck,
+      truckScore: Math.min(100, Math.max(0, Math.round(bestScore))),
+      scoreBreakdown: {
+        baseScore: 100, fitPenalty: 0,
+        heightPenalty: 0, widthPenalty: 0, weightPenalty: 0,
+        overkillPenalty: 0, permitPenalty: bestIsLegal ? 0 : 10,
+        idealFitBonus: 0, equipmentMatchBonus: Math.max(0, bestScore - 50),
+        historicalBonus: 0, seasonalPenalty: 0, bridgePenalty: 0,
+        escortProximityWarning: false,
+        finalScore: Math.min(100, Math.max(0, Math.round(bestScore))),
+      },
+      placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
+      permitsRequired: bestPermits,
+      warnings: [],
+      isLegal: bestIsLegal,
+    })
   }
 
   return {
