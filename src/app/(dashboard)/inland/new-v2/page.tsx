@@ -38,7 +38,6 @@ import {
 // Load Planner Components
 import { UniversalDropzone } from '@/components/load-planner/UniversalDropzone'
 import { ExtractedItemsList } from '@/components/load-planner/ExtractedItemsList'
-import { BulkCargoEntry } from '@/components/load-planner/BulkCargoEntry'
 import { TrailerDiagram } from '@/components/load-planner/TrailerDiagram'
 import { TruckSelector } from '@/components/load-planner/TruckSelector'
 import { RouteIntelligence } from '@/components/load-planner/RouteIntelligence'
@@ -250,7 +249,6 @@ export default function NewInlandQuoteV2Page() {
   const [manualWeight, setManualWeight] = useState('')
   const [manualQuantity, setManualQuantity] = useState('1')
   const [isEquipmentMode, setIsEquipmentMode] = useState(false)
-  const [isBulkEntryMode, setIsBulkEntryMode] = useState(false)
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedCargoTypeId, setSelectedCargoTypeId] = useState<string | null>(null)
@@ -370,10 +368,6 @@ export default function NewInlandQuoteV2Page() {
       case 'ton': return lbs / 2000
     }
   }
-
-  // Legacy conversion helpers for compatibility with BulkCargoEntry
-  const metersToFeet = (m: number) => m * 3.28084
-  const kgToLbs = (kg: number) => kg * 2.20462
 
   // Cargo state (NEW - using feet, AI-parsed)
   const [cargoItems, setCargoItems] = useState<LoadItem[]>([])
@@ -831,13 +825,6 @@ export default function NewInlandQuoteV2Page() {
     }
   }, [handleAddManualItem])
 
-  // Handle bulk entry items
-  const handleBulkAddItems = useCallback((items: LoadItem[]) => {
-    setCargoItems(prev => {
-      const updated = [...prev, ...items]
-      return updated
-    })
-  }, [])
 
   // Calculate totals from service items
   const servicesTotal = useMemo(() => {
@@ -1994,35 +1981,7 @@ export default function NewInlandQuoteV2Page() {
                       </div>
                     </div>
 
-                    {/* Bulk Entry Toggle */}
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Layers className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <span className="text-sm font-medium">Bulk Entry</span>
-                          <p className="text-xs text-muted-foreground">
-                            Add multiple items at once (paste from Excel)
-                          </p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={isBulkEntryMode}
-                        onCheckedChange={setIsBulkEntryMode}
-                      />
-                    </div>
-
-                    {/* Bulk Entry Component or Single Entry Form */}
-                    {isBulkEntryMode ? (
-                      <BulkCargoEntry
-                        lengthUnit={lengthUnit}
-                        weightUnit={weightUnit}
-                        onAddItems={handleBulkAddItems}
-                        lengthToFeet={lengthToFeet}
-                        weightToLbs={weightToLbs}
-                      />
-                    ) : (
-                      <>
-                        {/* Equipment Selection - shown when equipment mode is on */}
+                    {/* Equipment Selection - shown when equipment mode is on */}
                         {isEquipmentMode && (
                       <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-blue-50/50">
                         <div>
@@ -2228,8 +2187,6 @@ export default function NewInlandQuoteV2Page() {
                         )}
                       </div>
                     </div>
-                      </>
-                    )}
                   </CardContent>
                 </Card>
               )}
