@@ -3,7 +3,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import type { TruckType, TrailerCategory } from '@/lib/load-planner/types'
 import { trucks } from '@/lib/load-planner/trucks'
-import { ChevronDown, Check, AlertTriangle, Search, X, Filter } from 'lucide-react'
+import { trpc } from '@/lib/trpc/client'
+import { truckTypeRecordToTruckType } from '@/lib/load-planner/truck-type-converter'
+import { ChevronDown, Check, AlertTriangle, Search, X, Filter, Plus } from 'lucide-react'
+import { AddTruckTypeDialog } from './AddTruckTypeDialog'
 
 interface TruckSelectorProps {
   currentTruck: TruckType
@@ -25,8 +28,20 @@ export function TruckSelector({
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showOnlyFitting, setShowOnlyFitting] = useState(false)
+  const [showAddDialog, setShowAddDialog] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Fetch custom truck types from database
+  const { data: dbTruckRecords } = trpc.truckTypes.getForLoadPlanner.useQuery()
+
+  // Merge hardcoded trucks with DB trucks (dedup by name to avoid duplicates from seed data)
+  const allTrucks = useMemo(() => {
+    const dbTrucks = (dbTruckRecords || []).map(truckTypeRecordToTruckType)
+    const hardcodedNames = new Set(trucks.map(t => t.name.toLowerCase()))
+    const customDbTrucks = dbTrucks.filter(t => !hardcodedNames.has(t.name.toLowerCase()))
+    return [...trucks, ...customDbTrucks]
+  }, [dbTruckRecords])
 
   // Focus search input when dropdown opens
   useEffect(() => {
@@ -71,7 +86,7 @@ export function TruckSelector({
     const categories: Record<string, TruckType[]> = {}
     const query = searchQuery.toLowerCase().trim()
 
-    trucks.forEach(truck => {
+    allTrucks.forEach(truck => {
       // Apply search filter
       if (query) {
         const matchesSearch =
@@ -102,7 +117,7 @@ export function TruckSelector({
     })
 
     return categories
-  }, [searchQuery, showOnlyFitting, itemsWeight, maxItemLength, maxItemWidth, maxItemHeight])
+  }, [searchQuery, showOnlyFitting, itemsWeight, maxItemLength, maxItemWidth, maxItemHeight, allTrucks])
 
   // Count total matching trucks
   const matchingTruckCount = useMemo(() => {
@@ -335,9 +350,32 @@ export function TruckSelector({
             })
             )}
             </div>
+
+            {/* Add Custom Truck Type Button */}
+            <div className="sticky bottom-0 border-t border-gray-200 bg-white p-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false)
+                  setShowAddDialog(true)
+                }}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Custom Truck Type
+              </button>
+            </div>
           </div>
         </>
       )}
+
+      <AddTruckTypeDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onCreated={(truck) => {
+          onChange(truck)
+        }}
+      />
     </div>
   )
 }

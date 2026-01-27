@@ -230,7 +230,7 @@ export const truckTypesRouter = router({
   // ---------------------------------------------------------------------------
   // CREATE (Admin only)
   // ---------------------------------------------------------------------------
-  create: adminProcedure.input(createTruckTypeSchema).mutation(async ({ ctx, input }) => {
+  create: protectedProcedure.input(createTruckTypeSchema).mutation(async ({ ctx, input }) => {
     const { supabase } = ctx
 
     const insertData = {

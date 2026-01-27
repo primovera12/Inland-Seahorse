@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -376,10 +376,19 @@ export function RouteIntelligence({
     }
   }, [origin, destination, cargoSpecs, perTruckCargoSpecs, shipDate, routeData, onRouteCalculated, onPermitDataCalculated])
 
+  // Serialize cargo specs to detect changes (avoids object reference issues)
+  const cargoSpecsKey = cargoSpecs
+    ? `${cargoSpecs.length}-${cargoSpecs.width}-${cargoSpecs.height}-${cargoSpecs.grossWeight}`
+    : ''
+  const perTruckSpecsKey = perTruckCargoSpecs
+    ? perTruckCargoSpecs.map(t => `${t.truckIndex}-${t.length}-${t.width}-${t.height}-${t.grossWeight}`).join('|')
+    : ''
+
   useEffect(() => {
     // Auto-analyze when:
     // 1. routeData is provided from parent (pre-calculated)
     // 2. OR we have origin/destination but haven't analyzed yet
+    // 3. OR cargo specs have changed (re-analyze permits with new dimensions)
     const routeDataDistance = routeData?.totalDistanceMiles
     const stateDistance = state.routeResult?.totalDistanceMiles
     const hasAddresses = origin && destination
@@ -390,11 +399,18 @@ export function RouteIntelligence({
       return
     }
 
+    // If we already have a route result and cargo specs changed, re-analyze permits
+    if (hasAddresses && state.routeResult && !state.isLoading) {
+      analyzeRoute()
+      return
+    }
+
     // If we have addresses but no route result yet, auto-calculate
     if (hasAddresses && !state.routeResult && !state.isLoading && !state.error) {
       analyzeRoute()
     }
-  }, [routeData, state.routeResult?.totalDistanceMiles, origin, destination, state.isLoading, state.error, analyzeRoute])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeData, state.routeResult?.totalDistanceMiles, origin, destination, state.isLoading, state.error, analyzeRoute, cargoSpecsKey, perTruckSpecsKey])
 
   const hasWarnings =
     (state.seasonalWarnings?.hasRestrictions ?? false) ||
