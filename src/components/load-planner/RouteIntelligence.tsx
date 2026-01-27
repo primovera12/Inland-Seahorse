@@ -383,6 +383,7 @@ export function RouteIntelligence({
   const perTruckSpecsKey = perTruckCargoSpecs
     ? perTruckCargoSpecs.map(t => `${t.truckIndex}-${t.length}-${t.width}-${t.height}-${t.grossWeight}`).join('|')
     : ''
+  const lastAnalyzedCargoKey = useRef('')
 
   useEffect(() => {
     // Auto-analyze when:
@@ -392,21 +393,25 @@ export function RouteIntelligence({
     const routeDataDistance = routeData?.totalDistanceMiles
     const stateDistance = state.routeResult?.totalDistanceMiles
     const hasAddresses = origin && destination
+    const currentCargoKey = `${cargoSpecsKey}::${perTruckSpecsKey}`
 
     // If routeData provided and different from what we have, analyze it
     if (routeData && routeDataDistance !== stateDistance) {
+      lastAnalyzedCargoKey.current = currentCargoKey
       analyzeRoute()
       return
     }
 
     // If we already have a route result and cargo specs changed, re-analyze permits
-    if (hasAddresses && state.routeResult && !state.isLoading) {
+    if (hasAddresses && state.routeResult && !state.isLoading && currentCargoKey !== lastAnalyzedCargoKey.current) {
+      lastAnalyzedCargoKey.current = currentCargoKey
       analyzeRoute()
       return
     }
 
     // If we have addresses but no route result yet, auto-calculate
     if (hasAddresses && !state.routeResult && !state.isLoading && !state.error) {
+      lastAnalyzedCargoKey.current = currentCargoKey
       analyzeRoute()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
