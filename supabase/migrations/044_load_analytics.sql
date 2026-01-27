@@ -142,12 +142,17 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 -- Function: refresh_load_analytics
 -- Refreshes the materialized view
+-- Use concurrent=true only after initial data exists (requires unique index)
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION refresh_load_analytics()
+CREATE OR REPLACE FUNCTION refresh_load_analytics(concurrent BOOLEAN DEFAULT false)
 RETURNS void AS $$
 BEGIN
-    REFRESH MATERIALIZED VIEW CONCURRENTLY load_analytics_mv;
+    IF concurrent THEN
+        REFRESH MATERIALIZED VIEW CONCURRENTLY load_analytics_mv;
+    ELSE
+        REFRESH MATERIALIZED VIEW load_analytics_mv;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -227,5 +232,5 @@ CREATE TRIGGER load_history_refresh_daily_stats
 -- Backfill daily stats from existing data
 SELECT backfill_daily_load_stats();
 
--- Initial refresh of materialized view
-SELECT refresh_load_analytics();
+-- Initial refresh of materialized view (non-concurrent for first run)
+SELECT refresh_load_analytics(false);
