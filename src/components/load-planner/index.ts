@@ -31,6 +31,10 @@ export {
 export { RouteIntelligence } from './RouteIntelligence'
 export type { RouteIntelligenceProps, RouteIntelligenceState } from './RouteIntelligence'
 
+// Route Comparison (Phase 10)
+export { RouteComparisonTab } from './RouteComparisonTab'
+export type { ComparisonScenario } from './RouteComparisonTab'
+
 // Permit Components (Phase 9)
 export { PermitSummaryCard } from './PermitSummaryCard'
 export { PermitQuickActions } from './PermitQuickActions'

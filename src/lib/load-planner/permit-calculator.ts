@@ -23,10 +23,10 @@ export interface CargoSpecs {
   grossWeight: number // lbs (cargo + trailer + truck)
 }
 
-// Average escort cost per day
-const ESCORT_COST_PER_DAY = 600
-const POLE_CAR_COST_PER_DAY = 400
-const POLICE_ESCORT_HOURLY = 85
+// Escort cost constants in cents (matching escort-calculator.ts rates)
+const ESCORT_COST_PER_DAY = 80000      // $800/day
+const POLE_CAR_COST_PER_DAY = 100000   // $1,000/day
+const POLICE_ESCORT_HOURLY = 10000     // $100/hr
 
 /**
  * Calculate permit requirements for a single state
@@ -203,7 +203,7 @@ export function calculateStatePermit(
     escortsRequired,
     poleCarRequired,
     policeEscortRequired,
-    estimatedFee: Math.round(estimatedFee),
+    estimatedFee: Math.round(estimatedFee * 100), // Convert dollars to cents
     reasons,
     travelRestrictions: restrictions
   }
@@ -412,7 +412,7 @@ export function calculateDetailedStatePermit(
     }
   }
 
-  costBreakdown.total = Math.round(estimatedFee)
+  costBreakdown.total = Math.round(estimatedFee * 100) // Convert dollars to cents
 
   // Travel restrictions
   const travel = state.travelRestrictions
@@ -442,7 +442,7 @@ export function calculateDetailedStatePermit(
     escortsRequired,
     poleCarRequired,
     policeEscortRequired,
-    estimatedFee: Math.round(estimatedFee),
+    estimatedFee: Math.round(estimatedFee * 100), // Convert dollars to cents
     costBreakdown,
     calculationDetails,
     source: {
@@ -540,13 +540,13 @@ export function calculateDetailedRoutePermits(
   escortCalculationDetails.push(`Trip estimate: ${totalDistance.toLocaleString()} miles ÷ 300 mi/day = ${estimatedDays} day${estimatedDays > 1 ? 's' : ''}`)
 
   if (maxEscorts > 0) {
-    escortCalculationDetails.push(`Escorts: ${maxEscorts} × $${ESCORT_COST_PER_DAY}/day × ${estimatedDays} days = $${totalEscortBaseCost.toLocaleString()}`)
+    escortCalculationDetails.push(`Escorts: ${maxEscorts} × $${ESCORT_COST_PER_DAY / 100}/day × ${estimatedDays} days = $${(totalEscortBaseCost / 100).toLocaleString()}`)
   }
   if (needsPoleCar) {
-    escortCalculationDetails.push(`Pole Car: 1 × $${POLE_CAR_COST_PER_DAY}/day × ${estimatedDays} days = $${totalPoleCarCost.toLocaleString()}`)
+    escortCalculationDetails.push(`Pole Car: 1 × $${POLE_CAR_COST_PER_DAY / 100}/day × ${estimatedDays} days = $${(totalPoleCarCost / 100).toLocaleString()}`)
   }
   if (needsPolice) {
-    escortCalculationDetails.push(`Police Escort: $${POLICE_ESCORT_HOURLY}/hr × ${estimatedHours} hours = $${totalPoliceCost.toLocaleString()}`)
+    escortCalculationDetails.push(`Police Escort: $${POLICE_ESCORT_HOURLY / 100}/hr × ${estimatedHours} hours = $${(totalPoliceCost / 100).toLocaleString()}`)
   }
 
   // Build the escort breakdown object
@@ -573,8 +573,8 @@ export function calculateDetailedRoutePermits(
   }
 
   // Warnings
-  if (totalPermitCost > 500) {
-    warnings.push(`High permit costs expected ($${totalPermitCost.toLocaleString()})`)
+  if (totalPermitCost > 50000) { // $500 in cents
+    warnings.push(`High permit costs expected ($${(totalPermitCost / 100).toLocaleString()})`)
   }
   if (maxEscorts >= 2) {
     warnings.push('Two escorts required - coordinate timing carefully')
@@ -652,8 +652,8 @@ export function calculateRoutePermits(
   if (needsPolice) totalEscortCost += POLICE_ESCORT_HOURLY * 8 * estimatedDays // assume 8 hours
 
   // Add warnings for high costs
-  if (totalPermitFees > 500) {
-    warnings.push(`High permit costs expected ($${totalPermitFees.toLocaleString()})`)
+  if (totalPermitFees > 50000) { // $500 in cents
+    warnings.push(`High permit costs expected ($${(totalPermitFees / 100).toLocaleString()})`)
   }
   if (maxEscorts >= 2) {
     warnings.push('Two escorts required - coordinate timing carefully')

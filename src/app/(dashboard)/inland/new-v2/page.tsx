@@ -36,6 +36,7 @@ import {
   Eye,
   EyeOff,
   ImageIcon,
+  GitCompareArrows,
 } from 'lucide-react'
 
 // Load Planner Components
@@ -49,6 +50,7 @@ import { FitAlternativesPanel } from '@/components/load-planner/FitAlternativesP
 import { SeasonalWarningBanner } from '@/components/load-planner/SeasonalWarningBanner'
 import { PlanComparisonPanel } from '@/components/load-planner/PlanComparisonPanel'
 import { PermitSummaryCard, PermitQuickActions } from '@/components/load-planner'
+import { RouteComparisonTab } from '@/components/load-planner/RouteComparisonTab'
 import {
   planLoads,
   generateSmartPlans,
@@ -59,7 +61,7 @@ import {
   type CargoSpecs,
   type SmartPlanOption,
 } from '@/lib/load-planner'
-import type { RouteResult } from '@/lib/load-planner/route-calculator'
+import { formatDuration, type RouteResult } from '@/lib/load-planner/route-calculator'
 import type { DetailedRoutePermitSummary } from '@/lib/load-planner/types'
 import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
 import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
@@ -1249,16 +1251,19 @@ export default function NewInlandQuoteV2Page() {
     }
 
     // Initialize editable permit costs from calculated data
-    const initialCosts: EditablePermitCost[] = permitData.statePermits.map((permit, index) => ({
-      id: `permit-${permit.stateCode}-${index}`,
-      stateCode: permit.stateCode,
-      stateName: permit.state,
-      permitFee: permit.estimatedFee, // Already in cents
-      escortCost: 0, // Escort costs are per-state from breakdown
-      calculatedPermitFee: permit.estimatedFee,
-      calculatedEscortCost: 0,
-      distanceMiles: permit.distanceInState,
-    }))
+    // Only include states that actually need permits or escorts
+    const initialCosts: EditablePermitCost[] = permitData.statePermits
+      .filter(permit => permit.oversizeRequired || permit.overweightRequired || permit.escortsRequired > 0)
+      .map((permit, index) => ({
+        id: `permit-${permit.stateCode}-${index}`,
+        stateCode: permit.stateCode,
+        stateName: permit.state,
+        permitFee: permit.estimatedFee, // Already in cents
+        escortCost: 0, // Escort costs are per-state from breakdown
+        calculatedPermitFee: permit.estimatedFee,
+        calculatedEscortCost: 0,
+        distanceMiles: permit.distanceInState,
+      }))
 
     // If there's an escort breakdown, add per-state escort costs
     if (permitData.escortBreakdown?.perState) {
@@ -1785,6 +1790,10 @@ export default function NewInlandQuoteV2Page() {
               <TabsTrigger value="permits" className="flex items-center gap-1 flex-shrink-0">
                 <FileWarning className="h-4 w-4" />
                 <span className="hidden sm:inline">Permits</span>
+              </TabsTrigger>
+              <TabsTrigger value="compare" className="flex items-center gap-1 flex-shrink-0">
+                <GitCompareArrows className="h-4 w-4" />
+                <span className="hidden sm:inline">Compare</span>
               </TabsTrigger>
               <TabsTrigger value="pdf" className="flex items-center gap-1 flex-shrink-0">
                 <FileText className="h-4 w-4" />
@@ -3322,6 +3331,48 @@ export default function NewInlandQuoteV2Page() {
                   Continue to PDF
                 </Button>
               </div>
+            </TabsContent>
+
+            {/* Compare Tab */}
+            <TabsContent value="compare" className="space-y-4 mt-4">
+              <RouteComparisonTab
+                pickupAddress={pickupAddress ? `${pickupAddress}, ${pickupCity}, ${pickupState} ${pickupZip}` : ''}
+                dropoffAddress={dropoffAddress ? `${dropoffAddress}, ${dropoffCity}, ${dropoffState} ${dropoffZip}` : ''}
+                cargoItems={cargoItems}
+                currentTruck={loadPlan?.loads?.[0]?.recommendedTruck || null}
+                routeResult={routeResult}
+                onApplyScenario={(scenario) => {
+                  // Apply route data
+                  const route = scenario.routeAlternative
+                  setDistanceMiles(route.totalDistanceMiles)
+                  setDurationMinutes(route.totalDurationMinutes)
+                  setRoutePolyline(route.routePolyline)
+                  setRouteResult({
+                    totalDistanceMiles: route.totalDistanceMiles,
+                    totalDurationMinutes: route.totalDurationMinutes,
+                    estimatedDriveTime: formatDuration(route.totalDurationMinutes),
+                    statesTraversed: route.statesTraversed,
+                    stateSegments: Object.entries(route.stateDistances).map(([code, dist], i) => ({
+                      stateCode: code,
+                      stateName: code,
+                      entryPoint: { lat: 0, lng: 0 },
+                      exitPoint: { lat: 0, lng: 0 },
+                      distanceMiles: dist,
+                      order: i,
+                    })),
+                    stateDistances: route.stateDistances,
+                    routePolyline: route.routePolyline,
+                    waypoints: [],
+                    warnings: [],
+                  })
+
+                  // Apply permit data
+                  handlePermitDataCalculated(scenario.permitSummary)
+
+                  toast.success(`Applied: ${route.name} + ${scenario.truck.name}`)
+                  setActiveTab('permits')
+                }}
+              />
             </TabsContent>
 
             {/* PDF Preview Tab - Automatic */}
