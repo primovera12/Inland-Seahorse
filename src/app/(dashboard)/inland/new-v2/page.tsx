@@ -1716,8 +1716,9 @@ export default function NewInlandQuoteV2Page() {
       inlandTotal: grandTotal,
       grandTotal: grandTotal,
       customerNotes: quoteNotes || undefined,
+      sectionVisibility: pdfSectionVisibility,
     }
-  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, accessorialItems, pricingPerTruck, grandTotal, servicesTotal, accessorialsTotal, quoteNotes, editablePermitCosts, permitTotals])
+  }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, customerAddress, pickupAddress, pickupCity, pickupState, pickupZip, pickupLat, pickupLng, dropoffAddress, dropoffCity, dropoffState, dropoffZip, dropoffLat, dropoffLng, distanceMiles, durationMinutes, routePolyline, loadPlan, serviceItems, accessorialItems, pricingPerTruck, grandTotal, servicesTotal, accessorialsTotal, quoteNotes, editablePermitCosts, permitTotals, pdfSectionVisibility])
 
   return (
     <div className="space-y-6">
@@ -3324,7 +3325,11 @@ export default function NewInlandQuoteV2Page() {
             {/* PDF Preview Tab - Automatic */}
             <TabsContent value="pdf" className="space-y-4 mt-4">
               {pdfData ? (
-                <QuotePDFPreview data={pdfData} />
+                <QuotePDFPreview
+                  data={pdfData}
+                  sectionVisibility={pdfSectionVisibility}
+                  onSectionVisibilityChange={(vis) => setPdfSectionVisibility(vis)}
+                />
               ) : (
                 <Card>
                   <CardContent className="flex flex-col items-center py-10 text-muted-foreground">

@@ -2,9 +2,12 @@
 
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Loader2, Download, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react'
 import { QuotePDFTemplate } from './QuotePDFTemplate'
-import type { UnifiedPDFData } from '../types'
+import type { UnifiedPDFData, PDFSectionVisibility } from '../types'
+import { PDF_SECTION_LABELS, DEFAULT_PDF_SECTION_VISIBILITY } from '../types'
 import { cn } from '@/lib/utils'
 
 interface QuotePDFPreviewProps {
@@ -12,6 +15,8 @@ interface QuotePDFPreviewProps {
   className?: string
   showControls?: boolean
   onDownload?: () => void
+  sectionVisibility?: PDFSectionVisibility
+  onSectionVisibilityChange?: (visibility: PDFSectionVisibility) => void
 }
 
 // Server-side PDF generation via API
@@ -37,10 +42,44 @@ export function QuotePDFPreview({
   className,
   showControls = true,
   onDownload,
+  sectionVisibility,
+  onSectionVisibilityChange,
 }: QuotePDFPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSectionToggles, setShowSectionToggles] = useState(false)
+
+  const vis = sectionVisibility || data.sectionVisibility || DEFAULT_PDF_SECTION_VISIBILITY
+
+  const handleToggle = (key: keyof PDFSectionVisibility) => {
+    if (!onSectionVisibilityChange) return
+    onSectionVisibilityChange({
+      ...vis,
+      [key]: !vis[key],
+    })
+  }
+
+  const allVisible = Object.values(vis).every(Boolean)
+  const noneVisible = Object.values(vis).every(v => !v)
+
+  const handleShowAll = () => {
+    if (!onSectionVisibilityChange) return
+    const allOn = { ...vis }
+    for (const key in allOn) {
+      allOn[key as keyof PDFSectionVisibility] = true
+    }
+    onSectionVisibilityChange(allOn)
+  }
+
+  const handleHideAll = () => {
+    if (!onSectionVisibilityChange) return
+    const allOff = { ...vis }
+    for (const key in allOff) {
+      allOff[key as keyof PDFSectionVisibility] = false
+    }
+    onSectionVisibilityChange(allOff)
+  }
 
   // Use server-side Puppeteer for perfect PDF generation
   const handleDownload = async () => {
@@ -73,25 +112,78 @@ export function QuotePDFPreview({
     <div className={cn('flex flex-col', className)}>
       {/* Controls */}
       {showControls && (
-        <div className="flex items-center justify-between gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg no-print">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Quote Preview</h3>
-            {isGenerating && (
-              <span className="text-sm text-slate-500">Generating PDF...</span>
-            )}
-            {error && <span className="text-sm text-red-500">{error}</span>}
+        <div className="mb-6 no-print space-y-3">
+          <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-slate-900 dark:text-white">Quote Preview</h3>
+              {isGenerating && (
+                <span className="text-sm text-slate-500">Generating PDF...</span>
+              )}
+              {error && <span className="text-sm text-red-500">{error}</span>}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {onSectionVisibilityChange && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowSectionToggles(!showSectionToggles)}
+                >
+                  {showSectionToggles ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                  Sections
+                  {showSectionToggles ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                </Button>
+              )}
+              <Button size="sm" onClick={handleDownload} disabled={isGenerating}>
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Download PDF
+              </Button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleDownload} disabled={isGenerating}>
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 mr-2" />
-              )}
-              Download PDF
-            </Button>
-          </div>
+          {/* Section Visibility Toggles */}
+          {showSectionToggles && onSectionVisibilityChange && (
+            <div className="p-4 bg-white dark:bg-slate-800 border rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Show / Hide PDF Sections
+                </h4>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={handleShowAll} disabled={allVisible} className="text-xs h-7">
+                    Show All
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleHideAll} disabled={noneVisible} className="text-xs h-7">
+                    Hide All
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+                {(Object.keys(PDF_SECTION_LABELS) as Array<keyof PDFSectionVisibility>).map((key) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <Switch
+                      id={`pdf-section-${key}`}
+                      checked={vis[key]}
+                      onCheckedChange={() => handleToggle(key)}
+                      className="scale-75"
+                    />
+                    <Label
+                      htmlFor={`pdf-section-${key}`}
+                      className={cn(
+                        'text-xs cursor-pointer select-none',
+                        vis[key] ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500 line-through'
+                      )}
+                    >
+                      {PDF_SECTION_LABELS[key]}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
