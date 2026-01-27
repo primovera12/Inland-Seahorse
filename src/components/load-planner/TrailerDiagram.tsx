@@ -75,19 +75,26 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
             <div
               key={item.id}
               className={`
-                flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer
-                transition-all
-                ${hoveredItem === item.id ? 'ring-2 ring-blue-400' : ''}
+                flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer
+                transition-all border
+                ${hoveredItem === item.id ? 'ring-2 ring-blue-400 border-blue-300' : 'border-transparent'}
               `}
-              style={{ backgroundColor: `${getItemColor(index)}20` }}
+              style={{ backgroundColor: `${getItemColor(index)}15` }}
               onMouseEnter={() => setHoveredItem(item.id)}
               onMouseLeave={() => setHoveredItem(null)}
             >
               <div
-                className="w-3 h-3 rounded"
+                className="w-4 h-4 rounded flex-shrink-0"
                 style={{ backgroundColor: getItemColor(index) }}
               />
-              <span className="text-gray-700">{item.description}</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-gray-800 font-medium">{item.description}</span>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <span>{item.length}' × {item.width}' × {item.height}'</span>
+                  <span className="text-gray-300">•</span>
+                  <span>{item.weight.toLocaleString()} lbs</span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
