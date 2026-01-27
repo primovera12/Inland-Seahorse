@@ -17,8 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { trpc } from '@/lib/trpc/client'
 import { toast } from 'sonner'
-import { Package, Truck, Upload, Trash2 } from 'lucide-react'
+import { Package, Truck, ImageIcon } from 'lucide-react'
 import type { LoadItem } from '@/lib/load-planner/types'
+import { ImageUpload } from '@/components/ui/image-upload'
 
 interface CargoEditDialogProps {
   item: LoadItem | null
@@ -313,77 +314,30 @@ export function CargoEditDialog({
 
           <TabsContent value="images" className="space-y-4 mt-4">
             <p className="text-sm text-muted-foreground">
-              Add up to 2 images for this cargo item. They will appear in the PDF quote.
+              Add images for this cargo item. They will appear in the PDF quote.
             </p>
 
-            {/* Image 1 */}
-            <div>
-              <Label className="text-xs font-medium">Primary Image URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1"
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs font-medium mb-1 block">Primary Image</Label>
+                <ImageUpload
+                  value={imageUrl || null}
+                  onChange={(url) => setImageUrl(url || '')}
+                  bucket="equipment-images"
+                  folder="cargo-images"
+                  label="Upload Image"
                 />
-                {imageUrl && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setImageUrl('')}
-                    className="text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
-              {imageUrl && (
-                <div className="mt-2 w-24 h-24 rounded border overflow-hidden">
-                  <img
-                    src={imageUrl}
-                    alt="Primary"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Image 2 */}
-            <div>
-              <Label className="text-xs font-medium">Secondary Image URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={imageUrl2}
-                  onChange={(e) => setImageUrl2(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1"
+              <div>
+                <Label className="text-xs font-medium mb-1 block">Secondary Image</Label>
+                <ImageUpload
+                  value={imageUrl2 || null}
+                  onChange={(url) => setImageUrl2(url || '')}
+                  bucket="equipment-images"
+                  folder="cargo-images"
+                  label="Upload Image"
                 />
-                {imageUrl2 && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setImageUrl2('')}
-                    className="text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
-              {imageUrl2 && (
-                <div className="mt-2 w-24 h-24 rounded border overflow-hidden">
-                  <img
-                    src={imageUrl2}
-                    alt="Secondary"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
-                </div>
-              )}
             </div>
           </TabsContent>
         </Tabs>

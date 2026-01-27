@@ -3,8 +3,8 @@
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { formatDimension, formatWeight, formatAddressMultiline, getLocationInfo, DEFAULT_PRIMARY_COLOR } from '../pdf-utils'
-import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock, InlandServiceItem, InlandAccessorialCharge, PermitCostsSummary } from '../types'
-import { generateServiceLineItems, CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES } from '../types'
+import type { UnifiedPDFData, ServiceLineItem, CostCategory, InlandLoadBlock, InlandServiceItem, InlandAccessorialCharge, PermitCostsSummary, PDFSectionVisibility } from '../types'
+import { generateServiceLineItems, CATEGORY_STYLES, COST_LABELS, COST_FIELD_CATEGORIES, DEFAULT_PDF_SECTION_VISIBILITY } from '../types'
 import { renderTopViewSvg, renderSideViewSvg } from '@/components/load-planner/LoadPlanPDFRenderer'
 import type { TruckType, LoadItem, ItemPlacement } from '@/lib/load-planner/types'
 
@@ -166,6 +166,7 @@ function ClientSection({ data }: { data: UnifiedPDFData }) {
 // Location section - handles both dismantle and inland quotes
 function LocationSection({ data }: { data: UnifiedPDFData }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const vis = data.sectionVisibility || DEFAULT_PDF_SECTION_VISIBILITY
   const hasInlandTransport = data.inlandTransport?.enabled && data.inlandTransport.pickup && data.inlandTransport.dropoff
   const isInlandOnlyQuote = data.quoteType === 'inland'
 
@@ -243,7 +244,7 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
         </div>
 
         {/* Route Map Preview */}
-        {staticMapUrl && (
+        {vis.routeMap && staticMapUrl && (
           <div className="p-8 border-b border-slate-100">
             <h3
               className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
@@ -362,7 +363,7 @@ function LocationSection({ data }: { data: UnifiedPDFData }) {
           </div>
 
           {/* Route Map Preview */}
-          {data.inlandTransport!.static_map_url && (
+          {vis.routeMap && data.inlandTransport!.static_map_url && (
             <div className="p-8 border-b border-slate-100">
               <h3
                 className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2"
@@ -441,6 +442,7 @@ function cargoToLoadItems(cargoItems: InlandLoadBlock['cargo_items']): LoadItem[
 // Inland transport services and accessorials section
 function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const vis = data.sectionVisibility || DEFAULT_PDF_SECTION_VISIBILITY
   const inlandTransport = data.inlandTransport
 
   if (!inlandTransport?.enabled) {
@@ -486,7 +488,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       )}
 
       {/* Load Compliance Info - Warnings & Permits */}
-      {((block.warnings && block.warnings.length > 0) || (block.permits_required && block.permits_required.length > 0)) && (
+      {vis.loadCompliance && ((block.warnings && block.warnings.length > 0) || (block.permits_required && block.permits_required.length > 0)) && (
         <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
           <div className="px-6 py-3 flex items-center justify-between" style={{ backgroundColor: block.is_legal === false ? 'rgb(254, 243, 199)' : 'rgb(220, 252, 231)' }}>
             <h4 className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: block.is_legal === false ? '#92400e' : '#166534' }}>
@@ -532,7 +534,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       )}
 
       {/* Cargo Items Details */}
-      {block.cargo_items && block.cargo_items.length > 0 && (
+      {vis.cargoDetails && block.cargo_items && block.cargo_items.length > 0 && (
         <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
           <div className="px-6 py-3" style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
             <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
@@ -774,7 +776,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       )}
 
       {/* Trailer Diagrams - Show how cargo is loaded */}
-      {block.cargo_items && block.cargo_items.length > 0 && block.placements && block.placements.length > 0 && block.truck_specs && (
+      {vis.loadDiagrams && block.cargo_items && block.cargo_items.length > 0 && block.placements && block.placements.length > 0 && block.truck_specs && (
         <div className="mb-4 rounded-lg border border-slate-200 overflow-hidden">
           <div className="px-6 py-3" style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
             <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
@@ -849,7 +851,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       )}
 
       {/* Service Items Table */}
-      {block.service_items.length > 0 && (
+      {vis.services && block.service_items.length > 0 && (
         <table className="w-full text-left border-collapse mb-4">
           <thead>
             <tr style={{ backgroundColor: 'rgb(241, 245, 249)' }}>
@@ -891,7 +893,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
       )}
 
       {/* Accessorial Charges (if applicable) */}
-      {block.accessorial_charges.length > 0 && (
+      {vis.accessorials && block.accessorial_charges.length > 0 && (
         <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
           <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-3 flex items-center gap-2">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1054,7 +1056,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
               </div>
 
               {/* Destination-level Services Table (v2 format) */}
-              {(dest as { service_items?: InlandServiceItem[] }).service_items && (dest as { service_items?: InlandServiceItem[] }).service_items!.length > 0 && (
+              {vis.services && (dest as { service_items?: InlandServiceItem[] }).service_items && (dest as { service_items?: InlandServiceItem[] }).service_items!.length > 0 && (
                 <div className="px-8 pb-4">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -1661,6 +1663,7 @@ function PricingSummarySection({ data, lineItems }: {
   lineItems: ServiceLineItem[]
 }) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const vis = data.sectionVisibility || DEFAULT_PDF_SECTION_VISIBILITY
 
   // Calculate subtotals
   const servicesSubtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0)
@@ -1669,6 +1672,7 @@ function PricingSummarySection({ data, lineItems }: {
     <div className="p-8 border-t border-slate-100" style={{ backgroundColor: 'rgb(248, 250, 252)' }}>
       <div className="flex flex-col md:flex-row justify-between gap-10">
         {/* Terms */}
+        {vis.termsAndNotes && (
         <div className="max-w-md">
           {data.termsAndConditions && (
             <>
@@ -1691,6 +1695,7 @@ function PricingSummarySection({ data, lineItems }: {
             </div>
           )}
         </div>
+        )}
 
         {/* Totals */}
         <div className="w-full md:w-80 space-y-3">
@@ -1741,6 +1746,7 @@ function FooterSection({ data }: { data: UnifiedPDFData }) {
 // Main PDF Template Component
 export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
   const primaryColor = data.company.primaryColor || DEFAULT_PRIMARY_COLOR
+  const vis = data.sectionVisibility || DEFAULT_PDF_SECTION_VISIBILITY
 
   // Generate service line items (for single equipment or combined view)
   const lineItems = generateServiceLineItems(data.equipment, data.isMultiEquipment)
@@ -1761,13 +1767,13 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="bg-white shadow-xl rounded-xl overflow-hidden border border-slate-200 flex flex-col">
           {/* Header */}
-          <HeaderSection data={data} />
+          {vis.header && <HeaderSection data={data} />}
 
           {/* Client Information */}
-          <ClientSection data={data} />
+          {vis.clientInfo && <ClientSection data={data} />}
 
           {/* Location(s) */}
-          <LocationSection data={data} />
+          {vis.locations && <LocationSection data={data} />}
 
           {/* Equipment and Services - only show if there's equipment */}
           {data.equipment.length > 0 && (
@@ -1795,7 +1801,7 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
                   />
                 ))}
                 {/* Services Table */}
-                <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />
+                {vis.services && <ServicesTable lineItems={lineItems} primaryColor={primaryColor} />}
               </>
             )
           )}
@@ -1804,10 +1810,10 @@ export function QuotePDFTemplate({ data, className }: QuotePDFTemplateProps) {
           <InlandTransportServicesSection data={data} />
 
           {/* Permit & Escort Costs (if available) */}
-          <PermitCostsSection data={data} />
+          {vis.permitCosts && <PermitCostsSection data={data} />}
 
           {/* Pricing Summary / Grand Total */}
-          <PricingSummarySection data={data} lineItems={lineItems} />
+          {vis.pricingSummary && <PricingSummarySection data={data} lineItems={lineItems} />}
         </div>
 
         {/* Footer */}

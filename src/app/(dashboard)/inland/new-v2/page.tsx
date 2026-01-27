@@ -33,6 +33,9 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  Eye,
+  EyeOff,
+  ImageIcon,
 } from 'lucide-react'
 
 // Load Planner Components
@@ -60,6 +63,8 @@ import type { RouteResult } from '@/lib/load-planner/route-calculator'
 import type { DetailedRoutePermitSummary } from '@/lib/load-planner/types'
 import { SimpleRouteMap } from '@/components/inland-quote/SimpleRouteMap'
 import { QuotePDFPreview, type UnifiedPDFData } from '@/lib/pdf'
+import type { PDFSectionVisibility } from '@/lib/pdf/types'
+import { ImageUpload } from '@/components/ui/image-upload'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DEFAULT_ACCESSORIAL_TYPES,
@@ -253,6 +258,31 @@ export default function NewInlandQuoteV2Page() {
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedCargoTypeId, setSelectedCargoTypeId] = useState<string | null>(null)
+
+  // Image state for manual entry
+  const [manualFrontImage, setManualFrontImage] = useState<string | null>(null)
+  const [manualSideImage, setManualSideImage] = useState<string | null>(null)
+  const [manualImageUrl, setManualImageUrl] = useState<string | null>(null)
+  const [manualImageUrl2, setManualImageUrl2] = useState<string | null>(null)
+
+  // PDF section visibility toggles
+  const [pdfSectionVisibility, setPdfSectionVisibility] = useState<PDFSectionVisibility>({
+    header: true,
+    clientInfo: true,
+    locations: true,
+    routeMap: true,
+    cargoDetails: true,
+    loadDiagrams: true,
+    loadCompliance: true,
+    services: true,
+    accessorials: true,
+    permitCosts: true,
+    pricingSummary: true,
+    termsAndNotes: true,
+  })
+
+  // Equipment image update mutation
+  const updateEquipmentImages = trpc.equipment.updateImages.useMutation()
 
   // Last added item (for duplicate functionality) - stores form values in current unit system
   const [lastAddedItem, setLastAddedItem] = useState<{
@@ -682,7 +712,7 @@ export default function NewInlandQuoteV2Page() {
     }
   }, [cargoItems, routeResult])
 
-  // Auto-populate dimensions when equipment model is selected
+  // Auto-populate dimensions and images when equipment model is selected
   useEffect(() => {
     if (equipmentDimensions && isEquipmentMode) {
       // Convert inches to feet for display (dimensions come in inches from DB)
@@ -690,6 +720,9 @@ export default function NewInlandQuoteV2Page() {
       setManualWidth((equipmentDimensions.width_inches / 12).toFixed(2))
       setManualHeight((equipmentDimensions.height_inches / 12).toFixed(2))
       setManualWeight(equipmentDimensions.weight_lbs?.toString() || '')
+      // Auto-populate images from equipment database
+      setManualFrontImage((equipmentDimensions as any).front_image_url || null)
+      setManualSideImage((equipmentDimensions as any).side_image_url || null)
     }
   }, [equipmentDimensions, isEquipmentMode])
 
@@ -745,6 +778,12 @@ export default function NewInlandQuoteV2Page() {
         equipmentModelId: selectedModelId,
         dimensionsSource: 'database' as const,
       }),
+      // Equipment images (front/side views)
+      ...(isEquipmentMode && manualFrontImage && { frontImageUrl: manualFrontImage }),
+      ...(isEquipmentMode && manualSideImage && { sideImageUrl: manualSideImage }),
+      // Normal cargo images
+      ...(!isEquipmentMode && manualImageUrl && { imageUrl: manualImageUrl }),
+      ...(!isEquipmentMode && manualImageUrl2 && { imageUrl2: manualImageUrl2 }),
     }
 
     setCargoItems(prev => {
@@ -788,6 +827,10 @@ export default function NewInlandQuoteV2Page() {
     setManualHeight('')
     setManualWeight('')
     setManualQuantity('1')
+    setManualFrontImage(null)
+    setManualSideImage(null)
+    setManualImageUrl(null)
+    setManualImageUrl2(null)
     if (isEquipmentMode) {
       setSelectedMakeId(null)
       setSelectedModelId(null)
@@ -804,6 +847,10 @@ export default function NewInlandQuoteV2Page() {
     selectedModelId,
     equipmentMakes,
     equipmentModels,
+    manualFrontImage,
+    manualSideImage,
+    manualImageUrl,
+    manualImageUrl2,
     lengthUnit,
     weightUnit,
     lengthToFeet,
@@ -2100,6 +2147,56 @@ export default function NewInlandQuoteV2Page() {
                             No dimensions in database for this model - please enter manually
                           </div>
                         )}
+
+                        {/* Equipment Images - Front & Side */}
+                        {selectedModelId && (
+                          <div className="col-span-2 space-y-2">
+                            <Label className="text-xs font-medium flex items-center gap-1">
+                              <ImageIcon className="h-3 w-3" />
+                              Equipment Images
+                            </Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground mb-1 block">Front View</Label>
+                                <ImageUpload
+                                  value={manualFrontImage}
+                                  onChange={(url) => {
+                                    setManualFrontImage(url)
+                                    // Also save to equipment database
+                                    if (selectedModelId) {
+                                      updateEquipmentImages.mutate({
+                                        modelId: selectedModelId,
+                                        frontImageUrl: url || '',
+                                      })
+                                    }
+                                  }}
+                                  bucket="equipment-images"
+                                  folder={`equipment/${selectedMakeId}/${selectedModelId}`}
+                                  label="Upload Front"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground mb-1 block">Side View</Label>
+                                <ImageUpload
+                                  value={manualSideImage}
+                                  onChange={(url) => {
+                                    setManualSideImage(url)
+                                    // Also save to equipment database
+                                    if (selectedModelId) {
+                                      updateEquipmentImages.mutate({
+                                        modelId: selectedModelId,
+                                        sideImageUrl: url || '',
+                                      })
+                                    }
+                                  }}
+                                  bucket="equipment-images"
+                                  folder={`equipment/${selectedMakeId}/${selectedModelId}`}
+                                  label="Upload Side"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -2211,6 +2308,38 @@ export default function NewInlandQuoteV2Page() {
                           />
                         </div>
                       </div>
+
+                      {/* Cargo Images */}
+                      {!isEquipmentMode && (
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium flex items-center gap-1">
+                            <ImageIcon className="h-3 w-3" />
+                            Cargo Images (optional)
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground mb-1 block">Image 1</Label>
+                              <ImageUpload
+                                value={manualImageUrl}
+                                onChange={setManualImageUrl}
+                                bucket="equipment-images"
+                                folder="cargo-images"
+                                label="Upload Image"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground mb-1 block">Image 2</Label>
+                              <ImageUpload
+                                value={manualImageUrl2}
+                                onChange={setManualImageUrl2}
+                                bucket="equipment-images"
+                                folder="cargo-images"
+                                label="Upload Image"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex items-end gap-3">
                         <div className="w-24">

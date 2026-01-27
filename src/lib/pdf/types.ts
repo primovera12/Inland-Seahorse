@@ -257,6 +257,54 @@ export interface ServiceLineItem {
   equipmentLabel?: string // e.g., "CAT 320 #1"
 }
 
+// PDF section visibility toggles - controls what shows in preview and downloaded PDF
+export interface PDFSectionVisibility {
+  header: boolean
+  clientInfo: boolean
+  locations: boolean
+  routeMap: boolean
+  cargoDetails: boolean
+  loadDiagrams: boolean
+  loadCompliance: boolean
+  services: boolean
+  accessorials: boolean
+  permitCosts: boolean
+  pricingSummary: boolean
+  termsAndNotes: boolean
+}
+
+// Default: all sections visible
+export const DEFAULT_PDF_SECTION_VISIBILITY: PDFSectionVisibility = {
+  header: true,
+  clientInfo: true,
+  locations: true,
+  routeMap: true,
+  cargoDetails: true,
+  loadDiagrams: true,
+  loadCompliance: true,
+  services: true,
+  accessorials: true,
+  permitCosts: true,
+  pricingSummary: true,
+  termsAndNotes: true,
+}
+
+// Labels for PDF section toggles
+export const PDF_SECTION_LABELS: Record<keyof PDFSectionVisibility, string> = {
+  header: 'Company Header',
+  clientInfo: 'Client Information',
+  locations: 'Pickup / Dropoff Locations',
+  routeMap: 'Route Map',
+  cargoDetails: 'Cargo Details',
+  loadDiagrams: 'Load Arrangement Diagrams',
+  loadCompliance: 'Load Compliance (Warnings & Permits)',
+  services: 'Services Table',
+  accessorials: 'Accessorial Charges',
+  permitCosts: 'Permit & Escort Costs',
+  pricingSummary: 'Pricing Summary / Grand Total',
+  termsAndNotes: 'Terms & Notes',
+}
+
 // Unified PDF data structure
 export interface UnifiedPDFData {
   // Quote type
@@ -295,6 +343,9 @@ export interface UnifiedPDFData {
   // Notes
   customerNotes?: string
   termsAndConditions?: string
+
+  // Section visibility controls
+  sectionVisibility?: PDFSectionVisibility
 }
 
 // Transform QuoteData to UnifiedPDFData
