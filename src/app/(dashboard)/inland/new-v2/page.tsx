@@ -49,6 +49,7 @@ import { PermitSummaryCard, PermitQuickActions } from '@/components/load-planner
 import {
   planLoads,
   generateSmartPlans,
+  trucks,
   type LoadItem,
   type LoadPlan,
   type TruckType,
@@ -591,52 +592,93 @@ export default function NewInlandQuoteV2Page() {
       return
     }
 
-    // Check if all items have valid dimensions
-    const validItems = cargoItems.filter(
+    // Items with valid dimensions (can be planned even without weight)
+    const itemsWithDimensions = cargoItems.filter(
+      (item) => item.length > 0 && item.width > 0 && item.height > 0
+    )
+
+    // Items with complete data (dimensions AND weight) for smart recommendations
+    const completeItems = cargoItems.filter(
       (item) => item.length > 0 && item.width > 0 && item.height > 0 && item.weight > 0
     )
 
-    if (validItems.length === 0) {
+    if (itemsWithDimensions.length === 0) {
       setLoadPlan(null)
       setSmartPlanOptions([])
       setSelectedPlanOption(null)
       return
     }
 
-    // Convert LoadItem[] to ParsedLoad for smart planning
-    const maxLength = Math.max(...validItems.map(i => i.length))
-    const maxWidth = Math.max(...validItems.map(i => i.width))
-    const maxHeight = Math.max(...validItems.map(i => i.height))
-    const maxWeight = Math.max(...validItems.map(i => i.weight * i.quantity))
-    const totalWeight = validItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
+    // If all items have weight, generate smart plans with recommendations
+    if (completeItems.length === itemsWithDimensions.length) {
+      const maxLength = Math.max(...completeItems.map(i => i.length))
+      const maxWidth = Math.max(...completeItems.map(i => i.width))
+      const maxHeight = Math.max(...completeItems.map(i => i.height))
+      const maxWeight = Math.max(...completeItems.map(i => i.weight * i.quantity))
+      const totalWeight = completeItems.reduce((sum, i) => sum + i.weight * i.quantity, 0)
 
-    const parsedLoad = {
-      id: 'auto-plan',
-      length: maxLength,
-      width: maxWidth,
-      height: maxHeight,
-      weight: maxWeight,
-      totalWeight,
-      items: validItems,
-      confidence: 100,
-    }
+      const parsedLoad = {
+        id: 'auto-plan',
+        length: maxLength,
+        width: maxWidth,
+        height: maxHeight,
+        weight: maxWeight,
+        totalWeight,
+        items: completeItems,
+        confidence: 100,
+      }
 
-    // Generate smart plans with multiple strategies
-    const smartPlans = generateSmartPlans(parsedLoad, {
-      routeDistance: routeResult?.totalDistanceMiles || 500,
-      routeStates: routeResult?.stateSegments?.map((s: { stateCode: string }) => s.stateCode) || [],
-    })
+      // Generate smart plans with multiple strategies
+      const smartPlans = generateSmartPlans(parsedLoad, {
+        routeDistance: routeResult?.totalDistanceMiles || 500,
+        routeStates: routeResult?.stateSegments?.map((s: { stateCode: string }) => s.stateCode) || [],
+      })
 
-    setSmartPlanOptions(smartPlans)
+      setSmartPlanOptions(smartPlans)
 
-    // Auto-select the recommended plan
-    const recommended = smartPlans.find(p => p.isRecommended) || smartPlans[0]
-    if (recommended) {
-      setSelectedPlanOption(recommended)
-      setLoadPlan(recommended.plan)
+      // Auto-select the recommended plan
+      const recommended = smartPlans.find(p => p.isRecommended) || smartPlans[0]
+      if (recommended) {
+        setSelectedPlanOption(recommended)
+        setLoadPlan(recommended.plan)
+      } else {
+        setSelectedPlanOption(null)
+        setLoadPlan(null)
+      }
     } else {
+      // Some items missing weight - create basic plan for manual truck selection
+      const defaultTruck = trucks[0] // Flatbed 48' as default
+      const maxLength = Math.max(...itemsWithDimensions.map(i => i.length))
+      const maxWidth = Math.max(...itemsWithDimensions.map(i => i.width))
+      const maxHeight = Math.max(...itemsWithDimensions.map(i => i.height))
+      // Use whatever weight we have, or 0
+      const totalWeight = itemsWithDimensions.reduce((sum, i) => sum + (i.weight || 0) * i.quantity, 0)
+
+      const basicPlan: LoadPlan = {
+        loads: [{
+          id: 'manual-load-1',
+          items: itemsWithDimensions,
+          length: maxLength,
+          width: maxWidth,
+          height: maxHeight,
+          weight: totalWeight,
+          recommendedTruck: defaultTruck,
+          truckScore: 0, // No score - manual selection needed
+          placements: [], // No auto-placements
+          permitsRequired: [],
+          warnings: ['Some items missing weight - truck recommendations unavailable. Please select a truck manually.'],
+          isLegal: false, // Unknown without weight
+        }],
+        totalTrucks: 1,
+        totalWeight,
+        totalItems: itemsWithDimensions.reduce((sum, i) => sum + i.quantity, 0),
+        unassignedItems: [],
+        warnings: ['Weight data incomplete - manual truck selection required'],
+      }
+
+      setLoadPlan(basicPlan)
+      setSmartPlanOptions([]) // No smart options available
       setSelectedPlanOption(null)
-      setLoadPlan(null)
     }
   }, [cargoItems, routeResult])
 
