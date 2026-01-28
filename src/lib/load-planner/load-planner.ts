@@ -506,18 +506,19 @@ function canAddItemToLoad(
  * then verifies with actual 2D placement.
  */
 function canFitOnTruck(newItem: LoadItem, existingItems: LoadItem[], truck: TruckType): boolean {
-  // Weight check
-  const totalWeight = existingItems.reduce((s, i) => s + i.weight, 0) + newItem.weight
+  // Weight check (defensive: multiply by quantity in case items are unexpanded)
+  const totalWeight = existingItems.reduce((s, i) => s + getItemWeight(i), 0) + getItemWeight(newItem)
   if (totalWeight > truck.maxCargoWeight) return false
 
   // Each item must individually fit within deck dimensions
   if (newItem.length > truck.deckLength || newItem.width > truck.deckWidth) return false
 
   // Area check with packing efficiency factor (75%)
+  // Defensive: multiply by quantity in case items are unexpanded
   const PACKING_EFFICIENCY = 0.75
   const deckArea = truck.deckLength * truck.deckWidth
-  const usedArea = existingItems.reduce((s, i) => s + (i.length * i.width), 0)
-  const newArea = newItem.length * newItem.width
+  const usedArea = existingItems.reduce((s, i) => s + (i.length * i.width * (i.quantity || 1)), 0)
+  const newArea = newItem.length * newItem.width * (newItem.quantity || 1)
   if ((usedArea + newArea) > deckArea * PACKING_EFFICIENCY) return false
 
   // Try actual 2D placement to verify items fit (no failed placements allowed)
@@ -622,7 +623,9 @@ function rebalanceLoads(loads: PlannedLoad[]): void {
       const movableItems = highLoad.load.items
         .filter(item => {
           const { canAdd } = canAddItemToLoad(item, lowLoad.load.items, lowLoad.load.recommendedTruck, 95)
-          return canAdd
+          if (!canAdd) return false
+          // Verify item physically fits on target truck deck via 2D placement
+          return canFitOnTruck(item, lowLoad.load.items, lowLoad.load.recommendedTruck)
         })
         .sort((a, b) => getItemWeight(a) - getItemWeight(b))
 
@@ -680,9 +683,9 @@ function rebalanceLoads(loads: PlannedLoad[]): void {
 
       if (combinedWeight > targetTruck.maxCargoWeight) continue
 
-      // Check area fit
+      // Check area fit (defensive: multiply by quantity in case items are unexpanded)
       const deckArea = targetTruck.deckLength * targetTruck.deckWidth
-      const totalArea = combinedItems.reduce((s, i) => s + (i.length * i.width), 0)
+      const totalArea = combinedItems.reduce((s, i) => s + (i.length * i.width * (i.quantity || 1)), 0)
       if (totalArea > deckArea * 0.75) continue
 
       // Verify with actual placement (no failed placements allowed)

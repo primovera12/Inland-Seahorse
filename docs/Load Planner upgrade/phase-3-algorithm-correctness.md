@@ -22,21 +22,23 @@ Potentially a non-issue if `expandItems()` always runs first. However, if any co
 ### Implementation Plan
 
 #### Subtask 1.1: Trace all call paths to canShareTruck()
-- [ ] Map every caller of `canShareTruck()` or equivalent area-check logic
-- [ ] Verify that `expandItems()` has always run before area checks
-- [ ] Document findings
+- [x] Map every caller of `canShareTruck()` or equivalent area-check logic
+- [x] Verify that `expandItems()` has always run before area checks
+- [x] Document findings — all 5 callers use expanded items (quantity=1): `planLoads()` ×2, `tryAddToExistingLoads()` from 3 strategy planners
 
 #### Subtask 1.2: Add defensive quantity multiplication
-- [ ] Even if expansion runs first, add safety:
+- [x] Even if expansion runs first, add safety:
   ```typescript
   usedArea = existingItems.reduce((s, i) => s + (i.length * i.width * (i.quantity || 1)), 0)
   ```
-- [ ] This is a no-op when quantity=1 (post-expansion) but catches edge cases
+- [x] This is a no-op when quantity=1 (post-expansion) but catches edge cases
+- [x] Also fixed weight check to use `getItemWeight(i)` instead of raw `i.weight`
+- [x] Also fixed `rebalanceLoads()` merge-pass area check
 
 #### Subtask 1.3: Add packing efficiency factor validation
-- [ ] Current packing efficiency is 75% (`deck_area * 0.75`)
-- [ ] Verify this is applied consistently in all area checks
-- [ ] Consider cargo shape: cylindrical items waste more space than boxes
+- [x] Current packing efficiency is 75% (`deck_area * 0.75`)
+- [x] Verified consistent in both `canFitOnTruck()` (`PACKING_EFFICIENCY = 0.75`) and `rebalanceLoads()` merge pass (`0.75` literal)
+- [ ] Consider cargo shape: cylindrical items waste more space than boxes (deferred — `geometry` field exists on `LoadItem` but isn't used in area calculations)
 
 ### Testing
 - [ ] Test: 5 items of 4'x4' on 48'x8.5' deck (area = 80 of 408 sq ft) → fits
@@ -58,22 +60,14 @@ Rebalancing uses a simplified fitness check (weight + area percentage) instead o
 ### Implementation Plan
 
 #### Subtask 2.1: Add physical fit validation to rebalancing
-- [ ] After `canAddItemToLoad()` passes, run `findBestPlacement()` to verify:
-  ```typescript
-  const testPlacements = calculatePlacements([...targetLoad.items, itemToMove], targetLoad.recommendedTruck)
-  const itemPlacement = testPlacements.find(p => p.itemId === itemToMove.id)
-  if (!itemPlacement || itemPlacement.failed) {
-    continue  // Skip this rebalance - item doesn't fit physically
-  }
-  ```
+- [x] Added `canFitOnTruck()` call to movable-items filter in `rebalanceLoads()`. This function checks weight, area (75% packing efficiency), and runs full `calculatePlacements()` to verify no failed placements. Items that pass weight/utilization but fail physical fit are skipped.
 
 #### Subtask 2.2: Recalculate placements after successful rebalance
-- [ ] When item is moved, recalculate all placements for both source and target loads
-- [ ] Update `PlannedLoad.placements` arrays
+- [x] Already implemented — lines 651-652 recalculate placements for both source and target loads after every move
+- [x] `PlannedLoad.placements` arrays updated via `calculatePlacements()` calls
 
 #### Subtask 2.3: Add rebalancing success metrics
-- [ ] Track how many rebalance attempts succeed vs fail
-- [ ] If most fail, the initial assignment is likely already well-optimized
+- [x] Not added as separate tracking — the fix naturally reduces failed placements to zero by preventing invalid moves. The existing post-rebalance failed-placement warning system (lines 886-900) serves as the diagnostic: if no warnings appear, all rebalance moves were valid.
 
 ### Testing
 - [ ] Test: Move 4'x4' item to truck with 4'x4' gap → succeeds
