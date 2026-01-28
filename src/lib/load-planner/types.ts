@@ -190,12 +190,39 @@ export const PERMIT_BASE_COSTS_CENTS = {
   WEIGHT: 15_000,  // $150 base overweight permit
 } as const
 
+// Height permit severity tiers (all values in cents, per-state surcharges on top of base fee)
+// Real-world overheight costs escalate dramatically with height due to route surveys,
+// bridge clearance analysis, utility coordination, and engineering reviews.
+export const HEIGHT_PERMIT_TIERS_CENTS = {
+  // Tier 2 (14.6'-15.5'): Enhanced permit — route review, possible pole car
+  TIER_2_SURCHARGE: 25_000,   // $250/state
+  // Tier 3 (15.6'-16.5'): Route survey required — bridge clearance analysis
+  TIER_3_SURCHARGE: 75_000,   // $750/state
+  // Tier 4 (16.6'+): Superload — full route survey + utility coordination + engineering
+  TIER_4_SURCHARGE: 200_000,  // $2,000/state
+  // Utility crossing estimate for loads >16' requiring wire lifting
+  // ~1 crossing per 50 miles in mixed urban/rural areas, ~$750 per crossing
+  UTILITY_CROSSING_INTERVAL_MILES: 50,
+  UTILITY_CROSSING_COST_CENTS: 75_000, // $750 per crossing
+} as const
+
 // Permit thresholds for superloads (varies by state)
 export const SUPERLOAD_THRESHOLDS = {
   WIDTH: 16, // feet
   HEIGHT: 16, // feet
   LENGTH: 120, // feet
   WEIGHT: 200000, // pounds
+} as const
+
+// Average oversize transport speeds by severity category (mph)
+// Real-world speeds vary by cargo dimensions due to state-imposed limits,
+// escort restrictions, bridge/utility clearance slowdowns, and routing constraints.
+export const OVERSIZE_SPEEDS = {
+  LEGAL: 55,             // Standard legal load — interstate speed
+  MILD_OVERSIZE: 45,     // Width 8.6'-10', height 13.6'-14.5'
+  MODERATE_OVERSIZE: 40, // Width 10.1'-12', height 14.6'-15.5'
+  HEAVY_OVERSIZE: 35,    // Width 12.1'-14', height 15.6'-16.5'
+  SUPERLOAD: 30,         // Width 14'+, height 16.6'+, or weight >200k lbs
 } as const
 
 // =============================================================================

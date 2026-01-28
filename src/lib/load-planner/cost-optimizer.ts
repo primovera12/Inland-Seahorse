@@ -17,6 +17,7 @@ import {
   LEGAL_LIMITS,
   ESCORT_COSTS,
   PERMIT_BASE_COSTS_CENTS,
+  HEIGHT_PERMIT_TIERS_CENTS,
 } from './types'
 
 // ============================================================================
@@ -32,9 +33,10 @@ const DEFAULT_FUEL_PRICE_CENTS = 450 // cents per gallon ($4.50)
  * Oversize loads average ~35 mph (daylight travel, escort restrictions, scale stops)
  * with ~10 driving hours per day (daylight only).
  */
-export function calculateEscortDays(distanceMiles: number): number {
+export function calculateEscortDays(distanceMiles: number, avgSpeedMph?: number): number {
   if (distanceMiles <= 0) return 1
-  const milesPerDay = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH * ESCORT_COSTS.OVERSIZE_DRIVING_HOURS_PER_DAY
+  const speed = avgSpeedMph ?? ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH
+  const milesPerDay = speed * ESCORT_COSTS.OVERSIZE_DRIVING_HOURS_PER_DAY
   return Math.max(1, Math.ceil(distanceMiles / milesPerDay))
 }
 
@@ -78,15 +80,30 @@ export function calculatePermitCosts(
   const totalHeight = truck.deckHeight + cargoHeight
   const escortDays = calculateEscortDays(distanceMiles)
 
-  // Height permit (over 13.5 ft)
+  // Height permit (over 13.5 ft) — severity tiers based on real-world permit costs
+  // Costs escalate dramatically with height due to route surveys, bridge clearance
+  // analysis, utility coordination, and engineering reviews.
   if (totalHeight > LEGAL_LIMITS.HEIGHT) {
     costs.heightPermit = PERMIT_BASE_COSTS_CENTS.HEIGHT * statesCount
-    // Additional surcharge for extreme overheight
-    if (totalHeight > 15) {
-      costs.heightPermit += 5_000 * statesCount  // $50
+
+    if (totalHeight > 16.5) {
+      // Tier 4 (16.6'+): Superload — route survey + utility coordination + engineering
+      costs.heightPermit += HEIGHT_PERMIT_TIERS_CENTS.TIER_4_SURCHARGE * statesCount
+    } else if (totalHeight > 15.5) {
+      // Tier 3 (15.6'-16.5'): Route survey — bridge clearance analysis
+      costs.heightPermit += HEIGHT_PERMIT_TIERS_CENTS.TIER_3_SURCHARGE * statesCount
+    } else if (totalHeight > 14.5) {
+      // Tier 2 (14.6'-15.5'): Enhanced permit — route review, possible pole car
+      costs.heightPermit += HEIGHT_PERMIT_TIERS_CENTS.TIER_2_SURCHARGE * statesCount
     }
-    if (totalHeight > 16) {
-      costs.heightPermit += 10_000 * statesCount  // $100
+    // Tier 1 (13.6'-14.5'): base fee only — already included above
+
+    // Utility coordination for loads >16': wire lifting at overhead crossings
+    if (totalHeight > 16 && distanceMiles > 0) {
+      const estimatedCrossings = Math.ceil(
+        distanceMiles / HEIGHT_PERMIT_TIERS_CENTS.UTILITY_CROSSING_INTERVAL_MILES
+      )
+      costs.heightPermit += estimatedCrossings * HEIGHT_PERMIT_TIERS_CENTS.UTILITY_CROSSING_COST_CENTS
     }
   }
 

@@ -16,6 +16,7 @@ import {
   TripHOSValidation,
   RequiredBreak,
   RestStop,
+  OVERSIZE_SPEEDS,
 } from './types'
 
 // ============================================================================
@@ -46,8 +47,55 @@ export const HOS_LIMITS = {
   NON_DRIVING_ON_DUTY_PER_DAY: 45,  // 0.75 hours of non-driving on-duty per driving day
 
   // Average speeds for calculation (mph)
-  OVERSIZE_AVG_SPEED: 45,           // Oversize loads move slower
+  // Use getOversizeSpeed() for dimension-aware speed; this is the fallback
+  // when cargo dimensions are unknown (conservative default)
+  OVERSIZE_AVG_SPEED: 35,           // Conservative default for oversize loads
   STANDARD_AVG_SPEED: 55,           // Standard truck speed
+}
+
+// ============================================================================
+// OVERSIZE SPEED CLASSIFICATION
+// ============================================================================
+
+/**
+ * Get the appropriate average speed for an oversize load based on its dimensions.
+ * Real-world oversize transport speeds vary significantly by cargo severity:
+ * - Mild oversize (just over legal): 45 mph — mostly standard routing
+ * - Moderate oversize: 40 mph — some routing restrictions, occasional slowdowns
+ * - Heavy oversize: 35 mph — escort-paced, bridge/utility detours
+ * - Superload: 30 mph — police escort, crawl speeds through towns, utility lifts
+ *
+ * When dimensions are unknown, returns OVERSIZE_SPEEDS.HEAVY_OVERSIZE (35 mph)
+ * as a conservative default.
+ */
+export function getOversizeSpeed(
+  width?: number,
+  height?: number,
+  weight?: number
+): number {
+  // Superload: width 14'+, height 16.6'+, or weight >200k lbs
+  if ((width !== undefined && width > 14) ||
+      (height !== undefined && height > 16.5) ||
+      (weight !== undefined && weight > 200000)) {
+    return OVERSIZE_SPEEDS.SUPERLOAD
+  }
+  // Heavy oversize: width 12.1'-14', height 15.6'-16.5'
+  if ((width !== undefined && width > 12) ||
+      (height !== undefined && height > 15.5)) {
+    return OVERSIZE_SPEEDS.HEAVY_OVERSIZE
+  }
+  // Moderate oversize: width 10.1'-12', height 14.6'-15.5'
+  if ((width !== undefined && width > 10) ||
+      (height !== undefined && height > 14.5)) {
+    return OVERSIZE_SPEEDS.MODERATE_OVERSIZE
+  }
+  // Mild oversize: width 8.6'-10', height 13.6'-14.5'
+  if ((width !== undefined && width > 8.5) ||
+      (height !== undefined && height > 13.5)) {
+    return OVERSIZE_SPEEDS.MILD_OVERSIZE
+  }
+  // Legal dimensions — standard speed
+  return OVERSIZE_SPEEDS.LEGAL
 }
 
 // ============================================================================
@@ -58,13 +106,15 @@ export const HOS_LIMITS = {
  * Calculate estimated drive time for a route
  * @param distanceMiles - Total route distance
  * @param isOversize - Whether this is an oversize load (slower speed)
+ * @param oversizeSpeedMph - Optional exact speed override (from getOversizeSpeed)
  * @returns Drive time in minutes
  */
 export function calculateDriveTime(
   distanceMiles: number,
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): number {
-  const avgSpeed = isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED
+  const avgSpeed = oversizeSpeedMph ?? (isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED)
   const hours = distanceMiles / avgSpeed
   return Math.ceil(hours * 60) // Convert to minutes
 }
@@ -75,9 +125,10 @@ export function calculateDriveTime(
  */
 export function calculateDriveTimeWithStops(
   distanceMiles: number,
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): number {
-  const baseDriveTime = calculateDriveTime(distanceMiles, isOversize)
+  const baseDriveTime = calculateDriveTime(distanceMiles, isOversize, oversizeSpeedMph)
 
   // Add time for typical stops
   // Roughly 1 fuel stop per 400 miles (15 min each)
@@ -186,10 +237,11 @@ export function calculateTotalOnDutyTime(
  */
 export function findRequiredBreakLocations(
   totalMiles: number,
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): RequiredBreak[] {
   const breaks: RequiredBreak[] = []
-  const avgSpeed = isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED
+  const avgSpeed = oversizeSpeedMph ?? (isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED)
 
   // Calculate miles driven before break is needed
   const milesBeforeBreak = (HOS_LIMITS.MAX_BEFORE_BREAK / 60) * avgSpeed
@@ -215,10 +267,11 @@ export function findRequiredBreakLocations(
  */
 export function findOvernightLocations(
   totalMiles: number,
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): RequiredBreak[] {
   const overnights: RequiredBreak[] = []
-  const avgSpeed = isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED
+  const avgSpeed = oversizeSpeedMph ?? (isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED)
 
   // Calculate max miles per day
   const maxDrivingHours = HOS_LIMITS.MAX_DRIVING_TIME / 60
@@ -250,10 +303,11 @@ export function findOvernightLocations(
 export function validateTripHOS(
   distanceMiles: number,
   driverStatus: HOSStatus = createFreshHOSStatus(),
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): TripHOSValidation {
   const warnings: string[] = []
-  const estimatedDriveTime = calculateDriveTimeWithStops(distanceMiles, isOversize)
+  const estimatedDriveTime = calculateDriveTimeWithStops(distanceMiles, isOversize, oversizeSpeedMph)
 
   // Calculate total on-duty time (driving + non-driving duties)
   // The 70-hour/8-day rule counts ALL on-duty time per 49 CFR 395.3
@@ -265,10 +319,10 @@ export function validateTripHOS(
   const canCompleteTodayDuty = driverStatus.onDutyRemaining >= estimatedDriveTime
 
   // Calculate required breaks
-  const requiredBreaks = findRequiredBreakLocations(distanceMiles, isOversize)
+  const requiredBreaks = findRequiredBreakLocations(distanceMiles, isOversize, oversizeSpeedMph)
 
   // Check if overnight is required
-  const overnights = findOvernightLocations(distanceMiles, isOversize)
+  const overnights = findOvernightLocations(distanceMiles, isOversize, oversizeSpeedMph)
   const overnightRequired = overnights.length > 0
 
   // Determine if trip is achievable
@@ -392,14 +446,15 @@ export function estimateDeliveryWindow(
   distanceMiles: number,
   departureTime: Date,
   driverStatus: HOSStatus = createFreshHOSStatus(),
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): {
   earliest: Date
   latest: Date
   tripDays: number
   warnings: string[]
 } {
-  const validation = validateTripHOS(distanceMiles, driverStatus, isOversize)
+  const validation = validateTripHOS(distanceMiles, driverStatus, isOversize, oversizeSpeedMph)
   const warnings: string[] = [...validation.warnings]
 
   // Calculate total time including breaks
@@ -464,7 +519,8 @@ export function generateTripPlan(
   distanceMiles: number,
   departureTime: Date,
   driverStatus: HOSStatus = createFreshHOSStatus(),
-  isOversize: boolean = false
+  isOversize: boolean = false,
+  oversizeSpeedMph?: number
 ): {
   summary: string[]
   schedule: Array<{
@@ -477,8 +533,8 @@ export function generateTripPlan(
   hosValidation: TripHOSValidation
   deliveryWindow: { earliest: Date; latest: Date }
 } {
-  const hosValidation = validateTripHOS(distanceMiles, driverStatus, isOversize)
-  const deliveryWindow = estimateDeliveryWindow(distanceMiles, departureTime, driverStatus, isOversize)
+  const hosValidation = validateTripHOS(distanceMiles, driverStatus, isOversize, oversizeSpeedMph)
+  const deliveryWindow = estimateDeliveryWindow(distanceMiles, departureTime, driverStatus, isOversize, oversizeSpeedMph)
 
   const summary: string[] = []
   const schedule: Array<{
@@ -545,7 +601,7 @@ export function generateTripPlan(
     time: new Date(currentTime),
   })
 
-  const avgSpeed = isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED
+  const avgSpeed = oversizeSpeedMph ?? (isOversize ? HOS_LIMITS.OVERSIZE_AVG_SPEED : HOS_LIMITS.STANDARD_AVG_SPEED)
 
   // Add breaks and overnights to schedule
   for (const brk of hosValidation.requiredBreaks) {

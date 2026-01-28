@@ -62,7 +62,7 @@ export type {
 } from './types'
 
 // Constants
-export { LEGAL_LIMITS, SUPERLOAD_THRESHOLDS } from './types'
+export { LEGAL_LIMITS, SUPERLOAD_THRESHOLDS, OVERSIZE_SPEEDS } from './types'
 
 // =============================================================================
 // PARSING EXPORTS
@@ -202,6 +202,7 @@ export {
   estimateDeliveryWindow,
   generateTripPlan,
   findRequiredBreakLocations,
+  getOversizeSpeed,
   HOS_LIMITS,
 } from './hos-validator'
 

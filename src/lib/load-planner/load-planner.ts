@@ -46,7 +46,7 @@ import {
 import { calculateTruckCost, calculateMultiTruckCost } from './cost-optimizer'
 import { generateLoadSecurementPlan } from './securement-planner'
 import { calculateEscortRequirements, estimateEscortCost } from './escort-calculator'
-import { validateTripHOS, createFreshHOSStatus } from './hos-validator'
+import { validateTripHOS, createFreshHOSStatus, getOversizeSpeed } from './hos-validator'
 
 export interface ItemPlacement {
   itemId: string
@@ -1192,11 +1192,20 @@ export function planLoadsWithOptions(
       l.width > LEGAL_LIMITS.WIDTH ||
       (l.height + l.recommendedTruck.deckHeight) > LEGAL_LIMITS.HEIGHT
     )
+    // Compute dimension-aware speed from worst-case cargo across all loads
+    const maxWidth = Math.max(...enhancedLoads.map(l => l.width))
+    const maxTotalHeight = Math.max(...enhancedLoads.map(l => l.height + l.recommendedTruck.deckHeight))
+    const maxWeight = Math.max(...enhancedLoads.map(l =>
+      l.items.reduce((sum, i) => sum + i.weight * (i.quantity || 1), 0) +
+      l.recommendedTruck.tareWeight + l.recommendedTruck.powerUnitWeight
+    ))
+    const oversizeSpeed = isOversize ? getOversizeSpeed(maxWidth, maxTotalHeight, maxWeight) : undefined
     const driverStatus = opts.driverStatus || createFreshHOSStatus()
     enhancedPlan.hosValidation = validateTripHOS(
       opts.routeDistance,
       driverStatus,
-      isOversize
+      isOversize,
+      oversizeSpeed
     )
 
     if (enhancedPlan.hosValidation.warnings.length > 0) {
