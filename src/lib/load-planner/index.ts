@@ -159,6 +159,7 @@ export {
   calculateTruckCost,
   calculatePermitCosts,
   calculateFuelCost,
+  calculateEscortDays,
   calculateMultiTruckCost,
   scoreTruckForCost,
   compareLoadingOptions,

@@ -175,6 +175,12 @@ export const ESCORT_COSTS = {
   POLICE_ESCORT_PER_HOUR_CENTS: 10_000,
   /** Bucket truck per day: $1,500 */
   BUCKET_TRUCK_PER_DAY_CENTS: 150_000,
+  /** Mobilization/demobilization fee per escort vehicle: $350 */
+  MOBILIZATION_PER_VEHICLE_CENTS: 35_000,
+  /** Oversize average speed for escort day calculation: 35 mph */
+  OVERSIZE_AVG_SPEED_MPH: 35,
+  /** Driving hours per day for oversize (daylight only): 10 */
+  OVERSIZE_DRIVING_HOURS_PER_DAY: 10,
 } as const
 
 // Permit base fee constants (all values in cents, integer)

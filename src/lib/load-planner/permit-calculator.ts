@@ -150,22 +150,22 @@ export function calculateStatePermit(
     const owPermit = state.overweightPermits.singleTrip
     estimatedFee += owPermit.baseFee
 
-    // Per mile fees
-    if (owPermit.perMileFee && distanceInState > 0) {
-      estimatedFee += owPermit.perMileFee * distanceInState
+    // Distance-based fees: per-mile and ton-mile are mutually exclusive
+    // (if both defined for a state, use the larger — likely a data error)
+    if (distanceInState > 0) {
+      const perMileCost = owPermit.perMileFee ? owPermit.perMileFee * distanceInState : 0
+      const tonMileCost = owPermit.tonMileFee
+        ? owPermit.tonMileFee * (cargo.grossWeight / 2000) * distanceInState
+        : 0
+      estimatedFee += Math.max(perMileCost, tonMileCost)
     }
 
-    // Ton-mile fees
-    if (owPermit.tonMileFee && distanceInState > 0) {
-      const tons = cargo.grossWeight / 2000
-      estimatedFee += owPermit.tonMileFee * tons * distanceInState
-    }
-
-    // Weight brackets
+    // Weight brackets — additive on top of base + distance-based fees
+    // (states with both per-mile and brackets charge cumulatively, not either/or)
     if (owPermit.weightBrackets) {
       for (const bracket of owPermit.weightBrackets) {
         if (cargo.grossWeight <= bracket.upTo) {
-          estimatedFee = Math.max(estimatedFee, owPermit.baseFee + bracket.fee)
+          estimatedFee += bracket.fee
           break
         }
       }
@@ -373,34 +373,45 @@ export function calculateDetailedStatePermit(
     estimatedFee += owPermit.baseFee
     calculationDetails.push(`Base overweight permit fee: $${owPermit.baseFee}`)
 
-    // Per mile fees
-    if (owPermit.perMileFee && distanceInState > 0) {
-      const perMileCost = owPermit.perMileFee * distanceInState
-      costBreakdown.weightFees.perMileFee = owPermit.perMileFee
-      estimatedFee += perMileCost
-      calculationDetails.push(`Per-mile fee (${distanceInState} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
-    }
-
-    // Ton-mile fees
-    if (owPermit.tonMileFee && distanceInState > 0) {
+    // Distance-based fees: per-mile and ton-mile are mutually exclusive
+    // (if both defined for a state, use the larger — likely a data error)
+    if (distanceInState > 0) {
+      const perMileCost = owPermit.perMileFee ? owPermit.perMileFee * distanceInState : 0
       const tons = cargo.grossWeight / 2000
-      const tonMileCost = owPermit.tonMileFee * tons * distanceInState
-      costBreakdown.weightFees.tonMileFee = owPermit.tonMileFee
-      estimatedFee += tonMileCost
-      calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${distanceInState} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
+      const tonMileCost = owPermit.tonMileFee ? owPermit.tonMileFee * tons * distanceInState : 0
+
+      if (perMileCost > 0 && tonMileCost > 0) {
+        // Both defined — anomaly; use the larger and note the conflict
+        if (perMileCost >= tonMileCost) {
+          costBreakdown.weightFees.perMileFee = owPermit.perMileFee
+          estimatedFee += perMileCost
+          calculationDetails.push(`Per-mile fee (${distanceInState} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
+          calculationDetails.push(`Note: ton-mile fee also defined ($${tonMileCost.toFixed(2)}) — using higher per-mile fee`)
+        } else {
+          costBreakdown.weightFees.tonMileFee = owPermit.tonMileFee
+          estimatedFee += tonMileCost
+          calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${distanceInState} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
+          calculationDetails.push(`Note: per-mile fee also defined ($${perMileCost.toFixed(2)}) — using higher ton-mile fee`)
+        }
+      } else if (perMileCost > 0) {
+        costBreakdown.weightFees.perMileFee = owPermit.perMileFee
+        estimatedFee += perMileCost
+        calculationDetails.push(`Per-mile fee (${distanceInState} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
+      } else if (tonMileCost > 0) {
+        costBreakdown.weightFees.tonMileFee = owPermit.tonMileFee
+        estimatedFee += tonMileCost
+        calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${distanceInState} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
+      }
     }
 
-    // Weight brackets
+    // Weight brackets — additive on top of base + per-mile/ton-mile fees
+    // (states with both per-mile and brackets charge cumulatively, not either/or)
     if (owPermit.weightBrackets) {
       for (const bracket of owPermit.weightBrackets) {
         if (cargo.grossWeight <= bracket.upTo) {
-          const bracketTotal = owPermit.baseFee + bracket.fee
-          if (bracketTotal > estimatedFee) {
-            const additionalFee = bracketTotal - estimatedFee
-            costBreakdown.weightFees.bracketFee = bracket.fee
-            estimatedFee = bracketTotal
-            calculationDetails.push(`Weight bracket (up to ${bracket.upTo.toLocaleString()} lbs): +$${additionalFee.toFixed(0)}`)
-          }
+          costBreakdown.weightFees.bracketFee = bracket.fee
+          estimatedFee += bracket.fee
+          calculationDetails.push(`Weight bracket (up to ${bracket.upTo.toLocaleString()} lbs): +$${bracket.fee}`)
           break
         }
       }
