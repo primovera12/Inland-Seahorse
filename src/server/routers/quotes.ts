@@ -1207,7 +1207,8 @@ export const quotesRouter = router({
       for (const id of input.ids) {
         await ctx.supabase.from('quote_status_history').insert({
           quote_id: id,
-          status: input.status,
+          quote_type: 'dismantle',
+          new_status: input.status,
           changed_by: ctx.user.id,
           notes: `Batch status change to ${input.status}`,
         })
