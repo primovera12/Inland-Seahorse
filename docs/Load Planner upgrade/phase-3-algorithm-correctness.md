@@ -118,18 +118,19 @@ Functions evolved independently. `findBestTruckForItem` is simpler; `findBestTru
 ### Implementation Plan
 
 #### Subtask 4.1: Audit both scoring functions
-- [ ] Document all scoring factors in `findBestTruckForItem()`
-- [ ] Document all scoring factors in `findBestTruckForLoad()` / `selectTrucks()`
-- [ ] Create comparison table showing differences
+- [x] Document all scoring factors in `findBestTruckForItem()` — simplified: flat permit penalty (permits.length * 15), flat +20 legal bonus, simple drive-on match (+15), overkill check (height only), no tiers, no proportional penalties
+- [x] Document all scoring factors in `findBestTruckForLoad()` / `selectTrucks()` — comprehensive: proportional penalties (height up to 40, width up to 25, weight up to 30), cost-weighted permits (up to 30), tiers (+10 to -30), 12 equipment profiles, seasonal/historical bonuses, weight overkill
+- [x] Create comparison table showing differences — documented in work log entry #19
 
 #### Subtask 4.2: Unify scoring through truck-selector.ts
-- [ ] Both functions should delegate to `selectTrucks()` for consistent scoring
-- [ ] `findBestTruckForItem()` can wrap a single-item ParsedLoad and call `selectTrucks()`
-- [ ] This ensures equipment matching, availability tiers, and seasonal bonuses apply everywhere
+- [x] Both functions now delegate to `selectTrucks()` for consistent scoring
+- [x] `findBestTruckForItem()` wraps a single-item ParsedLoad and calls `selectTrucks()`
+- [x] `findBestTruckForLoad()` creates a ParsedLoad with actual items (not a virtual "Load" item) and calls `selectTrucks()` — enables proper equipment matching from real descriptions
+- [x] Equipment matching, availability tiers, and seasonal bonuses now apply everywhere
 
 #### Subtask 4.3: Verify permit consistency
-- [ ] Permits determined during item scoring should match permits after load scoring
-- [ ] If truck changes during load optimization, permits must be recalculated
+- [x] Permits now determined by same `determinePermits()` function in truck-selector.ts regardless of entry point (item vs load)
+- [x] When truck changes during load optimization (planLoads line 822), `findBestTruckForLoad()` recalculates via `selectTrucks()` which includes fresh `determinePermits()` call
 
 ### Testing
 - [ ] Test: Single excavator scored alone → same truck as when scored as part of 1-item load
@@ -161,24 +162,15 @@ Logic inverted. Should check items at the candidate position, not all items glob
 ### Implementation Plan
 
 #### Subtask 5.1: Fix fragile item placement logic
-- [ ] Change check to only consider items directly below the candidate position:
-  ```typescript
-  if (item.fragile) {
-    const itemsBelow = existingPlacements.filter(p =>
-      p.y + getItemHeight(p) === candidateY &&  // directly below
-      overlapsXZ(p, candidateX, candidateZ, item)  // same footprint area
-    )
-    if (itemsBelow.length > 0) continue  // Don't stack fragile on others
-  }
-  ```
+- [x] Replaced 8-line block with single check: `if (item.fragile && floorHeight > 0) continue`. Uses `floorHeight` (computed from grid cells at the candidate position) instead of global `existingPlacements.some()` scan. When `floorHeight > 0`, items exist below — skip. When `floorHeight === 0`, it's the floor — allow.
 
 #### Subtask 5.2: Allow fragile items on floor
-- [ ] Fragile items should always be allowed on the floor (y=0)
-- [ ] Only restrict stacking fragile items on top of non-fragile items
+- [x] `floorHeight === 0` → condition is false → position NOT skipped. Fragile items always allowed on floor.
+- [x] `floorHeight > 0` → condition is true → position skipped. Fragile items never stacked on other items.
 
 #### Subtask 5.3: Add fragile-on-fragile check
-- [ ] Two fragile items should never be stacked on each other
-- [ ] Add check: if item below is also fragile, skip position
+- [x] Inherently prevented — both fragile items must go on the floor (`floorHeight > 0` blocks all stacking for fragile items). No explicit fragile-on-fragile check needed.
+- [x] Reverse direction (non-fragile on top of fragile) already handled by `buildStackingMap()` — fragile items without explicit `stackable: true` have `canStack = false` in their grid cells.
 
 ### Testing
 - [ ] Test: Fragile item placed first → goes on floor at y=0
@@ -207,22 +199,15 @@ maxLoad check is per-item instead of cumulative.
 ### Implementation Plan
 
 #### Subtask 6.1: Track cumulative weight per grid cell
-- [ ] Add `currentLoad` field to grid cells:
-  ```typescript
-  interface GridCell {
-    maxLoad: number
-    currentLoad: number  // weight already on this cell
-    height: number
-  }
-  ```
+- [x] Added `currentLoad: number` field to `StackingCell` interface in `types.ts`, initialized to 0 in `buildStackingMap()`.
 
 #### Subtask 6.2: Check cumulative weight
-- [ ] Before placing item, check: `cell.currentLoad + itemWeight <= cell.maxLoad`
-- [ ] After placing, update: `cell.currentLoad += itemWeight`
+- [x] `findBestPosition()` now checks `cell.currentLoad + weightPerCell > cell.maxLoad` instead of `itemWeight > cell.maxLoad`.
+- [x] Weight accumulation happens in `buildStackingMap()` second pass — grid is rebuilt from scratch each call, so no post-place update needed.
 
 #### Subtask 6.3: Distribute item weight across cells
-- [ ] Item spanning multiple cells should distribute weight proportionally
-- [ ] Weight per cell = total weight / number of cells occupied
+- [x] `buildStackingMap()` second pass distributes stacked item weight as `itemWeight / numCells` across covered cells.
+- [x] `findBestPosition()` computes new item's `weightPerCell = itemWeight / numCells` per orientation/position for the cumulative check.
 
 ### Testing
 - [ ] Test: 5,000 lb maxLoad, stack 3,000 + 1,500 → allowed (4,500 < 5,000)
@@ -242,22 +227,17 @@ No empty-array guard on Math.max/min spread operations.
 ### Implementation Plan
 
 #### Subtask 7.1: Add empty array guards
-- [ ] Wrap all dimension calculations:
-  ```typescript
-  load.length = load.items.length > 0 ? Math.max(...load.items.map(i => i.length)) : 0
-  load.width = load.items.length > 0 ? Math.max(...load.items.map(i => i.width)) : 0
-  load.height = load.items.length > 0 ? Math.max(...load.items.map(i => i.height)) : 0
-  load.weight = load.items.reduce((s, i) => s + i.weight, 0)
-  ```
+- [x] `findBestTruckForLoad()` lines 508-510: ternary guard `items.length > 0 ? Math.max(...) : 0`
+- [x] Rebalance move-pass `lowLoad` lines 606-608: added `, 0` fallback (matches existing `highLoad` pattern)
+- [x] Merge-pass `combinedItems` lines 657-659: added `, 0` fallback
+- [x] HOS validation `enhancedLoads` lines 1157-1159: ternary guard `enhancedLoads.length > 0 ? Math.max(...) : 0`
 
 #### Subtask 7.2: Remove empty loads after rebalancing
-- [ ] After rebalancing, filter out loads with zero items:
-  ```typescript
-  plan.loads = plan.loads.filter(load => load.items.length > 0)
-  ```
+- [x] Already implemented at lines 668-673: reverse-iteration splice for `items.length === 0`
+- [x] Loads renumbered at lines 675-678
 
 #### Subtask 7.3: Update totalTrucks count
-- [ ] After removing empty loads, recalculate: `plan.totalTrucks = plan.loads.length`
+- [x] Already handled at line 885: `totalTrucks: loads.length` set after `rebalanceLoads()` returns
 
 ### Testing
 - [ ] Test: All items moved off a truck → truck removed from plan, no -Infinity

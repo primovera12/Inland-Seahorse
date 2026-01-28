@@ -826,7 +826,8 @@ export interface StackingCell {
   x: number              // Grid position X
   z: number              // Grid position Z
   ceiling: number        // Current height at this position (feet)
-  maxLoad: number        // Remaining load capacity (lbs)
+  maxLoad: number        // Maximum load capacity of the base item (lbs)
+  currentLoad: number    // Cumulative weight of items stacked above the base (lbs)
   baseItemId?: string    // ID of item at base of this cell
   canStack: boolean      // Whether stacking is allowed here
 }

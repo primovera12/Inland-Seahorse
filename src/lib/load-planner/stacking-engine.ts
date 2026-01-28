@@ -99,6 +99,7 @@ export function buildStackingMap(
         z: z * GRID_RESOLUTION,
         ceiling: 0,              // Height occupied
         maxLoad: DEFAULT_MAX_LOAD,
+        currentLoad: 0,          // Cumulative weight stacked above base
         canStack: true,
       }
     }
@@ -144,6 +145,37 @@ export function buildStackingMap(
             grid[x][z].maxLoad = Math.min(grid[x][z].maxLoad, item.maxLoad)
           }
         }
+      }
+    }
+  }
+
+  // Second pass: accumulate weight from stacked items (y > 0) onto the cells below.
+  // This enables cumulative weight validation — placing two 3,000 lb items on a
+  // base with maxLoad 5,000 should fail because 6,000 > 5,000.
+  for (const placement of placements) {
+    if (placement.failed) continue
+    if (placement.y === 0) continue // Floor items don't load on another item
+
+    const item = items.find(i => i.id === placement.itemId)
+    if (!item) continue
+
+    const itemLength = placement.rotated ? item.width : item.length
+    const itemWidth = placement.rotated ? item.length : item.width
+    const itemWeight = item.weight * (item.quantity || 1)
+
+    const pStartX = Math.max(0, Math.floor(placement.x / GRID_RESOLUTION))
+    const pEndX = Math.min(gridLength - 1, Math.floor((placement.x + itemLength) / GRID_RESOLUTION))
+    const pStartZ = Math.max(0, Math.floor(placement.z / GRID_RESOLUTION))
+    const pEndZ = Math.min(gridWidth - 1, Math.floor((placement.z + itemWidth) / GRID_RESOLUTION))
+
+    if (pStartX > pEndX || pStartZ > pEndZ) continue
+
+    const numCells = (pEndX - pStartX + 1) * (pEndZ - pStartZ + 1)
+    const weightPerCell = itemWeight / numCells
+
+    for (let x = pStartX; x <= pEndX; x++) {
+      for (let z = pStartZ; z <= pEndZ; z++) {
+        grid[x][z].currentLoad += weightPerCell
       }
     }
   }
@@ -249,6 +281,10 @@ export function findBestPosition(
         let canPlace = true
         let stackedOnId: string | undefined
 
+        // Distribute the new item's weight proportionally across cells it occupies
+        const numCells = (endGx - gx + 1) * (endGz - gz + 1)
+        const weightPerCell = numCells > 0 ? itemWeight / numCells : itemWeight
+
         for (let cx = gx; cx <= endGx && canPlace; cx++) {
           for (let cz = gz; cz <= endGz && canPlace; cz++) {
             const cell = grid[cx][cz]
@@ -262,7 +298,8 @@ export function findBestPosition(
               if (!cell.canStack) {
                 canPlace = false
               }
-              if (itemWeight > cell.maxLoad) {
+              // Cumulative weight check: existing load + new item's share must not exceed maxLoad
+              if (cell.currentLoad + weightPerCell > cell.maxLoad) {
                 canPlace = false
               }
             }
@@ -275,15 +312,11 @@ export function findBestPosition(
         const totalHeight = truck.deckHeight + floorHeight + item.height
         if (totalHeight > maxHeight) continue
 
-        // fragile items should only go on top
-        if (item.fragile && floorHeight === 0 && existingPlacements.length > 0) {
-          // Only skip floor placement for fragile if there are stackable items below
-          const hasStackableBelow = existingPlacements.some(p => {
-            const i = items.find(it => it.id === p.itemId)
-            return i && i.stackable !== false && !i.bottomOnly
-          })
-          if (hasStackableBelow) continue
-        }
+        // Fragile items must be placed on the floor — do not stack them on other items.
+        // Floor placement (floorHeight === 0) is always safe for fragile items.
+        // Stacking fragile items on top of anything (floorHeight > 0) risks damage.
+        // This also prevents fragile-on-fragile stacking.
+        if (item.fragile && floorHeight > 0) continue
 
         // bottomOnly items must be on floor
         if (item.bottomOnly && floorHeight > 0) continue
