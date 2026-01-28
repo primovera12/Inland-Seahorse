@@ -838,6 +838,7 @@ export interface PlanningOptions {
 
 export interface AxleConfiguration {
   kingpinPosition: number     // Reference point (usually 0)
+  steerAxlePosition: number   // Distance from kingpin to steer axle (negative = ahead of kingpin)
   driveAxlePosition: number   // Distance from kingpin to drive axle (negative = ahead)
   trailerAxlePosition: number // Distance from kingpin to trailer axle(s)
   trailerAxleSpread?: number  // Spread between multiple trailer axles
@@ -878,25 +879,28 @@ export const DEFAULT_COST_DATA: Record<TrailerCategory, TruckCostData> = {
 }
 
 // Default Axle Configurations by Trailer Category
+// steerAxlePosition: distance from kingpin to front (steer) axle of tractor
+//   Standard Class 8 day cab: ~-17 ft (12 ft wheelbase)
+//   Heavy haul tractor: ~-20 ft (15 ft wheelbase)
 export const DEFAULT_AXLE_CONFIGS: Record<TrailerCategory, AxleConfiguration> = {
-  FLATBED: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
-  STEP_DECK: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  RGN: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
-  LOWBOY: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
-  DOUBLE_DROP: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
-  LANDOLL: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  CONESTOGA: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
-  DRY_VAN: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  REEFER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  CURTAIN_SIDE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  MULTI_AXLE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 13, trailerAxleSpread: 4.5 },
-  SCHNABEL: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 20, numberOfTrailerAxles: 8, trailerAxleSpread: 5 },
-  PERIMETER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 22, numberOfTrailerAxles: 6, trailerAxleSpread: 4.5 },
-  STEERABLE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
-  BLADE: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
-  TANKER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
-  HOPPER: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
-  SPECIALIZED: { kingpinPosition: 0, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
+  FLATBED: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
+  STEP_DECK: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  RGN: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
+  LOWBOY: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
+  DOUBLE_DROP: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
+  LANDOLL: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  CONESTOGA: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
+  DRY_VAN: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  REEFER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  CURTAIN_SIDE: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
+  MULTI_AXLE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 13, trailerAxleSpread: 4.5 },
+  SCHNABEL: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 20, numberOfTrailerAxles: 8, trailerAxleSpread: 5 },
+  PERIMETER: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 22, numberOfTrailerAxles: 6, trailerAxleSpread: 4.5 },
+  STEERABLE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
+  BLADE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
+  TANKER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
+  HOPPER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
+  SPECIALIZED: { kingpinPosition: 0, steerAxlePosition: -18, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
 }
 
 // Item Constraint Types

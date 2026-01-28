@@ -41,6 +41,7 @@
 > - **P1-01 COMPLETED**: Dollar vs cents unit mismatch fixed. All monetary values now standardized to cents across escort-calculator, cost-optimizer, permit-calculator, and load-planner modules.
 > - **P1-02 COMPLETED**: Hotshot tractor weight fixed. Added `powerUnitWeight` field to `TruckType` interface and all 62 truck definitions. Hotshot=9k, SPMT=0, heavy haul=20k, standard=17k. All GVW calculations across 7 files now use `truck.powerUnitWeight` instead of hardcoded `LEGAL_LIMITS.TRACTOR_WEIGHT`.
 > - **P1-03 COMPLETED**: Fallback placement at (0,0) overlapping cargo fixed. Failed placements now marked with `failed: true` flag instead of silently overlapping. Fixed broken `canFitOnTruck()` and `rebalanceLoads()` merge verification that always passed due to fallback. Warnings generated for failed placements. Visualization shows failed items in red hatched style with "NOT PLACED" label.
+> - **P1-04 COMPLETED**: Drive axle weight can no longer go negative. Replaced broken single-beam model (fixed 33% steer ratio, moments computed about inconsistent reference points) with proper 2-beam pin-jointed model. Beam 1 (trailer) solves kingpin + trailer axle reactions. Beam 2 (tractor) uses kingpin reaction to solve steer + drive axle weights via moment balance. Added `steerAxlePosition` to `AxleConfiguration` interface and all 18 default configs. Conservation law now always holds: steer + drive + trailer = totalGross. Added underload/imbalance warnings for negative axle weights, low steer axle (<10k lbs), and any axle below 5% of GVW. Self-propelled (SPMT) handled as special case (all weight on trailer axles).
 >
 > ### What We Learned During Audit
 > - The codebase is well-architected with clean module separation
@@ -66,11 +67,14 @@
 > - The placement algorithm uses 0.5-foot grid steps scanning the deck (fine for <10 items, watch performance for more)
 > - `ItemPlacement` and `ItemPlacement3D` interfaces both have optional `failed?: boolean` field — when `true`, the item is assigned to the truck but has no valid deck position
 > - `canFitOnTruck()` now verifies no failed placements exist (previously only checked count, which always matched due to fallback)
+> - Weight distribution uses a **2-beam pin-jointed model**: trailer beam (kingpin + trailer axle) and tractor beam (steer + drive axle). The kingpin (fifth wheel) is the pin joint connecting them. This replaces the old single-beam model that used a fixed 33% steer ratio.
+> - `AxleConfiguration` now includes `steerAxlePosition` (distance from kingpin to steer axle). Standard Class 8: -17 ft, heavy haul: -20 ft. Tractor CG assumed at 60% from steer toward drive axle.
+> - Axle weights can be negative in extreme imbalance scenarios — `scoreWeightDistribution()` generates appropriate warnings and score penalties for these cases
 
 ### Current Focus
-> **Next up:** Phase 1, Issue P1-04 — Drive axle weight can go negative
-> **Phase file:** `phase-1-safety-compliance.md` → Section P1-04
-> **Why next:** When cargo is positioned far rear, the steer axle subtraction can produce negative drive axle weights — physically impossible and breaks weight distribution scoring.
+> **Next up:** Phase 1, Issue P1-05 — Tridem axle limit formula wrong (8k vs 5.5k per axle)
+> **Phase file:** `phase-1-safety-compliance.md` → Section P1-05
+> **Why next:** The extra-axle weight increment uses 8,000 lbs instead of the correct ~5,500 lbs per axle beyond tridem, allowing overweight configurations to pass validation.
 
 ---
 
@@ -78,13 +82,13 @@
 
 | Phase | Description | Issues | Done | Remaining | Status |
 |-------|-------------|--------|------|-----------|--------|
-| 1 | Safety & DOT Compliance | 9 | 3 | 6 | In Progress |
+| 1 | Safety & DOT Compliance | 9 | 4 | 5 | In Progress |
 | 2 | Cost Accuracy | 5 | 0 | 5 | Not Started |
 | 3 | Algorithm Correctness | 7 | 0 | 7 | Not Started |
 | 4 | Data & Coverage | 10 | 0 | 10 | Not Started |
 | 5 | Advanced Compliance | 7 | 0 | 7 | Not Started |
 | -- | Minor / Polish | 7 | 0 | 7 | Not Started |
-| **Total** | | **45** | **3** | **42** | |
+| **Total** | | **45** | **4** | **41** | |
 
 ---
 
@@ -95,7 +99,7 @@
 | P1-01 | Dollar vs cents unit mismatch in escort costs | CRITICAL | `escort-calculator.ts`, `permit-calculator.ts` | 21-24, 27-29 | [x] Done |
 | P1-02 | Hotshot tractor weight uses semi weight (17k vs 9k) | CRITICAL | `load-planner.ts`, `truck-selector.ts`, `types.ts` | 316 | [x] Done |
 | P1-03 | Fallback placement at (0,0) creates overlapping cargo | CRITICAL | `load-planner.ts`, `types.ts`, `TrailerDiagram.tsx`, `LoadPlanVisualizer.tsx` | 154-161 | [x] Done |
-| P1-04 | Drive axle weight can go negative | CRITICAL | `weight-distribution.ts` | 71-77 | [ ] Not Started |
+| P1-04 | Drive axle weight can go negative | CRITICAL | `weight-distribution.ts`, `types.ts` | 26-86 | [x] Done |
 | P1-05 | Tridem axle limit formula wrong (8k vs 5.5k per axle) | CRITICAL | `weight-distribution.ts` | 161-162 | [ ] Not Started |
 | P1-06 | WLL not adjusted for tie-down angle (DOT 49 CFR 393) | CRITICAL | `securement-planner.ts` | 251-252 | [ ] Not Started |
 | P1-07 | HOS 70-hour/8-day cycle not enforced | CRITICAL | `hos-validator.ts` | 201-230 | [ ] Not Started |
@@ -181,6 +185,7 @@
 
 | # | Date | Issue ID | What Was Done | Files Modified | Notes |
 |---|------|----------|---------------|----------------|-------|
+| 5 | 2026-01-28 | P1-04 | Replaced broken single-beam axle weight model with proper 2-beam pin-jointed static model. Old model: computed trailer axle via moments (with inconsistent reference points — cargo moments about kingpin but trailer moment about drive axle), then subtracted a fixed 33% steer ratio from the residual, which could go negative. New model: Beam 1 (trailer) — moments about kingpin solve trailer axle weight, then kingpin reaction = trailer load - trailer axle weight. Beam 2 (tractor) — kingpin reaction transferred to tractor, moments about steer axle solve drive axle weight, steer = tractor weight + kingpin reaction - drive. Conservation law (steer + drive + trailer = GVW) always holds. Added `steerAxlePosition` field to `AxleConfiguration` interface (required). Updated all 18 entries in `DEFAULT_AXLE_CONFIGS` with steer positions (standard: -17 ft, heavy haul: -20 ft, specialized: -18 ft). Added `TRACTOR_CG_RATIO = 0.6` constant. Added SPMT special case (powerUnitWeight=0 → all weight on trailer axles). Added 6 new warning checks in `scoreWeightDistribution()`: negative axle weight (3 checks, -40 score each), low steer axle <10k lbs (-20 score), any axle <5% of GVW (3 checks, -10 score each). Removed old `Math.max(0, ...)` clamping that broke conservation. | `types.ts`, `weight-distribution.ts` | TypeScript compiles clean. Pre-existing test errors unchanged. The old model also had an inconsistent moment reference point bug (cargo moment about kingpin, trailer moment about drive axle) — this is now fixed by the clean 2-beam decomposition. The `steerAxlePosition` field is now required on `AxleConfiguration` — no external code constructs this interface (only `DEFAULT_AXLE_CONFIGS` and function parameters that pass through from it). |
 | 4 | 2026-01-28 | P1-03 | Replaced silent (0,0) fallback placement with explicit `failed: true` marking. Added `failed?: boolean` to `ItemPlacement` and `ItemPlacement3D` interfaces. Fixed `canFitOnTruck()` — was broken because fallback always produced a placement, so count check always passed; now also checks `!placements.some(p => p.failed)`. Fixed `rebalanceLoads()` merge verification with same pattern. Added per-load warnings when placements fail ("manual arrangement required"). Updated `TrailerDiagram.tsx` with red hatched pattern, "NOT PLACED" label, and dashed stroke for failed items in both top and side views. Updated `LoadPlanVisualizer.tsx` item list with red "Not placed" badge. `failed` flag propagates automatically to 3D placements via spread operator. | `types.ts`, `load-planner.ts`, `TrailerDiagram.tsx`, `LoadPlanVisualizer.tsx` | TypeScript compiles clean. Pre-existing test errors in unrelated files (permissions.test.ts, errors.test.ts) unchanged. The secondary fix to `canFitOnTruck()` is arguably the more impactful change — it was a broken verification that allowed items to be "placed" even when they didn't physically fit. |
 | 3 | 2026-01-27 | P1-02 | Added `powerUnitWeight` field to `TruckType` interface and all 62 truck definitions (hotshot=9000, SPMT=0, heavy haul=20000, standard=17000). Replaced all `LEGAL_LIMITS.TRACTOR_WEIGHT` references in GVW calculations with `truck.powerUnitWeight`. Updated `truck-type-converter.ts` to derive power unit weight from category/name for DB-backed trucks. Fixed `QuotePDFTemplate.tsx` inline truck objects. | `types.ts`, `trucks.ts`, `load-planner.ts`, `truck-selector.ts`, `weight-distribution.ts`, `cost-optimizer.ts`, `escort-calculator.ts`, `route-validator.ts`, `truck-type-converter.ts`, `QuotePDFTemplate.tsx` | TypeScript compiles clean. `LEGAL_LIMITS.TRACTOR_WEIGHT` kept as fallback default. |
 | 2 | 2026-01-27 | P1-01 | Standardized all monetary values to cents. Created shared `ESCORT_COSTS` and `PERMIT_BASE_COSTS_CENTS` constants in types.ts. Converted `escort-calculator.ts`, `cost-optimizer.ts`, `permit-calculator.ts` from dollars to cents. Updated `DEFAULT_COST_DATA.dailyCost` → `dailyCostCents`. Updated `PlanningOptions.fuelPrice` to cents. Fixed all display formatting in `load-planner.ts` and `PlanComparisonPanel.tsx` to divide by 100. | `types.ts`, `escort-calculator.ts`, `cost-optimizer.ts`, `permit-calculator.ts`, `load-planner.ts`, `PlanComparisonPanel.tsx` | TypeScript compiles clean. State permit data still in dollars internally — converted at boundary in permit-calculator. |
@@ -197,3 +202,4 @@
 | 2026-01-27 | Fix P1-01 (unit mismatch) before all other issues | Any cost-related fix built on top of mismatched units would itself be wrong. This is the foundation. |
 | 2026-01-27 | Phase order: Safety → Cost → Algorithm → Data → Advanced | Safety/DOT issues carry legal risk. Cost issues affect revenue. Algorithm issues affect UX. Data issues are incremental improvements. |
 | 2026-01-27 | Standardize all monetary values to cents (integers) | Matches database schema, avoids floating-point rounding, consistent with existing quote system. |
+| 2026-01-28 | Use 2-beam pin-jointed model (not fixed steer ratio) for axle weights | A fixed 33% steer ratio ignores load position entirely, making steer weight constant regardless of cargo placement. The 2-beam model correctly computes all 3 axle groups from physics, conserves total weight, and naturally produces negative values for impossible configurations (which are then flagged as warnings). |

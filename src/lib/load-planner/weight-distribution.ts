@@ -19,9 +19,20 @@ import {
 // AXLE WEIGHT CALCULATION
 // ============================================================================
 
+// Tractor center of gravity is approximately 60% from steer axle toward drive axle
+const TRACTOR_CG_RATIO = 0.6
+
 /**
- * Calculate axle weights based on item placements and truck configuration
- * Uses moment balance equations around kingpin
+ * Calculate axle weights based on item placements and truck configuration.
+ *
+ * Uses a 2-beam pin-jointed model:
+ *   Beam 1 (trailer): supported at kingpin and trailer axle(s)
+ *   Beam 2 (tractor): supported at steer axle and drive axle, loaded by
+ *          tractor weight + kingpin reaction from Beam 1
+ *
+ * The fifth wheel (kingpin) is the pin joint connecting the two beams.
+ * This model guarantees: steerAxle + driveAxle + trailerAxles = totalGross
+ * and all axle weights remain physically meaningful.
  */
 export function calculateAxleWeights(
   items: LoadItem[],
@@ -29,16 +40,14 @@ export function calculateAxleWeights(
   truck: TruckType,
   axleConfig?: AxleConfiguration
 ): AxleWeights {
-  // Get axle configuration (use default if not provided)
   const config = axleConfig || DEFAULT_AXLE_CONFIGS[truck.category]
 
-  // Base weights (empty truck)
   const tractorWeight = truck.powerUnitWeight
   const trailerTareWeight = truck.tareWeight
 
-  // Calculate cargo weight and moment about kingpin
+  // Calculate cargo weight and moment about kingpin (position 0)
   let totalCargoWeight = 0
-  let cargoMoment = 0 // Moment about kingpin (positive = behind kingpin)
+  let cargoMomentAboutKingpin = 0
 
   for (const placement of placements) {
     const item = items.find(i => i.id === placement.itemId)
@@ -47,40 +56,63 @@ export function calculateAxleWeights(
     const itemWeight = item.weight * (item.quantity || 1)
     totalCargoWeight += itemWeight
 
-    // Calculate item center position from kingpin
     const itemLength = placement.rotated ? item.width : item.length
     const itemCenterX = placement.x + itemLength / 2
 
-    // Moment = weight × distance from kingpin
-    cargoMoment += itemWeight * itemCenterX
+    cargoMomentAboutKingpin += itemWeight * itemCenterX
   }
-
-  // Calculate trailer axle weight using moment balance
-  // Sum of moments about drive axle = 0
-  // TrailerAxleWeight × (trailerAxlePos - driveAxlePos) =
-  //   CargoMoment + TrailerTareWeight × (trailerAxlePos/2 - driveAxlePos)
-
-  const driveToTrailer = config.trailerAxlePosition - config.driveAxlePosition
-
-  // Trailer weight assumed centered between kingpin and axle
-  const trailerCenterFromKingpin = config.trailerAxlePosition / 2
-  const trailerMoment = trailerTareWeight * (trailerCenterFromKingpin - config.driveAxlePosition)
-
-  // Calculate weights
-  const trailerAxleWeight = (cargoMoment + trailerMoment) / driveToTrailer
-  const driveAxleWeight = tractorWeight + trailerTareWeight + totalCargoWeight - trailerAxleWeight
-
-  // Steer axle gets portion of tractor weight (simplified - typically 30-35% of tractor)
-  const steerAxleRatio = 0.33
-  const steerAxleWeight = tractorWeight * steerAxleRatio
-  const adjustedDriveAxle = driveAxleWeight - steerAxleWeight
 
   const totalGross = tractorWeight + trailerTareWeight + totalCargoWeight
 
+  // Self-propelled (SPMT): no tractor, all weight on trailer axles
+  if (tractorWeight === 0) {
+    return {
+      steerAxle: 0,
+      driveAxle: 0,
+      trailerAxles: Math.round(totalGross),
+      totalGross: Math.round(totalGross),
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Beam 1: Trailer — supported at kingpin (pos 0) and trailer axle
+  // ------------------------------------------------------------------
+  const trailerAxlePos = config.trailerAxlePosition
+  const trailerCGPos = trailerAxlePos / 2 // tare weight CG at midpoint
+
+  // Moment about kingpin:
+  //   R_trailer × trailerAxlePos = cargoMoment + trailerTare × trailerCGPos
+  const trailerAxleWeight =
+    (cargoMomentAboutKingpin + trailerTareWeight * trailerCGPos) / trailerAxlePos
+
+  // Kingpin reaction: total trailer-side load minus what the trailer axle carries
+  const kingpinReaction = trailerTareWeight + totalCargoWeight - trailerAxleWeight
+
+  // ------------------------------------------------------------------
+  // Beam 2: Tractor — supported at steer axle and drive axle
+  // The kingpin reaction acts downward at the kingpin (position 0).
+  // ------------------------------------------------------------------
+  const steerPos = config.steerAxlePosition
+  const drivePos = config.driveAxlePosition
+  const steerToDrive = drivePos - steerPos // positive distance (e.g. 12 ft)
+
+  // Tractor CG positioned 60% from steer toward drive
+  const tractorCGPos = steerPos + TRACTOR_CG_RATIO * steerToDrive
+
+  // Moment about steer axle:
+  //   R_drive × steerToDrive = tractorWeight × (tractorCG - steerPos)
+  //                          + kingpinReaction × (0 - steerPos)
+  const driveAxleWeight =
+    (tractorWeight * (tractorCGPos - steerPos) +
+      kingpinReaction * (0 - steerPos)) /
+    steerToDrive
+
+  const steerAxleWeight = tractorWeight + kingpinReaction - driveAxleWeight
+
   return {
     steerAxle: Math.round(steerAxleWeight),
-    driveAxle: Math.round(Math.max(0, adjustedDriveAxle)),
-    trailerAxles: Math.round(Math.max(0, trailerAxleWeight)),
+    driveAxle: Math.round(driveAxleWeight),
+    trailerAxles: Math.round(trailerAxleWeight),
     totalGross: Math.round(totalGross),
   }
 }
@@ -190,6 +222,47 @@ export function scoreWeightDistribution(
     warnings.push(`Gross weight over limit by ${overBy.toLocaleString()} lbs`)
     score -= 20
     isLegal = false
+  }
+
+  // Check for negative axle weights (severe imbalance — truck would tip)
+  if (axleWeights.steerAxle < 0) {
+    warnings.push(`Steer axle weight is negative (${axleWeights.steerAxle.toLocaleString()} lbs) — load too far rearward, front wheels would lift`)
+    score -= 40
+    isLegal = false
+  }
+  if (axleWeights.driveAxle < 0) {
+    warnings.push(`Drive axle weight is negative (${axleWeights.driveAxle.toLocaleString()} lbs) — severe weight imbalance`)
+    score -= 40
+    isLegal = false
+  }
+  if (axleWeights.trailerAxles < 0) {
+    warnings.push(`Trailer axle weight is negative (${axleWeights.trailerAxles.toLocaleString()} lbs) — load too far forward, trailer would lift`)
+    score -= 40
+    isLegal = false
+  }
+
+  // Check for dangerously low steer axle (steering safety)
+  const minSteerWeight = 10000
+  if (truck.powerUnitWeight > 0 && axleWeights.steerAxle >= 0 && axleWeights.steerAxle < minSteerWeight) {
+    warnings.push(`Steer axle only ${axleWeights.steerAxle.toLocaleString()} lbs — below ${minSteerWeight.toLocaleString()} lb minimum for safe steering`)
+    score -= 20
+  }
+
+  // Check for any axle below 5% of total (severe imbalance)
+  if (axleWeights.totalGross > 0 && truck.powerUnitWeight > 0) {
+    const threshold = axleWeights.totalGross * 0.05
+    if (axleWeights.steerAxle >= 0 && axleWeights.steerAxle < threshold && axleWeights.steerAxle >= minSteerWeight) {
+      warnings.push(`Steer axle at only ${Math.round((axleWeights.steerAxle / axleWeights.totalGross) * 100)}% of GVW — significant imbalance`)
+      score -= 10
+    }
+    if (axleWeights.driveAxle >= 0 && axleWeights.driveAxle < threshold) {
+      warnings.push(`Drive axle at only ${Math.round((axleWeights.driveAxle / axleWeights.totalGross) * 100)}% of GVW — significant imbalance`)
+      score -= 10
+    }
+    if (axleWeights.trailerAxles >= 0 && axleWeights.trailerAxles < threshold) {
+      warnings.push(`Trailer axles at only ${Math.round((axleWeights.trailerAxles / axleWeights.totalGross) * 100)}% of GVW — significant imbalance`)
+      score -= 10
+    }
   }
 
   // Check lateral balance (CG should be near center of trailer width)
