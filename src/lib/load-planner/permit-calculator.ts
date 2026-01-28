@@ -298,6 +298,47 @@ export function calculateStatePermit(
     restrictions.push(travel.weatherRestrictions)
   }
 
+  // Check bridge analysis requirements
+  let bridgeAnalysisRequired = false
+  if (state.bridgeAnalysis && (oversizeRequired || overweightRequired)) {
+    const ba = state.bridgeAnalysis
+    const weightTriggered = cargo.grossWeight > ba.weightThreshold
+    const widthTriggered = ba.widthThreshold ? cargo.width > ba.widthThreshold : false
+    if (weightTriggered || widthTriggered) {
+      bridgeAnalysisRequired = true
+      const triggers: string[] = []
+      if (weightTriggered) triggers.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${ba.weightThreshold.toLocaleString()} lb threshold`)
+      if (widthTriggered) triggers.push(`width ${cargo.width}' > ${ba.widthThreshold}' threshold`)
+      warnings.push(
+        `${state.stateName} requires bridge analysis for this load (${triggers.join(', ')}). ` +
+        `Estimated cost: $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()} per bridge, ` +
+        `processing time: ${ba.processingTime}.`
+      )
+      reasons.push('Bridge analysis required — heavy/wide load on state highways')
+    }
+  }
+
+  // Check if annual/continuous permit covers this load
+  let continuousPermitAvailable = false
+  let continuousPermitNote: string | undefined
+  if (oversizeRequired && state.oversizePermits.annual) {
+    const annual = state.oversizePermits.annual
+    const fitsAnnual =
+      (!annual.maxWidth || cargo.width <= annual.maxWidth) &&
+      (!annual.maxHeight || cargo.height <= annual.maxHeight) &&
+      (!annual.maxLength || cargo.length <= annual.maxLength) &&
+      (!annual.maxWeight || cargo.grossWeight <= annual.maxWeight)
+    if (fitsAnnual && !bridgeAnalysisRequired) {
+      continuousPermitAvailable = true
+      const limits: string[] = []
+      if (annual.maxWidth) limits.push(`${annual.maxWidth}' wide`)
+      if (annual.maxHeight) limits.push(`${annual.maxHeight}' high`)
+      if (annual.maxLength) limits.push(`${annual.maxLength}' long`)
+      if (annual.maxWeight) limits.push(`${annual.maxWeight.toLocaleString()} lbs`)
+      continuousPermitNote = `Annual/continuous permit ($${annual.baseFee}/year) available — covers loads up to ${limits.join(', ')}`
+    }
+  }
+
   // Check special jurisdictions (e.g., NYC within NY state)
   const sjResult = checkSpecialJurisdictions(state, cargo, routePoints)
   if (sjResult.warnings.length > 0) {
@@ -321,7 +362,10 @@ export function calculateStatePermit(
     reasons,
     travelRestrictions: restrictions,
     warnings: warnings.length > 0 ? warnings : undefined,
-    specialJurisdictionPermits: sjResult.permits.length > 0 ? sjResult.permits : undefined
+    specialJurisdictionPermits: sjResult.permits.length > 0 ? sjResult.permits : undefined,
+    bridgeAnalysisRequired: bridgeAnalysisRequired || undefined,
+    continuousPermitAvailable: continuousPermitAvailable || undefined,
+    continuousPermitNote
   }
 }
 
@@ -571,6 +615,56 @@ export function calculateDetailedStatePermit(
     restrictions.push(travel.weatherRestrictions)
   }
 
+  // Check bridge analysis requirements
+  let bridgeAnalysisRequired = false
+  if (state.bridgeAnalysis && (oversizeRequired || overweightRequired)) {
+    const ba = state.bridgeAnalysis
+    const weightTriggered = cargo.grossWeight > ba.weightThreshold
+    const widthTriggered = ba.widthThreshold ? cargo.width > ba.widthThreshold : false
+    if (weightTriggered || widthTriggered) {
+      bridgeAnalysisRequired = true
+      const triggers: string[] = []
+      if (weightTriggered) triggers.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${ba.weightThreshold.toLocaleString()} lb threshold`)
+      if (widthTriggered) triggers.push(`width ${cargo.width}' > ${ba.widthThreshold}' threshold`)
+      warnings.push(
+        `${state.stateName} requires bridge analysis for this load (${triggers.join(', ')}). ` +
+        `Estimated cost: $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()} per bridge, ` +
+        `processing time: ${ba.processingTime}.`
+      )
+      reasons.push('Bridge analysis required — heavy/wide load on state highways')
+      calculationDetails.push(
+        `Bridge analysis required: ${triggers.join(', ')}. ` +
+        `Est. $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()}/bridge (${ba.processingTime})`
+      )
+    }
+  }
+
+  // Check if annual/continuous permit covers this load
+  let continuousPermitAvailable = false
+  let continuousPermitNote: string | undefined
+  if (oversizeRequired && state.oversizePermits.annual) {
+    const annual = state.oversizePermits.annual
+    const fitsAnnual =
+      (!annual.maxWidth || cargo.width <= annual.maxWidth) &&
+      (!annual.maxHeight || cargo.height <= annual.maxHeight) &&
+      (!annual.maxLength || cargo.length <= annual.maxLength) &&
+      (!annual.maxWeight || cargo.grossWeight <= annual.maxWeight)
+    if (fitsAnnual && !bridgeAnalysisRequired) {
+      continuousPermitAvailable = true
+      const limits: string[] = []
+      if (annual.maxWidth) limits.push(`${annual.maxWidth}' wide`)
+      if (annual.maxHeight) limits.push(`${annual.maxHeight}' high`)
+      if (annual.maxLength) limits.push(`${annual.maxLength}' long`)
+      if (annual.maxWeight) limits.push(`${annual.maxWeight.toLocaleString()} lbs`)
+      continuousPermitNote = `Annual/continuous permit ($${annual.baseFee}/year) available — covers loads up to ${limits.join(', ')}`
+      calculationDetails.push(continuousPermitNote)
+    } else if (fitsAnnual && bridgeAnalysisRequired) {
+      calculationDetails.push(
+        `Annual/continuous permit ($${annual.baseFee}/year) exists but cannot be used — bridge analysis required for this load`
+      )
+    }
+  }
+
   // Check special jurisdictions (e.g., NYC within NY state)
   const sjResult = checkSpecialJurisdictions(state, cargo, routePoints)
   if (sjResult.warnings.length > 0) {
@@ -607,7 +701,10 @@ export function calculateDetailedStatePermit(
     travelRestrictions: restrictions,
     reasons,
     warnings: warnings.length > 0 ? warnings : undefined,
-    specialJurisdictionPermits: sjResult.permits.length > 0 ? sjResult.permits : undefined
+    specialJurisdictionPermits: sjResult.permits.length > 0 ? sjResult.permits : undefined,
+    bridgeAnalysisRequired: bridgeAnalysisRequired || undefined,
+    continuousPermitAvailable: continuousPermitAvailable || undefined,
+    continuousPermitNote
   }
 }
 

@@ -450,7 +450,18 @@ export interface OversizePermit {
     maxWidth?: number
     maxHeight?: number
     maxLength?: number
+    maxWeight?: number     // lbs — loads exceeding this need single-trip permits
+    restrictions?: string[]
   }
+}
+
+export interface BridgeAnalysisRequirement {
+  weightThreshold: number    // lbs — above this requires bridge analysis on state highways
+  widthThreshold?: number    // feet — above this may require bridge analysis on specific routes
+  estimatedCostMin: number   // dollars (consistent with state permit data)
+  estimatedCostMax: number   // dollars
+  processingTime: string     // e.g., '2-4 weeks'
+  notes?: string[]
 }
 
 export interface OverweightPermit {
@@ -553,6 +564,7 @@ export interface StatePermitData {
   travelRestrictions: TravelRestrictions
   contact: StateContact
   superloadThresholds?: SuperloadThresholds
+  bridgeAnalysis?: BridgeAnalysisRequirement
   specialJurisdictions?: SpecialJurisdiction[]
   notes?: string[]
 }
@@ -572,6 +584,9 @@ export interface PermitRequirement {
   travelRestrictions: string[]
   warnings?: string[]             // Calculation quality warnings (e.g., missing distance)
   specialJurisdictionPermits?: SpecialJurisdictionPermit[]
+  bridgeAnalysisRequired?: boolean
+  continuousPermitAvailable?: boolean
+  continuousPermitNote?: string   // e.g., "Annual permit ($90) covers loads up to 14' wide, 15' high, 120' long, 110,000 lbs"
 }
 
 export interface RoutePermitSummary {
@@ -679,6 +694,9 @@ export interface DetailedPermitRequirement {
   reasons: string[]              // Why permit is required
   warnings?: string[]            // Calculation quality warnings (e.g., missing distance)
   specialJurisdictionPermits?: SpecialJurisdictionPermit[]
+  bridgeAnalysisRequired?: boolean
+  continuousPermitAvailable?: boolean
+  continuousPermitNote?: string
 }
 
 /**

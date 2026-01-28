@@ -46,6 +46,7 @@ export type {
   TravelRestrictions,
   StateContact,
   SuperloadThresholds,
+  BridgeAnalysisRequirement,
   SpecialJurisdiction,
   SpecialJurisdictionPermit,
   StatePermitData,

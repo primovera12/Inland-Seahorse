@@ -193,6 +193,10 @@ export const statePermits: StatePermitData[] = [
   },
 
   // CALIFORNIA
+  // Caltrans has one of the most complex permit systems in the US.
+  // Single-trip permits available online; annual/continuous permits for frequent haulers.
+  // Bridge analysis required for loads >110,000 lbs or >14' wide on bridge-restricted routes.
+  // Two-lane roads carry higher permit fees (approx. 25% surcharge).
   {
     stateCode: 'CA',
     stateName: 'California',
@@ -206,10 +210,36 @@ export const statePermits: StatePermitData[] = [
     oversizePermits: {
       singleTrip: {
         baseFee: 16,
-        processingTime: 'Immediate online',
+        dimensionSurcharges: {
+          width: [
+            { threshold: 12, fee: 15 },    // $15 surcharge for loads >12' wide
+            { threshold: 14, fee: 40 },    // $40 surcharge for loads >14' wide
+            { threshold: 16, fee: 150 }    // $150 surcharge for loads >16' wide (superload territory)
+          ],
+          height: [
+            { threshold: 15, fee: 20 },    // $20 surcharge for loads >15' high
+            { threshold: 16, fee: 100 }    // $100 surcharge for loads >16' high (route survey likely)
+          ],
+          length: [
+            { threshold: 100, fee: 20 },   // $20 surcharge for loads >100' long
+            { threshold: 120, fee: 75 }    // $75 surcharge for loads >120' long
+          ]
+        },
+        processingTime: 'Immediate online for standard; 5-10 days for superload',
         validity: 'Single trip'
       },
-      annual: { baseFee: 90 }
+      annual: {
+        baseFee: 90,
+        maxWidth: 14,       // Continuous/annual permit max width
+        maxHeight: 15,      // Continuous/annual permit max height
+        maxLength: 120,     // Continuous/annual permit max length
+        maxWeight: 110000,  // Continuous/annual permit max weight
+        restrictions: [
+          'Cannot be used on routes requiring bridge analysis',
+          'Not valid for superload-classified moves',
+          'Two-lane road restrictions still apply'
+        ]
+      }
     },
     overweightPermits: {
       singleTrip: {
@@ -231,15 +261,42 @@ export const statePermits: StatePermitData[] = [
       weekendDefinition: 'Friday 3pm to Monday 6am (varies by route)',
       noHolidayTravel: true
     },
+    superloadThresholds: {
+      width: 16,
+      height: 16.5,
+      length: 125,
+      weight: 200000,
+      requiresRouteSurvey: true,
+      requiresBridgeAnalysis: true
+    },
+    bridgeAnalysis: {
+      weightThreshold: 110000,  // Caltrans requires bridge analysis for loads >110,000 lbs on state highways
+      widthThreshold: 14,       // Loads >14' wide may require bridge analysis on bridge-restricted routes
+      estimatedCostMin: 1000,   // $1,000 minimum per bridge analysis
+      estimatedCostMax: 2500,   // $2,500 maximum per bridge analysis
+      processingTime: '2-4 weeks',
+      notes: [
+        'Required for all loads >110,000 lbs on state highways',
+        'May be required for loads >14\' wide on routes with bridge clearance concerns',
+        'Caltrans Structure Maintenance & Investigations performs the analysis',
+        'Cannot use annual/continuous permit for routes requiring bridge analysis',
+        'Additional cost per bridge — multiple bridges on route increase total cost'
+      ]
+    },
     contact: {
       agency: 'Caltrans Transportation Permits',
       phone: '916-654-6261',
       website: 'https://dot.ca.gov/programs/traffic-operations/transportation-permits'
     },
     notes: [
-      'California has complex route restrictions',
-      'Many routes require annual permits',
-      'Special requirements for wide loads on two-lane roads'
+      'California has one of the most complex permit systems in the US',
+      'Annual/continuous permit ($90/year) covers loads up to 14\' wide, 15\' high, 120\' long, 110,000 lbs',
+      'Annual permit cannot be used on routes requiring bridge analysis',
+      'Loads >110,000 lbs require Caltrans bridge analysis ($1,000-$2,500, 2-4 weeks processing)',
+      'Loads >14\' wide may require bridge analysis on bridge-restricted routes',
+      'Two-lane roads carry higher permit fees (~25% surcharge) and additional restrictions',
+      'Special requirements for wide loads on two-lane roads (e.g., turnouts, flaggers)',
+      'Loads >16\' wide or >16.5\' high classified as superloads requiring route survey'
     ]
   },
 
