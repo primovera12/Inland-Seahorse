@@ -328,10 +328,13 @@ export {
   getStateCenter,
   isIntraStateRoute,
   getRouteRegions,
+  isNonContiguousState,
+  detectNonContiguousRoute,
   FREIGHT_CORRIDORS,
+  NON_CONTIGUOUS_STATES,
 } from './state-detector'
 
-export type { FreightCorridor } from './state-detector'
+export type { FreightCorridor, NonContiguousStateInfo } from './state-detector'
 
 // Seasonal restrictions
 export {

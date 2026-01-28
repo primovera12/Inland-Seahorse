@@ -24,6 +24,7 @@ interface StateBoundingBox {
 }
 
 const STATE_BOUNDING_BOXES: StateBoundingBox[] = [
+  { code: 'AK', name: 'Alaska', minLat: 51.0, maxLat: 71.4, minLng: -180.0, maxLng: -130.0 },
   { code: 'AL', name: 'Alabama', minLat: 30.22, maxLat: 35.01, minLng: -88.47, maxLng: -84.89 },
   { code: 'AZ', name: 'Arizona', minLat: 31.33, maxLat: 37.00, minLng: -114.81, maxLng: -109.05 },
   { code: 'AR', name: 'Arkansas', minLat: 33.00, maxLat: 36.50, minLng: -94.62, maxLng: -89.64 },
@@ -33,6 +34,7 @@ const STATE_BOUNDING_BOXES: StateBoundingBox[] = [
   { code: 'DE', name: 'Delaware', minLat: 38.45, maxLat: 39.84, minLng: -75.79, maxLng: -75.05 },
   { code: 'FL', name: 'Florida', minLat: 24.40, maxLat: 31.00, minLng: -87.63, maxLng: -80.03 },
   { code: 'GA', name: 'Georgia', minLat: 30.36, maxLat: 35.00, minLng: -85.61, maxLng: -80.84 },
+  { code: 'HI', name: 'Hawaii', minLat: 18.9, maxLat: 22.3, minLng: -160.3, maxLng: -154.8 },
   { code: 'ID', name: 'Idaho', minLat: 41.99, maxLat: 49.00, minLng: -117.24, maxLng: -111.04 },
   { code: 'IL', name: 'Illinois', minLat: 36.97, maxLat: 42.51, minLng: -91.51, maxLng: -87.02 },
   { code: 'IN', name: 'Indiana', minLat: 37.77, maxLat: 41.76, minLng: -88.10, maxLng: -84.78 },
@@ -74,6 +76,48 @@ const STATE_BOUNDING_BOXES: StateBoundingBox[] = [
   { code: 'WY', name: 'Wyoming', minLat: 41.00, maxLat: 45.00, minLng: -111.06, maxLng: -104.05 },
   { code: 'DC', name: 'District of Columbia', minLat: 38.79, maxLat: 38.99, minLng: -77.12, maxLng: -76.91 },
 ]
+
+// Non-contiguous US states that require special freight handling
+export interface NonContiguousStateInfo {
+  code: string
+  name: string
+  freightMethod: string
+  typicalOriginPort: string
+  transitStates: string[]  // States cargo typically transits through
+  notes: string[]
+}
+
+export const NON_CONTIGUOUS_STATES: Record<string, NonContiguousStateInfo> = {
+  AK: {
+    code: 'AK',
+    name: 'Alaska',
+    freightMethod: 'Barge/marine vessel from Pacific Northwest ports',
+    typicalOriginPort: 'Seattle, WA or Tacoma, WA',
+    transitStates: ['WA'],
+    notes: [
+      'Alaska-bound freight from lower 48 typically ships via barge from WA/OR ports',
+      'Alaska Marine Highway provides ferry service for some vehicle transport',
+      'Transit time: 3-7 days by barge from Seattle/Tacoma to Anchorage',
+      'Oversize permits required separately for AK road portions',
+      'Winter road restrictions may apply Oct-Apr on many AK routes',
+    ],
+  },
+  HI: {
+    code: 'HI',
+    name: 'Hawaii',
+    freightMethod: 'Container ship from West Coast ports',
+    typicalOriginPort: 'Long Beach, CA or Oakland, CA',
+    transitStates: ['CA'],
+    notes: [
+      'Hawaii-bound freight ships via container vessel from CA ports',
+      'Transit time: 5-10 days by ship from Long Beach/Oakland to Honolulu',
+      'Cargo must be containerized or loaded on flat-rack containers',
+      'Oversize loads may require special flat-rack or open-top container booking',
+      'Hawaii state permits required separately for road portions on-island',
+      'Weight limits on Hawaiian roads are generally lower than mainland',
+    ],
+  },
+}
 
 // Major freight corridors for common route identification
 export interface FreightCorridor {
@@ -333,6 +377,7 @@ export function identifyFreightCorridors(statesTraversed: string[]): FreightCorr
  */
 export function getNeighboringStates(stateCode: string): string[] {
   const neighbors: Record<string, string[]> = {
+    AK: [], // Non-contiguous — no adjacent US states (freight via barge from WA/OR)
     AL: ['FL', 'GA', 'MS', 'TN'],
     AZ: ['CA', 'CO', 'NM', 'NV', 'UT'],
     AR: ['LA', 'MO', 'MS', 'OK', 'TN', 'TX'],
@@ -342,6 +387,7 @@ export function getNeighboringStates(stateCode: string): string[] {
     DE: ['MD', 'NJ', 'PA'],
     FL: ['AL', 'GA'],
     GA: ['AL', 'FL', 'NC', 'SC', 'TN'],
+    HI: [], // Non-contiguous — no adjacent US states (freight via container ship from CA)
     ID: ['MT', 'NV', 'OR', 'UT', 'WA', 'WY'],
     IL: ['IA', 'IN', 'KY', 'MO', 'WI'],
     IN: ['IL', 'KY', 'MI', 'OH'],
@@ -394,8 +440,10 @@ export function getNeighboringStates(stateCode: string): string[] {
 export function validateRouteGeography(statesTraversed: string[]): {
   isValid: boolean
   issues: string[]
+  nonContiguousNotes: string[]
 } {
   const issues: string[] = []
+  const nonContiguousNotes: string[] = []
 
   for (let i = 1; i < statesTraversed.length; i++) {
     const prevState = statesTraversed[i - 1]
@@ -403,13 +451,22 @@ export function validateRouteGeography(statesTraversed: string[]): {
     const neighbors = getNeighboringStates(prevState)
 
     if (!neighbors.includes(currState)) {
-      issues.push(`${prevState} and ${currState} are not adjacent states`)
+      // Non-contiguous states are expected to have no adjacent neighbors — not an error
+      if (NON_CONTIGUOUS_STATES[prevState] || NON_CONTIGUOUS_STATES[currState]) {
+        const ncState = NON_CONTIGUOUS_STATES[prevState] || NON_CONTIGUOUS_STATES[currState]
+        nonContiguousNotes.push(
+          `${ncState.name} is non-contiguous — freight requires ${ncState.freightMethod.toLowerCase()}`
+        )
+      } else {
+        issues.push(`${prevState} and ${currState} are not adjacent states`)
+      }
     }
   }
 
   return {
     isValid: issues.length === 0,
     issues,
+    nonContiguousNotes,
   }
 }
 
@@ -451,8 +508,8 @@ export function getRouteRegions(statesTraversed: string[]): string[] {
     Southeast: ['AL', 'FL', 'GA', 'KY', 'MS', 'NC', 'SC', 'TN', 'VA', 'WV'],
     Midwest: ['IA', 'IL', 'IN', 'KS', 'MI', 'MN', 'MO', 'ND', 'NE', 'OH', 'SD', 'WI'],
     Southwest: ['AZ', 'NM', 'OK', 'TX'],
-    West: ['CA', 'CO', 'NV', 'UT', 'WY'],
-    'Pacific Northwest': ['ID', 'MT', 'OR', 'WA'],
+    West: ['CA', 'CO', 'HI', 'NV', 'UT', 'WY'],
+    'Pacific Northwest': ['AK', 'ID', 'MT', 'OR', 'WA'],
   }
 
   for (const state of statesTraversed) {
@@ -464,4 +521,76 @@ export function getRouteRegions(statesTraversed: string[]): string[] {
   }
 
   return Array.from(regions)
+}
+
+/**
+ * Check if a state code is non-contiguous (AK or HI)
+ */
+export function isNonContiguousState(stateCode: string): boolean {
+  return stateCode.toUpperCase() in NON_CONTIGUOUS_STATES
+}
+
+/**
+ * Detect non-contiguous state involvement from origin/destination coordinates.
+ * AK/HI won't have polyline connections to the continental US, so detection
+ * must be based on pickup/dropoff coordinates rather than route segments.
+ */
+export function detectNonContiguousRoute(
+  origin: LatLng,
+  destination: LatLng
+): {
+  hasNonContiguous: boolean
+  originState: string | null
+  destinationState: string | null
+  nonContiguousStates: NonContiguousStateInfo[]
+  warnings: string[]
+  transitStates: string[]
+} {
+  const originState = getStateFromPoint(origin)
+  const destState = getStateFromPoint(destination)
+
+  const nonContiguousStates: NonContiguousStateInfo[] = []
+  const warnings: string[] = []
+  const transitStatesSet = new Set<string>()
+
+  const checkState = (stateCode: string | null, label: string) => {
+    if (stateCode && NON_CONTIGUOUS_STATES[stateCode]) {
+      const info = NON_CONTIGUOUS_STATES[stateCode]
+      if (!nonContiguousStates.some((s) => s.code === info.code)) {
+        nonContiguousStates.push(info)
+      }
+      warnings.push(
+        `${label} is in ${info.name} — ${info.freightMethod.toLowerCase()}. ` +
+          `Typical port: ${info.typicalOriginPort}.`
+      )
+      for (const ts of info.transitStates) {
+        transitStatesSet.add(ts)
+      }
+    }
+  }
+
+  checkState(originState, 'Origin')
+  checkState(destState, 'Destination')
+
+  // If both origin and destination are non-contiguous and different, note the complexity
+  if (
+    originState &&
+    destState &&
+    originState !== destState &&
+    NON_CONTIGUOUS_STATES[originState] &&
+    NON_CONTIGUOUS_STATES[destState]
+  ) {
+    warnings.push(
+      'Both origin and destination are in non-contiguous states — this route requires multiple marine shipments and is highly complex.'
+    )
+  }
+
+  return {
+    hasNonContiguous: nonContiguousStates.length > 0,
+    originState,
+    destinationState: destState,
+    nonContiguousStates,
+    warnings,
+    transitStates: Array.from(transitStatesSet),
+  }
 }
