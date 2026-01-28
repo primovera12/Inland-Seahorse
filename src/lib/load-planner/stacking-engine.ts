@@ -106,16 +106,26 @@ export function buildStackingMap(
 
   // Fill grid based on placements
   for (const placement of placements) {
+    // Skip failed placements (no valid deck position)
+    if (placement.failed) continue
+
     const item = items.find(i => i.id === placement.itemId)
     if (!item) continue
 
     const itemLength = placement.rotated ? item.width : item.length
     const itemWidth = placement.rotated ? item.length : item.width
 
-    const startX = Math.floor(placement.x / GRID_RESOLUTION)
-    const endX = Math.min(gridLength - 1, Math.ceil((placement.x + itemLength) / GRID_RESOLUTION))
-    const startZ = Math.floor(placement.z / GRID_RESOLUTION)
-    const endZ = Math.min(gridWidth - 1, Math.ceil((placement.z + itemWidth) / GRID_RESOLUTION))
+    // Use Math.floor for both start and end indices to prevent boundary overflow.
+    // Math.ceil on end indices can produce an index past the last grid cell when
+    // an item edge aligns exactly with a grid boundary (e.g. 48.0 / 0.5 = 96,
+    // but grid indices are 0-95). Clamp to valid range as safety net.
+    const startX = Math.max(0, Math.floor(placement.x / GRID_RESOLUTION))
+    const endX = Math.min(gridLength - 1, Math.floor((placement.x + itemLength) / GRID_RESOLUTION))
+    const startZ = Math.max(0, Math.floor(placement.z / GRID_RESOLUTION))
+    const endZ = Math.min(gridWidth - 1, Math.floor((placement.z + itemWidth) / GRID_RESOLUTION))
+
+    // Safety: skip if indices are still out of range (shouldn't happen after clamping)
+    if (startX > endX || startZ > endZ) continue
 
     for (let x = startX; x <= endX; x++) {
       for (let z = startZ; z <= endZ; z++) {
@@ -231,8 +241,9 @@ export function findBestPosition(
         if (z + orientation.width > truck.deckWidth) continue
 
         // Find the floor height at this position
-        const endGx = Math.min(gridLength - 1, Math.ceil((x + orientation.length) / GRID_RESOLUTION))
-        const endGz = Math.min(gridWidth - 1, Math.ceil((z + orientation.width) / GRID_RESOLUTION))
+        // Use Math.floor to prevent boundary overflow (see buildStackingMap comment)
+        const endGx = Math.min(gridLength - 1, Math.floor((x + orientation.length) / GRID_RESOLUTION))
+        const endGz = Math.min(gridWidth - 1, Math.floor((z + orientation.width) / GRID_RESOLUTION))
 
         let floorHeight = 0
         let canPlace = true

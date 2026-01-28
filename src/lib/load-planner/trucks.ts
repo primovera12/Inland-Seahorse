@@ -651,7 +651,7 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     maxCargoWeight: 45000,
     tareWeight: 15000,
-    maxLegalCargoHeight: 9.0, // Interior height typically 9' (110")
+    maxLegalCargoHeight: 9.5, // 13.5 - 4.0 (interior ceiling ~110" may be lower)
     maxLegalCargoWidth: 8.0, // Interior width slightly less
     features: [
       'Fully enclosed',
@@ -1291,7 +1291,7 @@ export const trucks: TruckType[] = [
     deckWidth: 8.0, // Interior width
     maxCargoWeight: 44000,
     tareWeight: 14000,
-    maxLegalCargoHeight: 9.0, // Interior height
+    maxLegalCargoHeight: 9.5, // 13.5 - 4.0 (interior ceiling ~108" may be lower)
     maxLegalCargoWidth: 8.0,
     features: [
       'Fully enclosed',
