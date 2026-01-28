@@ -541,6 +541,7 @@ export interface PermitRequirement {
   estimatedFee: number
   reasons: string[]
   travelRestrictions: string[]
+  warnings?: string[]             // Calculation quality warnings (e.g., missing distance)
 }
 
 export interface RoutePermitSummary {
@@ -646,6 +647,7 @@ export interface DetailedPermitRequirement {
   }
   travelRestrictions: string[]   // Time/weather restrictions
   reasons: string[]              // Why permit is required
+  warnings?: string[]            // Calculation quality warnings (e.g., missing distance)
 }
 
 /**

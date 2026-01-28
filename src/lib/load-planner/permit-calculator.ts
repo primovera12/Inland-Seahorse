@@ -29,6 +29,11 @@ const ESCORT_COST_PER_DAY = ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS
 const POLE_CAR_COST_PER_DAY = ESCORT_COSTS.POLE_CAR_PER_DAY_CENTS
 const POLICE_ESCORT_HOURLY = ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS
 
+// Minimum fallback distance (miles) when caller omits distance for a state
+// with per-mile or ton-mile fees. 50 miles is a conservative floor — enough
+// to avoid $0 fees but low enough not to massively overestimate.
+const MINIMUM_DISTANCE_FALLBACK_MILES = 50
+
 /**
  * Calculate permit requirements for a single state
  */
@@ -43,6 +48,7 @@ export function calculateStatePermit(
   const limits = state.legalLimits
   const reasons: string[] = []
   const restrictions: string[] = []
+  const warnings: string[] = []
 
   // Check oversize
   const widthOver = cargo.width > limits.maxWidth
@@ -152,10 +158,19 @@ export function calculateStatePermit(
 
     // Distance-based fees: per-mile and ton-mile are mutually exclusive
     // (if both defined for a state, use the larger — likely a data error)
-    if (distanceInState > 0) {
-      const perMileCost = owPermit.perMileFee ? owPermit.perMileFee * distanceInState : 0
+    const hasDistanceFees = !!(owPermit.perMileFee || owPermit.tonMileFee)
+    let effectiveDistance = distanceInState
+    if (effectiveDistance <= 0 && hasDistanceFees) {
+      effectiveDistance = MINIMUM_DISTANCE_FALLBACK_MILES
+      warnings.push(
+        `Distance not provided for ${state.stateName} — using ${MINIMUM_DISTANCE_FALLBACK_MILES}-mile minimum estimate for per-mile fees. Actual costs may be higher.`
+      )
+    }
+
+    if (effectiveDistance > 0 && hasDistanceFees) {
+      const perMileCost = owPermit.perMileFee ? owPermit.perMileFee * effectiveDistance : 0
       const tonMileCost = owPermit.tonMileFee
-        ? owPermit.tonMileFee * (cargo.grossWeight / 2000) * distanceInState
+        ? owPermit.tonMileFee * (cargo.grossWeight / 2000) * effectiveDistance
         : 0
       estimatedFee += Math.max(perMileCost, tonMileCost)
     }
@@ -206,7 +221,8 @@ export function calculateStatePermit(
     policeEscortRequired,
     estimatedFee: Math.round(estimatedFee * 100), // Convert dollars to cents
     reasons,
-    travelRestrictions: restrictions
+    travelRestrictions: restrictions,
+    warnings: warnings.length > 0 ? warnings : undefined
   }
 }
 
@@ -226,6 +242,7 @@ export function calculateDetailedStatePermit(
   const calculationDetails: string[] = []
   const reasons: string[] = []
   const restrictions: string[] = []
+  const warnings: string[] = []
 
   // Initialize cost breakdown
   const costBreakdown: PermitCostBreakdown = {
@@ -375,32 +392,42 @@ export function calculateDetailedStatePermit(
 
     // Distance-based fees: per-mile and ton-mile are mutually exclusive
     // (if both defined for a state, use the larger — likely a data error)
-    if (distanceInState > 0) {
-      const perMileCost = owPermit.perMileFee ? owPermit.perMileFee * distanceInState : 0
+    const hasDistanceFees = !!(owPermit.perMileFee || owPermit.tonMileFee)
+    let effectiveDistance = distanceInState
+    if (effectiveDistance <= 0 && hasDistanceFees) {
+      effectiveDistance = MINIMUM_DISTANCE_FALLBACK_MILES
+      warnings.push(
+        `Distance not provided for ${state.stateName} — using ${MINIMUM_DISTANCE_FALLBACK_MILES}-mile minimum estimate for per-mile fees. Actual costs may be higher.`
+      )
+      calculationDetails.push(`⚠ Distance not provided — using ${MINIMUM_DISTANCE_FALLBACK_MILES}-mile minimum estimate`)
+    }
+
+    if (effectiveDistance > 0 && hasDistanceFees) {
+      const perMileCost = owPermit.perMileFee ? owPermit.perMileFee * effectiveDistance : 0
       const tons = cargo.grossWeight / 2000
-      const tonMileCost = owPermit.tonMileFee ? owPermit.tonMileFee * tons * distanceInState : 0
+      const tonMileCost = owPermit.tonMileFee ? owPermit.tonMileFee * tons * effectiveDistance : 0
 
       if (perMileCost > 0 && tonMileCost > 0) {
         // Both defined — anomaly; use the larger and note the conflict
         if (perMileCost >= tonMileCost) {
           costBreakdown.weightFees.perMileFee = owPermit.perMileFee
           estimatedFee += perMileCost
-          calculationDetails.push(`Per-mile fee (${distanceInState} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
+          calculationDetails.push(`Per-mile fee (${effectiveDistance} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
           calculationDetails.push(`Note: ton-mile fee also defined ($${tonMileCost.toFixed(2)}) — using higher per-mile fee`)
         } else {
           costBreakdown.weightFees.tonMileFee = owPermit.tonMileFee
           estimatedFee += tonMileCost
-          calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${distanceInState} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
+          calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${effectiveDistance} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
           calculationDetails.push(`Note: per-mile fee also defined ($${perMileCost.toFixed(2)}) — using higher ton-mile fee`)
         }
       } else if (perMileCost > 0) {
         costBreakdown.weightFees.perMileFee = owPermit.perMileFee
         estimatedFee += perMileCost
-        calculationDetails.push(`Per-mile fee (${distanceInState} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
+        calculationDetails.push(`Per-mile fee (${effectiveDistance} mi × $${owPermit.perMileFee}/mi): +$${perMileCost.toFixed(2)}`)
       } else if (tonMileCost > 0) {
         costBreakdown.weightFees.tonMileFee = owPermit.tonMileFee
         estimatedFee += tonMileCost
-        calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${distanceInState} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
+        calculationDetails.push(`Ton-mile fee (${tons.toFixed(1)} tons × ${effectiveDistance} mi × $${owPermit.tonMileFee}): +$${tonMileCost.toFixed(2)}`)
       }
     }
 
@@ -464,7 +491,8 @@ export function calculateDetailedStatePermit(
       lastUpdated: 'January 2025'
     },
     travelRestrictions: restrictions,
-    reasons
+    reasons,
+    warnings: warnings.length > 0 ? warnings : undefined
   }
 }
 
@@ -499,6 +527,11 @@ export function calculateDetailedRoutePermits(
 
       if (permit.isSuperload) {
         warnings.push(`${permit.state} requires superload permit - additional routing and timing restrictions apply`)
+      }
+
+      // Propagate per-state calculation warnings (e.g., missing distance)
+      if (permit.warnings) {
+        warnings.push(...permit.warnings)
       }
     }
   }
@@ -638,6 +671,11 @@ export function calculateRoutePermits(
       // Check for superload
       if (permit.isSuperload) {
         warnings.push(`${permit.state} requires superload permit - additional routing and timing restrictions apply`)
+      }
+
+      // Propagate per-state calculation warnings (e.g., missing distance)
+      if (permit.warnings) {
+        warnings.push(...permit.warnings)
       }
     }
   }
