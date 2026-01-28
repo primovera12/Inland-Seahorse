@@ -1734,7 +1734,13 @@ export const statePermits: StatePermitData[] = [
       singleTrip: {
         baseFee: 60,
         dimensionSurcharges: {
-          width: [{ threshold: 12, fee: 30 }, { threshold: 14, fee: 75 }]
+          width: [{ threshold: 12, fee: 30 }, { threshold: 14, fee: 75 }],
+          length: [
+            { threshold: 85, fee: 25 },   // $25 surcharge for loads >85'
+            { threshold: 95, fee: 50 },   // $50 surcharge for loads >95'
+            { threshold: 105, fee: 100 }, // $100 surcharge for loads >105'
+            { threshold: 120, fee: 200 }  // $200 surcharge for loads >120' — engineering review required
+          ]
         },
         processingTime: '1-2 days',
         validity: '5 days'
@@ -1760,7 +1766,11 @@ export const statePermits: StatePermitData[] = [
       agency: 'PennDOT',
       phone: '717-787-7445',
       website: 'https://www.penndot.gov/Doing-Business/MovingOverdimensionalLoads/Pages/default.aspx'
-    }
+    },
+    notes: [
+      'Loads >120\' require engineering review and route survey — processing time increases to 5-10 business days',
+      'PennDOT may require additional route-specific analysis for loads >105\' on secondary roads'
+    ]
   },
 
   // RHODE ISLAND
