@@ -417,6 +417,25 @@ function findBestTruckForItem(item: LoadItem): {
 }
 
 /**
+ * Expand items with quantity > 1 into individual units.
+ * Each unit gets its own ID so the bin-packing algorithm can place them independently.
+ */
+function expandItems(items: LoadItem[]): LoadItem[] {
+  const expanded: LoadItem[] = []
+  for (const item of items) {
+    const qty = item.quantity || 1
+    for (let i = 0; i < qty; i++) {
+      expanded.push({
+        ...item,
+        id: qty > 1 ? `${item.id}-unit-${i + 1}` : item.id,
+        quantity: 1,
+      })
+    }
+  }
+  return expanded
+}
+
+/**
  * Get the effective weight of an item (weight × quantity)
  */
 function getItemWeight(item: LoadItem): number {
@@ -480,41 +499,60 @@ function canAddItemToLoad(
 }
 
 /**
- * Check if two items can share the same truck (considering quantities)
+ * Check if a new item can fit on a truck with existing items.
+ * Uses cumulative area + weight check with a packing efficiency factor,
+ * then verifies with actual 2D placement.
  */
-function canShareTruck(item1: LoadItem, item2: LoadItem, truck: TruckType): boolean {
-  // Combined weight check - use effective weights with quantities
-  const combinedWeight = getItemWeight(item1) + getItemWeight(item2)
-  if (combinedWeight > truck.maxCargoWeight) return false
+function canFitOnTruck(newItem: LoadItem, existingItems: LoadItem[], truck: TruckType): boolean {
+  // Weight check
+  const totalWeight = existingItems.reduce((s, i) => s + i.weight, 0) + newItem.weight
+  if (totalWeight > truck.maxCargoWeight) return false
 
-  // Check if items can be placed side by side (width-wise)
-  const sideBySideWidth = item1.width + item2.width
-  if (sideBySideWidth <= truck.deckWidth) {
-    // Can place side by side
-    const combinedLength = Math.max(item1.length, item2.length)
-    if (combinedLength <= truck.deckLength) return true
-  }
+  // Each item must individually fit within deck dimensions
+  if (newItem.length > truck.deckLength || newItem.width > truck.deckWidth) return false
 
-  // Check if items can be placed end to end (length-wise)
-  const endToEndLength = item1.length + item2.length
-  if (endToEndLength <= truck.deckLength) {
-    const combinedWidth = Math.max(item1.width, item2.width)
-    if (combinedWidth <= truck.deckWidth) return true
-  }
+  // Area check with packing efficiency factor (75%)
+  const PACKING_EFFICIENCY = 0.75
+  const deckArea = truck.deckLength * truck.deckWidth
+  const usedArea = existingItems.reduce((s, i) => s + (i.length * i.width), 0)
+  const newArea = newItem.length * newItem.width
+  if ((usedArea + newArea) > deckArea * PACKING_EFFICIENCY) return false
 
-  // Check stacking (if both items are stackable)
-  if (item1.stackable && item2.stackable) {
-    // Smaller item on top of larger
-    const baseItem = item1.weight > item2.weight ? item1 : item2
-    const topItem = item1.weight > item2.weight ? item2 : item1
+  // Try actual 2D placement to verify items fit
+  const testItems = [...existingItems, newItem]
+  const placements = calculatePlacements(testItems, truck)
+  return placements.length === testItems.length
+}
 
-    // Top item must fit within base item's footprint
-    if (topItem.length <= baseItem.length && topItem.width <= baseItem.width) {
-      const stackedHeight = item1.height + item2.height
-      if (stackedHeight + truck.deckHeight <= LEGAL_LIMITS.HEIGHT) {
-        return true
-      }
+/**
+ * Try to add an item to any existing load. Returns true if placed.
+ * Used by strategy planners to consolidate items onto trucks.
+ */
+function tryAddToExistingLoads(item: LoadItem, loads: PlannedLoad[]): boolean {
+  let bestLoadIndex = -1
+  let bestUtilization = Infinity
+
+  for (let i = 0; i < loads.length; i++) {
+    const load = loads[i]
+    if (!canFitOnTruck(item, load.items, load.recommendedTruck)) continue
+
+    const newWeight = getLoadWeight(load.items) + item.weight
+    const utilization = (newWeight / load.recommendedTruck.maxCargoWeight) * 100
+    if (utilization <= 100 && utilization < bestUtilization) {
+      bestLoadIndex = i
+      bestUtilization = utilization
     }
+  }
+
+  if (bestLoadIndex >= 0) {
+    const load = loads[bestLoadIndex]
+    load.items.push(item)
+    load.weight = getLoadWeight(load.items)
+    load.length = Math.max(load.length, item.length)
+    load.width = Math.max(load.width, item.width)
+    load.height = Math.max(load.height, item.height)
+    load.placements = calculatePlacements(load.items, load.recommendedTruck)
+    return true
   }
 
   return false
@@ -617,6 +655,53 @@ function rebalanceLoads(loads: PlannedLoad[]): void {
     }
   }
 
+  // Merge pass: try to combine underloaded trucks
+  for (let i = 0; i < loads.length; i++) {
+    const loadA = loads[i]
+    if (!loadA || loadA.items.length === 0) continue
+    const utilA = getLoadUtilization(loadA.items, loadA.recommendedTruck)
+    if (utilA > 60) continue // Not underloaded enough to merit merging
+
+    for (let j = i + 1; j < loads.length; j++) {
+      const loadB = loads[j]
+      if (!loadB || loadB.items.length === 0) continue
+      const utilB = getLoadUtilization(loadB.items, loadB.recommendedTruck)
+      if (utilB > 60) continue
+
+      // Try merging all items from loadB into loadA
+      const combinedItems = [...loadA.items, ...loadB.items]
+      const combinedWeight = getLoadWeight(combinedItems)
+
+      // Pick the larger truck of the two
+      const targetTruck = loadA.recommendedTruck.maxCargoWeight >= loadB.recommendedTruck.maxCargoWeight
+        ? loadA.recommendedTruck : loadB.recommendedTruck
+
+      if (combinedWeight > targetTruck.maxCargoWeight) continue
+
+      // Check area fit
+      const deckArea = targetTruck.deckLength * targetTruck.deckWidth
+      const totalArea = combinedItems.reduce((s, i) => s + (i.length * i.width), 0)
+      if (totalArea > deckArea * 0.75) continue
+
+      // Verify with actual placement
+      const placements = calculatePlacements(combinedItems, targetTruck)
+      if (placements.length < combinedItems.length) continue
+
+      // Merge successful
+      loadA.items = combinedItems
+      loadA.weight = combinedWeight
+      loadA.recommendedTruck = targetTruck
+      loadA.length = Math.max(...combinedItems.map(i => i.length))
+      loadA.width = Math.max(...combinedItems.map(i => i.width))
+      loadA.height = Math.max(...combinedItems.map(i => i.height))
+      loadA.placements = placements
+
+      // Mark loadB for removal
+      loadB.items = []
+      break // Re-evaluate loadA with new items on next outer iteration
+    }
+  }
+
   // Remove any empty loads
   for (let i = loads.length - 1; i >= 0; i--) {
     if (loads[i].items.length === 0) {
@@ -636,13 +721,14 @@ function rebalanceLoads(loads: PlannedLoad[]): void {
  * Uses intelligent distribution to balance loads across trucks
  */
 export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
-  const items = [...parsedLoad.items]
+  // Expand quantities into individual units so each can be placed independently
+  const items = expandItems([...parsedLoad.items])
   const loads: PlannedLoad[] = []
   const unassignedItems: LoadItem[] = []
   const warnings: string[] = []
 
-  // Sort items by effective weight (weight × quantity, heaviest first)
-  items.sort((a, b) => getItemWeight(b) - getItemWeight(a))
+  // Sort items by weight (heaviest first)
+  items.sort((a, b) => b.weight - a.weight)
 
   // Target utilization for balanced loading (aim for 85% to leave room for optimization)
   const TARGET_UTILIZATION = 85
@@ -677,13 +763,10 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
     for (let i = 0; i < loads.length; i++) {
       const load = loads[i]
 
-      // Check physical compatibility
-      const canPhysicallyFit = load.items.every(existingItem =>
-        canShareTruck(existingItem, item, load.recommendedTruck)
-      )
-      if (!canPhysicallyFit) continue
+      // Check if item can physically fit on this truck with existing items
+      if (!canFitOnTruck(item, load.items, load.recommendedTruck)) continue
 
-      // Check weight capacity with new helper
+      // Check weight capacity
       const { canAdd, newUtilization } = canAddItemToLoad(
         item,
         load.items,
@@ -704,10 +787,7 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
       for (let i = 0; i < loads.length; i++) {
         const load = loads[i]
 
-        const canPhysicallyFit = load.items.every(existingItem =>
-          canShareTruck(existingItem, item, load.recommendedTruck)
-        )
-        if (!canPhysicallyFit) continue
+        if (!canFitOnTruck(item, load.items, load.recommendedTruck)) continue
 
         const { canAdd, newUtilization } = canAddItemToLoad(
           item,
@@ -1438,13 +1518,13 @@ function calculatePlanMetrics(plan: LoadPlan): {
  * May use more trucks to stay within legal limits
  */
 function generateLegalOnlyPlan(parsedLoad: ParsedLoad): LoadPlan {
-  const items = [...parsedLoad.items]
+  const items = expandItems([...parsedLoad.items])
   const loads: PlannedLoad[] = []
   const unassignedItems: LoadItem[] = []
   const warnings: string[] = []
 
   // Sort by weight (heaviest first) to place heavy items first
-  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+  items.sort((a, b) => b.weight - a.weight)
 
   // Find trucks that can handle each item LEGALLY
   for (const item of items) {
@@ -1606,12 +1686,12 @@ function canAddItemLegally(load: PlannedLoad, item: LoadItem, truck: TruckType):
  * May require permits but minimizes truck count
  */
 function generateConsolidatedPlan(parsedLoad: ParsedLoad): LoadPlan {
-  const items = [...parsedLoad.items]
+  const items = expandItems([...parsedLoad.items])
   const loads: PlannedLoad[] = []
   const warnings: string[] = []
 
   // Sort by weight to place heavy items first
-  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+  items.sort((a, b) => b.weight - a.weight)
 
   // Try to fit as many items as possible per truck
   for (const item of items) {
@@ -1708,12 +1788,12 @@ function hasDifferentTruckTypes(planA: LoadPlan, planB: LoadPlan): boolean {
  * use common truck types (flatbed, step deck) that are easy to dispatch quickly.
  */
 function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
-  const items = [...parsedLoad.items]
+  const items = expandItems([...parsedLoad.items])
   const loads: PlannedLoad[] = []
   const warnings: string[] = []
   const commonCategories = ['FLATBED', 'STEP_DECK', 'DRY_VAN']
 
-  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+  items.sort((a, b) => b.weight - a.weight)
 
   for (const item of items) {
     const itemWeight = item.weight * (item.quantity || 1)
@@ -1746,6 +1826,9 @@ function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
         totalWeight <= LEGAL_LIMITS.GROSS_WEIGHT
       )
     })
+
+    // Try to add to an existing load first
+    if (tryAddToExistingLoads(item, loads)) continue
 
     if (legalTrucks.length > 0) {
       // Pick the smallest fitting common truck
@@ -1808,11 +1891,11 @@ function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
  * with extra clearance in all dimensions. Avoid tight fits.
  */
 function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
-  const items = [...parsedLoad.items]
+  const items = expandItems([...parsedLoad.items])
   const loads: PlannedLoad[] = []
   const warnings: string[] = []
 
-  items.sort((a, b) => (b.weight * (b.quantity || 1)) - (a.weight * (a.quantity || 1)))
+  items.sort((a, b) => b.weight - a.weight)
 
   for (const item of items) {
     const itemWeight = item.weight * (item.quantity || 1)
@@ -1832,8 +1915,8 @@ function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
       // Higher score = more margins
       let safetyScore = lengthMargin * 2 + widthMargin * 3 + weightMargin * 50 + heightClearance * 5
 
-      // Bonus for heavy-haul categories
-      if (['RGN', 'LOWBOY', 'MULTI_AXLE'].includes(truck.category)) safetyScore += 10
+      // Bonus for drive-on loading (safer for tracked equipment)
+      if (['RGN', 'LOWBOY'].includes(truck.category)) safetyScore += 5
 
       if (safetyScore > bestSafetyScore) {
         bestSafetyScore = safetyScore
@@ -1854,6 +1937,9 @@ function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
     )
 
     const safetyFinalScore = Math.min(100, Math.max(0, Math.round(bestSafetyScore > 0 ? 80 : 50)))
+
+    // Try to add to an existing load first
+    if (tryAddToExistingLoads(item, loads)) continue
 
     loads.push({
       id: `load-${loads.length + 1}`,
@@ -1894,12 +1980,12 @@ function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
  * Uses equipment profiles to pick the ideal truck for each cargo type.
  */
 function generateBestPlacementPlan(parsedLoad: ParsedLoad): LoadPlan {
-  const items = [...parsedLoad.items]
+  const items = expandItems([...parsedLoad.items])
   const loads: PlannedLoad[] = []
   const warnings: string[] = []
 
   for (const item of items) {
-    const itemWeight = item.weight * (item.quantity || 1)
+    const itemWeight = item.weight
 
     // Score all trucks with heavy emphasis on equipment matching
     let bestTruck = trucks[0]
@@ -1955,6 +2041,9 @@ function generateBestPlacementPlan(parsedLoad: ParsedLoad): LoadPlan {
         bestPermits = isLegal ? [] : ['Oversize/overweight permit']
       }
     }
+
+    // Try to add to an existing load first
+    if (tryAddToExistingLoads(item, loads)) continue
 
     loads.push({
       id: `load-${loads.length + 1}`,

@@ -29,6 +29,54 @@ import {
 } from './seasonal-restrictions'
 
 // =============================================================================
+// TRUCK AVAILABILITY TIERS
+// Tier 1 = common/readily available, Tier 4 = rare superload equipment
+// =============================================================================
+
+const TRUCK_TIERS: Record<string, number> = {
+  // Tier 1: Common, readily available (bonus +10)
+  'flatbed-48': 1, 'flatbed-53': 1, 'step-deck-48': 1, 'step-deck-53': 1,
+  'dry-van-53': 1, 'dry-van-48': 1, 'hotshot-40': 1, 'step-deck-ramps': 1,
+  'aluminum-flatbed': 1,
+  // Tier 2: Available with coordination (no modifier)
+  'rgn-2axle': 2, 'rgn-3axle': 2, 'lowboy-2axle': 2,
+  'conestoga': 2, 'landoll': 2, 'landoll-50': 2, 'double-drop': 2,
+  'stretch-flatbed': 2, 'stretch-step-deck': 2, 'low-pro-step-deck': 2,
+  'flatbed-moffett': 2, 'combo-flatbed': 2, 'drop-deck-combo': 2,
+  'detach-lowboy': 2, 'mini-rgn': 2, 'curtain-side': 2,
+  'hopper-bottom': 2, 'end-dump': 2, 'side-dump': 2,
+  'auto-carrier-8': 2, 'auto-carrier-wedge': 2,
+  // Tier 3: Specialty, requires advance booking (penalty -15)
+  'rgn-4axle': 3, 'lowboy-3axle': 3, 'lowboy-4axle': 3,
+  'stretch-rgn': 3, 'stretch-lowboy': 3, 'stretch-double-drop': 3,
+  'reefer-53': 3, 'reefer-48': 3, 'hydraulic-lowboy': 3,
+  'double-drop-beavertail': 3, 'extendable-rgn-80': 3,
+  'heavy-equipment-float': 3, 'oil-field-lowboy': 3,
+  'expandable-flatbed': 3, 'tanker-liquid': 3, 'pneumatic-tanker': 3,
+  'jeep-dolly': 3, 'flatbed-piggyback': 3, 'double-wide-flatbed': 3,
+  'pole-trailer': 3, 'beam-hauler': 3, 'livestock-trailer': 3,
+  // Tier 4: Rare superload equipment — filtered out for normal cargo (penalty -30)
+  'multi-axle-9': 4, 'multi-axle-13': 4, 'multi-axle-19': 4,
+  'schnabel': 4, 'spmt': 4, 'perimeter-beam': 4,
+  'blade-trailer': 4, 'steerable-dolly': 4,
+  'tower-trailer': 4, 'nacelle-trailer': 4,
+}
+
+function getTruckTier(truckId: string): number {
+  return TRUCK_TIERS[truckId] || 2
+}
+
+function getTierScoreModifier(tier: number): number {
+  switch (tier) {
+    case 1: return 10   // bonus for common trucks
+    case 2: return 0
+    case 3: return -15
+    case 4: return -30
+    default: return 0
+  }
+}
+
+// =============================================================================
 // EQUIPMENT MATCHING PROFILES
 // Enhanced cargo-to-truck matching based on equipment type keywords
 // =============================================================================
@@ -357,12 +405,23 @@ function calculateScore(
   }
 
   // Deduction for overkill trailer choice
-  // (e.g., using a lowboy with 1.5' deck for cargo that fits on flatbed)
+  // Height overkill: using a low-deck trailer when not needed
   if (fit.heightClearance > 3) {
-    // More than 3 feet of clearance = overkill
     breakdown.overkillPenalty = 10
     score -= 10
   }
+
+  // Weight capacity overkill: using a truck with 3× more capacity than needed
+  if (truck.maxCargoWeight > cargo.weight * 3 && cargo.weight > 0) {
+    const capacityRatio = truck.maxCargoWeight / cargo.weight
+    const weightOverkillPenalty = Math.min(20, Math.round(capacityRatio * 2))
+    breakdown.overkillPenalty += weightOverkillPenalty
+    score -= weightOverkillPenalty
+  }
+
+  // Truck availability tier penalty/bonus
+  const tierModifier = getTierScoreModifier(getTruckTier(truck.id))
+  score += tierModifier
 
   // OPTIMIZATION #1: Cost-weighted permit penalty
   // Instead of flat -5 per permit, use actual estimated costs
@@ -647,6 +706,12 @@ export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions)
   const recommendations: TruckRecommendation[] = []
   const historicalBonuses = options?.historicalBonuses || {}
 
+  // Filter out Tier 4 (superload) trucks unless cargo actually needs them
+  const needsSuperload = cargo.weight > 100000
+  const availableTrucks = needsSuperload
+    ? trucks
+    : trucks.filter(t => getTruckTier(t.id) < 4)
+
   // Calculate seasonal restriction context if route states are provided
   let seasonalContext: SeasonalContext | undefined
   if (options?.routeStates && options.routeStates.length > 0) {
@@ -665,7 +730,7 @@ export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions)
     }
   }
 
-  for (const truck of trucks) {
+  for (const truck of availableTrucks) {
     const fit = analyzeFit(cargo, truck)
     const permits = determinePermits(cargo, fit)
 
