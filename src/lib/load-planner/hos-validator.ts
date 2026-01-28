@@ -34,9 +34,16 @@ export const HOS_LIMITS = {
   SLEEPER_SPLIT_1: 7 * 60,          // 7-hour sleeper berth option
   SLEEPER_SPLIT_2: 3 * 60,          // Plus 3-hour break
 
-  // Cycle limits (in hours)
-  CYCLE_70_HOURS: 70,               // 70-hour/8-day cycle
-  CYCLE_60_HOURS: 60,               // 60-hour/7-day cycle
+  // Cycle limits (in hours) — these count ALL on-duty time, not just driving
+  CYCLE_70_HOURS: 70,               // 70-hour/8-day cycle (most carriers)
+  CYCLE_60_HOURS: 60,               // 60-hour/7-day cycle (non-daily carriers)
+  CYCLE_DAYS_8: 8,                  // 8-day window for 70-hour cycle
+  CYCLE_DAYS_7: 7,                  // 7-day window for 60-hour cycle
+  RESTART_HOURS: 34,                // 34 consecutive hours off-duty resets the cycle
+
+  // Non-driving on-duty time per driving day (minutes)
+  // Pre-trip inspection (~15 min), fueling (~15 min), post-trip (~15 min)
+  NON_DRIVING_ON_DUTY_PER_DAY: 45,  // 0.75 hours of non-driving on-duty per driving day
 
   // Average speeds for calculation (mph)
   OVERSIZE_AVG_SPEED: 45,           // Oversize loads move slower
@@ -97,6 +104,8 @@ export function createFreshHOSStatus(): HOSStatus {
     breakRequired: false,
     breakRequiredIn: HOS_LIMITS.MAX_BEFORE_BREAK,
     cycleRemaining: HOS_LIMITS.CYCLE_70_HOURS,
+    cycleHoursUsed: 0,
+    cycleDaysRemaining: HOS_LIMITS.CYCLE_DAYS_8,
   }
 }
 
@@ -107,12 +116,16 @@ export function updateHOSAfterDriving(
   status: HOSStatus,
   drivingMinutes: number
 ): HOSStatus {
+  const onDutyHours = drivingMinutes / 60
   return {
     drivingRemaining: Math.max(0, status.drivingRemaining - drivingMinutes),
     onDutyRemaining: Math.max(0, status.onDutyRemaining - drivingMinutes),
     breakRequired: status.breakRequiredIn <= drivingMinutes,
     breakRequiredIn: Math.max(0, status.breakRequiredIn - drivingMinutes),
-    cycleRemaining: status.cycleRemaining - (drivingMinutes / 60),
+    cycleRemaining: status.cycleRemaining - onDutyHours,
+    cycleHoursUsed: status.cycleHoursUsed + onDutyHours,
+    cycleDaysRemaining: status.cycleDaysRemaining,
+    lastResetDate: status.lastResetDate,
   }
 }
 
@@ -125,6 +138,42 @@ export function resetAfterBreak(status: HOSStatus): HOSStatus {
     breakRequired: false,
     breakRequiredIn: HOS_LIMITS.MAX_BEFORE_BREAK,
   }
+}
+
+/**
+ * Reset HOS after a 34-hour restart
+ * Per 49 CFR 395.3(d), a 34-consecutive-hour off-duty period resets the
+ * 70-hour/8-day (or 60-hour/7-day) cycle completely.
+ */
+export function resetAfter34HourRestart(resetDate?: string): HOSStatus {
+  return {
+    drivingRemaining: HOS_LIMITS.MAX_DRIVING_TIME,
+    onDutyRemaining: HOS_LIMITS.MAX_ON_DUTY_WINDOW,
+    breakRequired: false,
+    breakRequiredIn: HOS_LIMITS.MAX_BEFORE_BREAK,
+    cycleRemaining: HOS_LIMITS.CYCLE_70_HOURS,
+    cycleHoursUsed: 0,
+    cycleDaysRemaining: HOS_LIMITS.CYCLE_DAYS_8,
+    lastResetDate: resetDate,
+  }
+}
+
+/**
+ * Calculate total on-duty hours for a multi-day trip
+ * The 70-hour rule counts ALL on-duty time — driving plus non-driving duties
+ * (pre-trip inspection, fueling, paperwork, loading/unloading, etc.)
+ */
+export function calculateTotalOnDutyTime(
+  drivingTimeMinutes: number,
+  isOversize: boolean = false
+): number {
+  const drivingDays = Math.ceil(drivingTimeMinutes / HOS_LIMITS.MAX_DRIVING_TIME)
+  const nonDrivingOnDutyMinutes = drivingDays * HOS_LIMITS.NON_DRIVING_ON_DUTY_PER_DAY
+
+  // Oversize loads add extra on-duty time (escort coordination, route surveys)
+  const oversizeExtraMinutes = isOversize ? drivingDays * 30 : 0
+
+  return drivingTimeMinutes + nonDrivingOnDutyMinutes + oversizeExtraMinutes
 }
 
 // ============================================================================
@@ -206,6 +255,11 @@ export function validateTripHOS(
   const warnings: string[] = []
   const estimatedDriveTime = calculateDriveTimeWithStops(distanceMiles, isOversize)
 
+  // Calculate total on-duty time (driving + non-driving duties)
+  // The 70-hour/8-day rule counts ALL on-duty time per 49 CFR 395.3
+  const estimatedOnDutyTime = calculateTotalOnDutyTime(estimatedDriveTime, isOversize)
+  const totalOnDutyHours = estimatedOnDutyTime / 60
+
   // Check if driver has enough time today
   const canCompleteTodayDriving = driverStatus.drivingRemaining >= estimatedDriveTime
   const canCompleteTodayDuty = driverStatus.onDutyRemaining >= estimatedDriveTime
@@ -219,15 +273,59 @@ export function validateTripHOS(
 
   // Determine if trip is achievable
   let isAchievable = true
+  let cycleViolation = false
+  let restartRequired = false
+  let restartDelayHours: number | undefined
 
-  // Check cycle limits
-  const totalDriveHours = estimatedDriveTime / 60
-  if (totalDriveHours > driverStatus.cycleRemaining) {
+  // Check 70-hour/8-day cycle limit (uses total on-duty hours, not just drive time)
+  if (totalOnDutyHours > driverStatus.cycleRemaining) {
+    cycleViolation = true
+    const deficit = totalOnDutyHours - driverStatus.cycleRemaining
+
     warnings.push(
-      `Trip requires ${totalDriveHours.toFixed(1)} hours of driving, ` +
-      `but driver only has ${driverStatus.cycleRemaining.toFixed(1)} hours remaining in cycle`
+      `70-hour/8-day cycle violation: trip requires ${totalOnDutyHours.toFixed(1)} hours on-duty ` +
+      `(${(estimatedDriveTime / 60).toFixed(1)}h driving + ${((estimatedOnDutyTime - estimatedDriveTime) / 60).toFixed(1)}h non-driving), ` +
+      `but driver only has ${driverStatus.cycleRemaining.toFixed(1)} hours remaining in cycle ` +
+      `(${driverStatus.cycleHoursUsed.toFixed(1)}h used of 70h)`
     )
-    isAchievable = false
+
+    // Determine if a 34-hour restart can fix this
+    // After a 34-hour restart, the driver gets a full 70-hour cycle
+    if (totalOnDutyHours <= HOS_LIMITS.CYCLE_70_HOURS) {
+      // Trip fits within a fresh cycle — restart will fix it
+      restartRequired = true
+      restartDelayHours = HOS_LIMITS.RESTART_HOURS
+      warnings.push(
+        `34-hour restart required before this trip. ` +
+        `After restart, driver will have a full 70-hour cycle. ` +
+        `Restart adds ${HOS_LIMITS.RESTART_HOURS} hours to delivery timeline.`
+      )
+    } else {
+      // Trip exceeds even a full 70-hour cycle — multi-cycle trip
+      // Driver will need to take a restart mid-trip
+      restartRequired = true
+      const cyclesNeeded = Math.ceil(totalOnDutyHours / HOS_LIMITS.CYCLE_70_HOURS)
+      const restartsNeeded = cyclesNeeded - 1
+      restartDelayHours = HOS_LIMITS.RESTART_HOURS * restartsNeeded
+      warnings.push(
+        `Trip exceeds a single 70-hour cycle. ` +
+        `${restartsNeeded} mid-trip 34-hour restart(s) required, ` +
+        `adding ${restartDelayHours} hours to delivery timeline.`
+      )
+    }
+
+    // Trip is still achievable with restarts — it's only unachievable if
+    // the driver cannot legally begin at all and there's no fix
+    isAchievable = true
+  }
+
+  // Warn when cycle is getting low even if not violated
+  if (!cycleViolation && driverStatus.cycleRemaining < totalOnDutyHours * 1.2) {
+    warnings.push(
+      `Cycle hours running low: ${driverStatus.cycleRemaining.toFixed(1)}h remaining, ` +
+      `trip needs ${totalOnDutyHours.toFixed(1)}h on-duty. ` +
+      `Consider scheduling a 34-hour restart soon.`
+    )
   }
 
   // Add break warnings
@@ -272,9 +370,13 @@ export function validateTripHOS(
   return {
     isAchievable,
     estimatedDriveTime,
+    estimatedOnDutyTime,
     requiredBreaks: allBreaks,
     overnightRequired,
     overnightLocation: overnights[0]?.location,
+    cycleViolation,
+    restartRequired,
+    restartDelayHours,
     warnings,
   }
 }
@@ -309,13 +411,20 @@ export function estimateDeliveryWindow(
   }
 
   // Calculate trip days
-  const drivingDayMaxMinutes = HOS_LIMITS.MAX_DRIVING_TIME + (2 * HOS_LIMITS.REQUIRED_BREAK_DURATION)
   const tripDays = Math.ceil(validation.estimatedDriveTime / HOS_LIMITS.MAX_DRIVING_TIME)
 
   // Add overnight rest time if needed
   if (validation.overnightRequired) {
     const overnightCount = tripDays - 1
     totalTimeMinutes += overnightCount * HOS_LIMITS.REQUIRED_OFF_DUTY
+  }
+
+  // Add 34-hour restart delay if cycle violation requires it
+  if (validation.restartRequired && validation.restartDelayHours) {
+    totalTimeMinutes += validation.restartDelayHours * 60
+    warnings.push(
+      `Delivery delayed by ${validation.restartDelayHours} hours due to required 34-hour restart(s)`
+    )
   }
 
   // Calculate delivery times
@@ -383,6 +492,7 @@ export function generateTripPlan(
   // Build summary
   summary.push(`Total distance: ${distanceMiles.toLocaleString()} miles`)
   summary.push(`Estimated drive time: ${Math.round(hosValidation.estimatedDriveTime / 60)} hours`)
+  summary.push(`Estimated on-duty time: ${Math.round(hosValidation.estimatedOnDutyTime / 60)} hours`)
   summary.push(`Trip duration: ${deliveryWindow.tripDays} day(s)`)
 
   if (hosValidation.requiredBreaks.length > 0) {
@@ -393,10 +503,39 @@ export function generateTripPlan(
     summary.push(`Overnight stops required: ${Math.ceil(deliveryWindow.tripDays - 1)}`)
   }
 
+  if (hosValidation.cycleViolation) {
+    summary.push(`Cycle status: 70-hour/8-day violation — 34-hour restart required`)
+  }
+
+  if (hosValidation.restartDelayHours) {
+    summary.push(`Restart delay: ${hosValidation.restartDelayHours} hours added to timeline`)
+  }
+
   // Build schedule
   let currentTime = new Date(departureTime)
   let currentDay = 1
   let milesSoFar = 0
+
+  // If a 34-hour restart is needed before departure, schedule it first
+  if (hosValidation.restartRequired && hosValidation.cycleViolation) {
+    schedule.push({
+      day: currentDay,
+      action: '34-hour restart begins',
+      location: 'Origin',
+      time: new Date(currentTime),
+      notes: 'Required to reset 70-hour/8-day cycle per 49 CFR 395.3(d)',
+    })
+    currentTime = new Date(currentTime.getTime() + HOS_LIMITS.RESTART_HOURS * 60 * 60 * 1000)
+    // Restart spans ~1.5 days
+    currentDay += Math.floor(HOS_LIMITS.RESTART_HOURS / 24)
+    schedule.push({
+      day: currentDay,
+      action: '34-hour restart complete',
+      location: 'Origin',
+      time: new Date(currentTime),
+      notes: 'Cycle reset to 70 hours available',
+    })
+  }
 
   // Departure
   schedule.push({

@@ -1007,11 +1007,14 @@ export interface SmartRouteValidation {
 // -----------------------------------------------------------------------------
 
 export interface HOSStatus {
-  drivingRemaining: number      // Minutes remaining
+  drivingRemaining: number      // Minutes remaining in current driving window
   onDutyRemaining: number       // Minutes (14-hour window)
   breakRequired: boolean
   breakRequiredIn: number       // Minutes until 30-min break needed
-  cycleRemaining: number        // Hours remaining in 60/70 cycle
+  cycleRemaining: number        // Hours remaining in 60/70 cycle (on-duty hours, not just driving)
+  cycleHoursUsed: number        // Hours of on-duty time used in current 8-day cycle
+  cycleDaysRemaining: number    // Days remaining in 8-day cycle window before oldest day rolls off
+  lastResetDate?: string        // ISO date of last 34-hour restart (if any)
 }
 
 export interface RequiredBreak {
@@ -1023,9 +1026,13 @@ export interface RequiredBreak {
 export interface TripHOSValidation {
   isAchievable: boolean
   estimatedDriveTime: number    // Minutes
+  estimatedOnDutyTime: number   // Minutes — total on-duty time including non-driving duties
   requiredBreaks: RequiredBreak[]
   overnightRequired: boolean
   overnightLocation?: string
+  cycleViolation: boolean       // True if trip exceeds 70-hour/8-day cycle
+  restartRequired: boolean      // True if 34-hour restart is needed before trip
+  restartDelayHours?: number    // Hours of delay if restart is needed
   warnings: string[]
 }
 

@@ -1269,6 +1269,13 @@ export function getSmartLoadPlanSummary(plan: LoadPlan): string {
     lines.push('=== HOURS OF SERVICE ===')
     lines.push(`Trip Achievable: ${plan.hosValidation.isAchievable ? 'Yes' : 'No'}`)
     lines.push(`Estimated Drive Time: ${Math.round(plan.hosValidation.estimatedDriveTime / 60)} hours`)
+    lines.push(`Estimated On-Duty Time: ${Math.round(plan.hosValidation.estimatedOnDutyTime / 60)} hours`)
+    if (plan.hosValidation.cycleViolation) {
+      lines.push(`Cycle Violation: 70-hour/8-day limit exceeded`)
+    }
+    if (plan.hosValidation.restartRequired) {
+      lines.push(`34-Hour Restart Required: Yes${plan.hosValidation.restartDelayHours ? ` (+${plan.hosValidation.restartDelayHours}h delay)` : ''}`)
+    }
     if (plan.hosValidation.overnightRequired) {
       lines.push(`Overnight Required: ${plan.hosValidation.overnightLocation || 'Yes'}`)
     }

@@ -193,6 +193,10 @@ export {
 export {
   validateTripHOS,
   createFreshHOSStatus,
+  resetAfter34HourRestart,
+  calculateTotalOnDutyTime,
+  updateHOSAfterDriving,
+  resetAfterBreak,
   calculateDriveTime,
   estimateDeliveryWindow,
   generateTripPlan,
