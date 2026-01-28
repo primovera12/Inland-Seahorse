@@ -15,20 +15,17 @@ import {
   TruckCostData,
   DEFAULT_COST_DATA,
   LEGAL_LIMITS,
+  ESCORT_COSTS,
+  PERMIT_BASE_COSTS_CENTS,
 } from './types'
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_FUEL_PRICE = 4.50 // $ per gallon
-const PERMIT_BASE_COSTS = {
-  height: 75,   // Base overheight permit
-  width: 75,    // Base overwidth permit
-  weight: 150,  // Base overweight permit
-}
-const ESCORT_COST_PER_DAY = 800 // Single pilot car per day
-const POLICE_ESCORT_PER_HOUR = 100 // Police escort per hour
+const DEFAULT_FUEL_PRICE_CENTS = 450 // cents per gallon ($4.50)
+
+// All cost constants imported from shared ESCORT_COSTS and PERMIT_BASE_COSTS_CENTS in types.ts
 
 // ============================================================================
 // COST DATA HELPERS
@@ -39,7 +36,7 @@ const POLICE_ESCORT_PER_HOUR = 100 // Police escort per hour
  */
 export function getTruckCostData(truck: TruckType): TruckCostData {
   return DEFAULT_COST_DATA[truck.category] || {
-    dailyCost: 500,
+    dailyCostCents: 50_000,
     fuelEfficiency: 5.0,
     specializedPremium: 1.5,
   }
@@ -70,47 +67,47 @@ export function calculatePermitCosts(
 
   // Height permit (over 13.5 ft)
   if (totalHeight > LEGAL_LIMITS.HEIGHT) {
-    costs.heightPermit = PERMIT_BASE_COSTS.height * statesCount
+    costs.heightPermit = PERMIT_BASE_COSTS_CENTS.HEIGHT * statesCount
     // Additional surcharge for extreme overheight
     if (totalHeight > 15) {
-      costs.heightPermit += 50 * statesCount
+      costs.heightPermit += 5_000 * statesCount  // $50
     }
     if (totalHeight > 16) {
-      costs.heightPermit += 100 * statesCount
+      costs.heightPermit += 10_000 * statesCount  // $100
     }
   }
 
   // Width permit (over 8.5 ft)
   if (cargoWidth > LEGAL_LIMITS.WIDTH) {
-    costs.widthPermit = PERMIT_BASE_COSTS.width * statesCount
+    costs.widthPermit = PERMIT_BASE_COSTS_CENTS.WIDTH * statesCount
     // Additional surcharge for extreme overwidth
     if (cargoWidth > 12) {
-      costs.widthPermit += 50 * statesCount
+      costs.widthPermit += 5_000 * statesCount  // $50
       // Escort required
-      costs.escorts += ESCORT_COST_PER_DAY
+      costs.escorts += ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS
     }
     if (cargoWidth > 14) {
-      costs.widthPermit += 100 * statesCount
+      costs.widthPermit += 10_000 * statesCount  // $100
       // Two escorts required
-      costs.escorts += ESCORT_COST_PER_DAY
+      costs.escorts += ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS
     }
     if (cargoWidth > 16) {
       // Police escort may be required
-      costs.escorts += POLICE_ESCORT_PER_HOUR * 8 // Assume 8-hour day
+      costs.escorts += ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS * 8 // Assume 8-hour day
     }
   }
 
   // Weight permit (over 80,000 lbs gross)
   const grossWeight = cargoWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
   if (grossWeight > LEGAL_LIMITS.GROSS_WEIGHT) {
-    costs.weightPermit = PERMIT_BASE_COSTS.weight * statesCount
+    costs.weightPermit = PERMIT_BASE_COSTS_CENTS.WEIGHT * statesCount
     // Additional weight surcharges
     const overweightLbs = grossWeight - LEGAL_LIMITS.GROSS_WEIGHT
     if (overweightLbs > 20000) {
-      costs.weightPermit += 100 * statesCount
+      costs.weightPermit += 10_000 * statesCount  // $100
     }
     if (overweightLbs > 50000) {
-      costs.weightPermit += 200 * statesCount
+      costs.weightPermit += 20_000 * statesCount  // $200
     }
   }
 
@@ -127,11 +124,11 @@ export function calculatePermitCosts(
 export function calculateFuelCost(
   truck: TruckType,
   distanceMiles: number,
-  fuelPricePerGallon: number = DEFAULT_FUEL_PRICE
+  fuelPriceCentsPerGallon: number = DEFAULT_FUEL_PRICE_CENTS
 ): number {
   const costData = getTruckCostData(truck)
   const gallonsNeeded = distanceMiles / costData.fuelEfficiency
-  return Math.round(gallonsNeeded * fuelPricePerGallon * 100) / 100
+  return Math.round(gallonsNeeded * fuelPriceCentsPerGallon)
 }
 
 // ============================================================================
@@ -154,18 +151,18 @@ export function calculateTruckCost(
   const costData = getTruckCostData(truck)
   const {
     distanceMiles = 500,
-    fuelPrice = DEFAULT_FUEL_PRICE,
+    fuelPrice = DEFAULT_FUEL_PRICE_CENTS,
     statesCount = 1,
     tripDays = 1,
   } = options
 
-  // Base truck cost
-  const truckCost = costData.dailyCost * costData.specializedPremium * tripDays
+  // Base truck cost (cents)
+  const truckCost = Math.round(costData.dailyCostCents * costData.specializedPremium * tripDays)
 
-  // Fuel cost
+  // Fuel cost (cents)
   const fuelCost = calculateFuelCost(truck, distanceMiles, fuelPrice)
 
-  // Permit costs
+  // Permit costs (cents)
   const permitCosts = calculatePermitCosts(
     cargo.height,
     cargo.width,
@@ -183,10 +180,10 @@ export function calculateTruckCost(
     permitCosts.escorts
 
   return {
-    truckCost: Math.round(truckCost * 100) / 100,
-    fuelCost: Math.round(fuelCost * 100) / 100,
+    truckCost,
+    fuelCost,
     permitCosts,
-    totalCost: Math.round(totalCost * 100) / 100,
+    totalCost,
   }
 }
 
@@ -211,8 +208,8 @@ export function scoreTruckForCost(
   const costBreakdown = calculateTruckCost(truck, cargo, options)
 
   // Base score from inverse of cost (cheaper = higher score)
-  // Normalize to roughly 0-100 range assuming $500-$5000 typical cost range
-  let score = Math.max(0, 100 - (costBreakdown.totalCost / 50))
+  // Normalize to roughly 0-100 range assuming $500-$5000 typical cost range (50000-500000 cents)
+  let score = Math.max(0, 100 - (costBreakdown.totalCost / 5000))
 
   // Bonus for not needing permits
   if (costBreakdown.permitCosts.heightPermit === 0) {
@@ -324,9 +321,9 @@ export function calculateMultiTruckCost(
 
   return {
     perTruckCosts,
-    totalCost: Math.round(totalCost * 100) / 100,
+    totalCost: Math.round(totalCost),
     averageCostPerItem: totalItems > 0
-      ? Math.round((totalCost / totalItems) * 100) / 100
+      ? Math.round(totalCost / totalItems)
       : 0,
   }
 }
@@ -368,8 +365,8 @@ export function shouldUseSpecializedTruck(
 
   return {
     recommendation: savings > 0 ? 'specialized' : 'standard',
-    standardCost: Math.round(standardTotal * 100) / 100,
-    specializedCost: Math.round(specializedTotal * 100) / 100,
-    savings: Math.round(Math.abs(savings) * 100) / 100,
+    standardCost: Math.round(standardTotal),
+    specializedCost: Math.round(specializedTotal),
+    savings: Math.round(Math.abs(savings)),
   }
 }

@@ -136,7 +136,7 @@ function PlanCard({
           <div className="text-xs text-gray-500">Permit{plan.permitCount !== 1 ? 's' : ''}</div>
         </div>
         <div className="p-2 bg-white rounded border border-gray-100">
-          <div className="text-lg font-bold text-gray-900">${(plan.totalCost / 1000).toFixed(1)}k</div>
+          <div className="text-lg font-bold text-gray-900">${(plan.totalCost / 100_000).toFixed(1)}k</div>
           <div className="text-xs text-gray-500">Est. Cost</div>
         </div>
       </div>

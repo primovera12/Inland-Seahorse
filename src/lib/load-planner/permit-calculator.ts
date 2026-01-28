@@ -14,6 +14,7 @@ import type {
   DetailedRoutePermitSummary,
   EscortCostBreakdown
 } from './types'
+import { ESCORT_COSTS } from './types'
 import { statePermits, getStateByCode } from './state-permits'
 
 export interface CargoSpecs {
@@ -23,10 +24,10 @@ export interface CargoSpecs {
   grossWeight: number // lbs (cargo + trailer + truck)
 }
 
-// Escort cost constants in cents (matching escort-calculator.ts rates)
-const ESCORT_COST_PER_DAY = 80000      // $800/day
-const POLE_CAR_COST_PER_DAY = 100000   // $1,000/day
-const POLICE_ESCORT_HOURLY = 10000     // $100/hr
+// All cost constants in cents (from shared ESCORT_COSTS)
+const ESCORT_COST_PER_DAY = ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS
+const POLE_CAR_COST_PER_DAY = ESCORT_COSTS.POLE_CAR_PER_DAY_CENTS
+const POLICE_ESCORT_HOURLY = ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS
 
 /**
  * Calculate permit requirements for a single state
@@ -707,8 +708,8 @@ export function formatPermitSummary(summary: RoutePermitSummary): string {
   const lines: string[] = []
 
   lines.push(`States: ${summary.states.length}`)
-  lines.push(`Total Permit Fees: $${summary.totalPermitFees.toLocaleString()}`)
-  lines.push(`Estimated Escort Cost: $${summary.totalEscortCost.toLocaleString()}`)
+  lines.push(`Total Permit Fees: $${(summary.totalPermitFees / 100).toLocaleString()}`)
+  lines.push(`Estimated Escort Cost: $${(summary.totalEscortCost / 100).toLocaleString()}`)
 
   if (summary.estimatedEscortsPerDay > 0) {
     lines.push(`Escorts Required: ${summary.estimatedEscortsPerDay}`)

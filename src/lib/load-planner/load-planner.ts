@@ -961,7 +961,7 @@ export const DEFAULT_PLANNING_OPTIONS: PlanningOptions = {
   enableRouteValidation: false, // Requires route data
   enableHOSValidation: false, // Requires driver status
   costWeight: 0.5,
-  fuelPrice: 4.50,
+  fuelPrice: 450, // cents per gallon ($4.50)
 }
 
 /**
@@ -1222,12 +1222,12 @@ export function getSmartLoadPlanSummary(plan: LoadPlan): string {
   if (plan.totalCost) {
     lines.push('')
     lines.push('=== COST BREAKDOWN ===')
-    lines.push(`Total Cost: $${plan.totalCost.totalCost.toLocaleString()}`)
-    lines.push(`Average Cost per Item: $${plan.totalCost.averageCostPerItem.toLocaleString()}`)
+    lines.push(`Total Cost: $${(plan.totalCost.totalCost / 100).toLocaleString()}`)
+    lines.push(`Average Cost per Item: $${(plan.totalCost.averageCostPerItem / 100).toLocaleString()}`)
   }
 
   if (plan.totalEscortCost && plan.totalEscortCost > 0) {
-    lines.push(`Escort Costs: $${plan.totalEscortCost.toLocaleString()}`)
+    lines.push(`Escort Costs: $${(plan.totalEscortCost / 100).toLocaleString()}`)
   }
 
   if (plan.overallBalanceScore !== undefined) {
@@ -1371,7 +1371,7 @@ export function generateSmartPlans(
     smartOptions.push({
       strategy: 'cost-optimized',
       name: 'Cost-Optimized Plan',
-      description: `Lowest estimated cost: $${costMetrics.totalCost.toLocaleString()}`,
+      description: `Lowest estimated cost: $${(costMetrics.totalCost / 100).toLocaleString()}`,
       plan: costPlan,
       ...costMetrics,
       isRecommended: false,
@@ -1491,13 +1491,13 @@ function calculatePlanMetrics(plan: LoadPlan): {
   if (plan.totalCost) {
     totalCost = plan.totalCost.totalCost
   } else {
-    // Basic estimate: base rate per truck + permit costs
-    const baseTruckCost = 2500 // Average per truck
-    totalCost = plan.totalTrucks * baseTruckCost
+    // Basic estimate: base rate per truck + permit costs (cents)
+    const baseTruckCostCents = 250_000 // $2,500 average per truck
+    totalCost = plan.totalTrucks * baseTruckCostCents
     // Add permit cost estimate
-    totalCost += permitCount * 150 // Average permit cost
+    totalCost += permitCount * 15_000 // $150 average permit cost
     // Add escort cost estimate if required
-    if (escortRequired) totalCost += 800 // Basic escort cost
+    if (escortRequired) totalCost += 80_000 // $800 basic escort cost
   }
   if (plan.totalEscortCost) {
     totalCost += plan.totalEscortCost

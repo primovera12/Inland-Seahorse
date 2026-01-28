@@ -162,6 +162,25 @@ export const LEGAL_LIMITS = {
   TRACTOR_WEIGHT: 17000, // typical tractor weight in pounds
 } as const
 
+// Escort & service cost constants (all values in cents, integer)
+export const ESCORT_COSTS = {
+  /** Pilot car per day: $800 */
+  PILOT_CAR_PER_DAY_CENTS: 80_000,
+  /** Height pole car per day: $1,000 */
+  POLE_CAR_PER_DAY_CENTS: 100_000,
+  /** Police escort per hour: $100 */
+  POLICE_ESCORT_PER_HOUR_CENTS: 10_000,
+  /** Bucket truck per day: $1,500 */
+  BUCKET_TRUCK_PER_DAY_CENTS: 150_000,
+} as const
+
+// Permit base fee constants (all values in cents, integer)
+export const PERMIT_BASE_COSTS_CENTS = {
+  HEIGHT: 7_500,   // $75 base overheight permit
+  WIDTH: 7_500,    // $75 base overwidth permit
+  WEIGHT: 15_000,  // $150 base overweight permit
+} as const
+
 // Permit thresholds for superloads (varies by state)
 export const SUPERLOAD_THRESHOLDS = {
   WIDTH: 16, // feet
@@ -775,17 +794,17 @@ export interface StackingCell {
 // -----------------------------------------------------------------------------
 
 export interface SmartPermitCostEstimate {
-  heightPermit: number
-  widthPermit: number
-  weightPermit: number
-  escorts: number
+  heightPermit: number   // cents
+  widthPermit: number    // cents
+  weightPermit: number   // cents
+  escorts: number        // cents
 }
 
 export interface SmartLoadCostBreakdown {
-  truckCost: number      // Base daily truck cost
-  fuelCost: number       // Fuel cost for route
-  permitCosts: SmartPermitCostEstimate
-  totalCost: number
+  truckCost: number      // cents - Base daily truck cost
+  fuelCost: number       // cents - Fuel cost for route
+  permitCosts: SmartPermitCostEstimate  // cents
+  totalCost: number      // cents
 }
 
 export interface PlanningOptions {
@@ -801,7 +820,7 @@ export interface PlanningOptions {
   // Cost optimization parameters
   costWeight?: number        // 0-1, importance of cost vs truck count
   routeDistance?: number     // Miles for fuel calculation
-  fuelPrice?: number         // $/gallon
+  fuelPrice?: number         // cents/gallon (e.g. 450 = $4.50)
   // Multi-stop routing
   stopOrder?: string[]       // Destination order for multi-stop loads
   // HOS validation
@@ -821,7 +840,7 @@ export interface AxleConfiguration {
 }
 
 export interface TruckCostData {
-  dailyCost: number           // Base daily rental/usage cost ($)
+  dailyCostCents: number      // Base daily rental/usage cost (cents)
   fuelEfficiency: number      // Miles per gallon
   specializedPremium: number  // Cost multiplier (1.0 = standard, 2.5 = heavy haul)
 }
@@ -833,24 +852,24 @@ export interface TruckTypeExtended extends TruckType {
 
 // Default Cost Data by Trailer Category
 export const DEFAULT_COST_DATA: Record<TrailerCategory, TruckCostData> = {
-  FLATBED: { dailyCost: 350, fuelEfficiency: 6.5, specializedPremium: 1.0 },
-  STEP_DECK: { dailyCost: 400, fuelEfficiency: 6.0, specializedPremium: 1.1 },
-  RGN: { dailyCost: 650, fuelEfficiency: 5.5, specializedPremium: 1.3 },
-  LOWBOY: { dailyCost: 850, fuelEfficiency: 5.0, specializedPremium: 1.5 },
-  DOUBLE_DROP: { dailyCost: 550, fuelEfficiency: 5.5, specializedPremium: 1.2 },
-  LANDOLL: { dailyCost: 500, fuelEfficiency: 5.5, specializedPremium: 1.2 },
-  CONESTOGA: { dailyCost: 450, fuelEfficiency: 6.0, specializedPremium: 1.1 },
-  DRY_VAN: { dailyCost: 300, fuelEfficiency: 7.0, specializedPremium: 1.0 },
-  REEFER: { dailyCost: 450, fuelEfficiency: 5.5, specializedPremium: 1.2 },
-  CURTAIN_SIDE: { dailyCost: 400, fuelEfficiency: 6.5, specializedPremium: 1.1 },
-  MULTI_AXLE: { dailyCost: 2500, fuelEfficiency: 3.5, specializedPremium: 2.5 },
-  SCHNABEL: { dailyCost: 5000, fuelEfficiency: 2.5, specializedPremium: 4.0 },
-  PERIMETER: { dailyCost: 3500, fuelEfficiency: 3.0, specializedPremium: 3.0 },
-  STEERABLE: { dailyCost: 3000, fuelEfficiency: 3.0, specializedPremium: 2.5 },
-  BLADE: { dailyCost: 4000, fuelEfficiency: 3.5, specializedPremium: 3.5 },
-  TANKER: { dailyCost: 400, fuelEfficiency: 6.0, specializedPremium: 1.1 },
-  HOPPER: { dailyCost: 380, fuelEfficiency: 6.0, specializedPremium: 1.1 },
-  SPECIALIZED: { dailyCost: 1500, fuelEfficiency: 4.5, specializedPremium: 2.0 },
+  FLATBED: { dailyCostCents: 35_000, fuelEfficiency: 6.5, specializedPremium: 1.0 },
+  STEP_DECK: { dailyCostCents: 40_000, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  RGN: { dailyCostCents: 65_000, fuelEfficiency: 5.5, specializedPremium: 1.3 },
+  LOWBOY: { dailyCostCents: 85_000, fuelEfficiency: 5.0, specializedPremium: 1.5 },
+  DOUBLE_DROP: { dailyCostCents: 55_000, fuelEfficiency: 5.5, specializedPremium: 1.2 },
+  LANDOLL: { dailyCostCents: 50_000, fuelEfficiency: 5.5, specializedPremium: 1.2 },
+  CONESTOGA: { dailyCostCents: 45_000, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  DRY_VAN: { dailyCostCents: 30_000, fuelEfficiency: 7.0, specializedPremium: 1.0 },
+  REEFER: { dailyCostCents: 45_000, fuelEfficiency: 5.5, specializedPremium: 1.2 },
+  CURTAIN_SIDE: { dailyCostCents: 40_000, fuelEfficiency: 6.5, specializedPremium: 1.1 },
+  MULTI_AXLE: { dailyCostCents: 250_000, fuelEfficiency: 3.5, specializedPremium: 2.5 },
+  SCHNABEL: { dailyCostCents: 500_000, fuelEfficiency: 2.5, specializedPremium: 4.0 },
+  PERIMETER: { dailyCostCents: 350_000, fuelEfficiency: 3.0, specializedPremium: 3.0 },
+  STEERABLE: { dailyCostCents: 300_000, fuelEfficiency: 3.0, specializedPremium: 2.5 },
+  BLADE: { dailyCostCents: 400_000, fuelEfficiency: 3.5, specializedPremium: 3.5 },
+  TANKER: { dailyCostCents: 40_000, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  HOPPER: { dailyCostCents: 38_000, fuelEfficiency: 6.0, specializedPremium: 1.1 },
+  SPECIALIZED: { dailyCostCents: 150_000, fuelEfficiency: 4.5, specializedPremium: 2.0 },
 }
 
 // Default Axle Configurations by Trailer Category

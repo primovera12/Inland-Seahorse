@@ -11,6 +11,7 @@ import {
   StatePermitData,
   TruckType,
   LEGAL_LIMITS,
+  ESCORT_COSTS,
 } from './types'
 import { statePermits } from './state-permits'
 
@@ -18,10 +19,11 @@ import { statePermits } from './state-permits'
 // CONSTANTS
 // ============================================================================
 
-const ESCORT_COST_PER_DAY = 800        // Single pilot car per day
-const POLE_CAR_COST_PER_DAY = 1000     // Height pole car per day
-const POLICE_ESCORT_PER_HOUR = 100      // Police escort per hour
-const BUCKET_TRUCK_PER_DAY = 1500       // Bucket truck for high loads
+// All cost constants are in cents (imported from types.ts ESCORT_COSTS)
+const ESCORT_COST_PER_DAY = ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS
+const POLE_CAR_COST_PER_DAY = ESCORT_COSTS.POLE_CAR_PER_DAY_CENTS
+const POLICE_ESCORT_PER_HOUR = ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS
+const BUCKET_TRUCK_PER_DAY = ESCORT_COSTS.BUCKET_TRUCK_PER_DAY_CENTS
 
 // Width thresholds for signage
 const WIDE_LOAD_THRESHOLD = 8.5
@@ -396,16 +398,16 @@ export function getEscortCostBreakdown(
 
   // Generate notes
   if (requirements.frontPilot) {
-    breakdown.notes.push(`Front pilot car: $${ESCORT_COST_PER_DAY}/day × ${tripDays} days`)
+    breakdown.notes.push(`Front pilot car: $${ESCORT_COST_PER_DAY / 100}/day × ${tripDays} days`)
   }
   if (requirements.rearPilot) {
-    breakdown.notes.push(`Rear pilot car: $${ESCORT_COST_PER_DAY}/day × ${tripDays} days`)
+    breakdown.notes.push(`Rear pilot car: $${ESCORT_COST_PER_DAY / 100}/day × ${tripDays} days`)
   }
   if (requirements.policeEscort) {
-    breakdown.notes.push(`Police escort: $${POLICE_ESCORT_PER_HOUR}/hr × ${Math.ceil(tripHours)} hours`)
+    breakdown.notes.push(`Police escort: $${POLICE_ESCORT_PER_HOUR / 100}/hr × ${Math.ceil(tripHours)} hours`)
   }
   if (requirements.bucketTruck) {
-    breakdown.notes.push(`Bucket truck: $${BUCKET_TRUCK_PER_DAY}/day × ${tripDays} days`)
+    breakdown.notes.push(`Bucket truck: $${BUCKET_TRUCK_PER_DAY / 100}/day × ${tripDays} days`)
   }
 
   if (requirements.travelRestrictions.dayOnly) {
