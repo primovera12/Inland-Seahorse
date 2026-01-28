@@ -12,7 +12,9 @@ import type {
   PermitCostBreakdown,
   DetailedPermitRequirement,
   DetailedRoutePermitSummary,
-  EscortCostBreakdown
+  EscortCostBreakdown,
+  SpecialJurisdiction,
+  SpecialJurisdictionPermit
 } from './types'
 import { ESCORT_COSTS } from './types'
 import { statePermits, getStateByCode } from './state-permits'
@@ -35,12 +37,98 @@ const POLICE_ESCORT_HOURLY = ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS
 const MINIMUM_DISTANCE_FALLBACK_MILES = 50
 
 /**
+ * Check if a lat/lng point falls within a geographic bounding box
+ */
+function isPointInBounds(
+  lat: number,
+  lng: number,
+  bounds: SpecialJurisdiction['geoBounds']
+): boolean {
+  return lat >= bounds.minLat && lat <= bounds.maxLat &&
+         lng >= bounds.minLng && lng <= bounds.maxLng
+}
+
+/**
+ * Check special jurisdictions for a state and return applicable permits.
+ * When routePoints are provided, only jurisdictions whose geo bounds contain
+ * at least one route point are flagged as confirmed. When routePoints are
+ * absent, a warning is generated for each jurisdiction so callers know
+ * additional permits may apply.
+ */
+function checkSpecialJurisdictions(
+  state: StatePermitData,
+  cargo: CargoSpecs,
+  routePoints?: Array<{ lat: number; lng: number }>
+): { permits: SpecialJurisdictionPermit[]; warnings: string[] } {
+  const permits: SpecialJurisdictionPermit[] = []
+  const warnings: string[] = []
+
+  if (!state.specialJurisdictions || state.specialJurisdictions.length === 0) {
+    return { permits, warnings }
+  }
+
+  const oversizeRequired = cargo.width > state.legalLimits.maxWidth ||
+    cargo.height > state.legalLimits.maxHeight ||
+    cargo.length > state.legalLimits.maxLength.combination
+  const overweightRequired = cargo.grossWeight > state.legalLimits.maxWeight.gross
+  const needsPermit = oversizeRequired || overweightRequired
+
+  if (!needsPermit) {
+    return { permits, warnings }
+  }
+
+  for (const jurisdiction of state.specialJurisdictions) {
+    // Determine if route passes through this jurisdiction
+    let routePassesThrough = false
+
+    if (routePoints && routePoints.length > 0) {
+      routePassesThrough = routePoints.some(
+        p => isPointInBounds(p.lat, p.lng, jurisdiction.geoBounds)
+      )
+    }
+
+    if (routePassesThrough) {
+      // Confirmed: route passes through this jurisdiction
+      let additionalFee = 0
+      if (oversizeRequired) additionalFee += jurisdiction.additionalFees.oversizeBase
+      if (overweightRequired) additionalFee += jurisdiction.additionalFees.overweightBase
+
+      const jurisdictionWarnings: string[] = []
+      jurisdictionWarnings.push(
+        `Route passes through ${jurisdiction.name} — separate ${jurisdiction.agency} permit required in addition to ${state.stateName} state permit`
+      )
+
+      permits.push({
+        jurisdiction: jurisdiction.name,
+        code: jurisdiction.code,
+        additionalPermitRequired: jurisdiction.additionalPermitRequired,
+        estimatedAdditionalFee: Math.round(additionalFee * 100), // Convert dollars to cents
+        agency: jurisdiction.agency,
+        phone: jurisdiction.phone,
+        website: jurisdiction.website,
+        restrictions: jurisdiction.restrictions,
+        warnings: jurisdictionWarnings
+      })
+    } else if (!routePoints || routePoints.length === 0) {
+      // No route points provided — warn about potential additional permits
+      warnings.push(
+        `Route through ${state.stateName} may require additional ${jurisdiction.name} permits if passing through the ${jurisdiction.name} area. Contact ${jurisdiction.agency} (${jurisdiction.phone}) for details.`
+      )
+    }
+    // else: route points provided but none in jurisdiction — no warning needed
+  }
+
+  return { permits, warnings }
+}
+
+/**
  * Calculate permit requirements for a single state
  */
 export function calculateStatePermit(
   stateCode: string,
   cargo: CargoSpecs,
-  distanceInState: number = 0
+  distanceInState: number = 0,
+  routePoints?: Array<{ lat: number; lng: number }>
 ): PermitRequirement | null {
   const state = getStateByCode(stateCode)
   if (!state) return null
@@ -210,6 +298,16 @@ export function calculateStatePermit(
     restrictions.push(travel.weatherRestrictions)
   }
 
+  // Check special jurisdictions (e.g., NYC within NY state)
+  const sjResult = checkSpecialJurisdictions(state, cargo, routePoints)
+  if (sjResult.warnings.length > 0) {
+    warnings.push(...sjResult.warnings)
+  }
+  let specialJurisdictionFee = 0
+  for (const sjPermit of sjResult.permits) {
+    specialJurisdictionFee += sjPermit.estimatedAdditionalFee
+  }
+
   return {
     state: state.stateName,
     stateCode: state.stateCode,
@@ -219,10 +317,11 @@ export function calculateStatePermit(
     escortsRequired,
     poleCarRequired,
     policeEscortRequired,
-    estimatedFee: Math.round(estimatedFee * 100), // Convert dollars to cents
+    estimatedFee: Math.round(estimatedFee * 100) + specialJurisdictionFee, // Convert dollars to cents + jurisdiction fees (already in cents)
     reasons,
     travelRestrictions: restrictions,
-    warnings: warnings.length > 0 ? warnings : undefined
+    warnings: warnings.length > 0 ? warnings : undefined,
+    specialJurisdictionPermits: sjResult.permits.length > 0 ? sjResult.permits : undefined
   }
 }
 
@@ -233,7 +332,8 @@ export function calculateStatePermit(
 export function calculateDetailedStatePermit(
   stateCode: string,
   cargo: CargoSpecs,
-  distanceInState: number = 0
+  distanceInState: number = 0,
+  routePoints?: Array<{ lat: number; lng: number }>
 ): DetailedPermitRequirement | null {
   const state = getStateByCode(stateCode)
   if (!state) return null
@@ -471,6 +571,20 @@ export function calculateDetailedStatePermit(
     restrictions.push(travel.weatherRestrictions)
   }
 
+  // Check special jurisdictions (e.g., NYC within NY state)
+  const sjResult = checkSpecialJurisdictions(state, cargo, routePoints)
+  if (sjResult.warnings.length > 0) {
+    warnings.push(...sjResult.warnings)
+  }
+  let specialJurisdictionFee = 0
+  for (const sjPermit of sjResult.permits) {
+    specialJurisdictionFee += sjPermit.estimatedAdditionalFee
+    calculationDetails.push(`${sjPermit.jurisdiction} additional permit fee: +$${(sjPermit.estimatedAdditionalFee / 100).toFixed(0)}`)
+  }
+  if (specialJurisdictionFee > 0) {
+    costBreakdown.total += specialJurisdictionFee
+  }
+
   return {
     state: state.stateName,
     stateCode: state.stateCode,
@@ -481,7 +595,7 @@ export function calculateDetailedStatePermit(
     escortsRequired,
     poleCarRequired,
     policeEscortRequired,
-    estimatedFee: Math.round(estimatedFee * 100), // Convert dollars to cents
+    estimatedFee: Math.round(estimatedFee * 100) + specialJurisdictionFee, // Convert dollars to cents + jurisdiction fees (already in cents)
     costBreakdown,
     calculationDetails,
     source: {
@@ -492,7 +606,8 @@ export function calculateDetailedStatePermit(
     },
     travelRestrictions: restrictions,
     reasons,
-    warnings: warnings.length > 0 ? warnings : undefined
+    warnings: warnings.length > 0 ? warnings : undefined,
+    specialJurisdictionPermits: sjResult.permits.length > 0 ? sjResult.permits : undefined
   }
 }
 
@@ -502,7 +617,8 @@ export function calculateDetailedStatePermit(
 export function calculateDetailedRoutePermits(
   stateCodes: string[],
   cargo: CargoSpecs,
-  stateDistances?: Record<string, number>
+  stateDistances?: Record<string, number>,
+  routePoints?: Array<{ lat: number; lng: number }>
 ): DetailedRoutePermitSummary {
   const statePermits: DetailedPermitRequirement[] = []
   const overallRestrictions: string[] = []
@@ -516,7 +632,7 @@ export function calculateDetailedRoutePermits(
   // Calculate for each state
   for (const code of stateCodes) {
     const distance = stateDistances?.[code] || 0
-    const permit = calculateDetailedStatePermit(code, cargo, distance)
+    const permit = calculateDetailedStatePermit(code, cargo, distance, routePoints)
 
     if (permit) {
       statePermits.push(permit)
@@ -645,7 +761,8 @@ export function calculateDetailedRoutePermits(
 export function calculateRoutePermits(
   stateCodes: string[],
   cargo: CargoSpecs,
-  stateDistances?: Record<string, number>
+  stateDistances?: Record<string, number>,
+  routePoints?: Array<{ lat: number; lng: number }>
 ): RoutePermitSummary {
   const states: PermitRequirement[] = []
   const overallRestrictions: string[] = []
@@ -659,7 +776,7 @@ export function calculateRoutePermits(
   // Calculate for each state
   for (const code of stateCodes) {
     const distance = stateDistances?.[code] || 0
-    const permit = calculateStatePermit(code, cargo, distance)
+    const permit = calculateStatePermit(code, cargo, distance, routePoints)
 
     if (permit) {
       states.push(permit)
@@ -798,8 +915,9 @@ export function getStatesRequiringPermits(
 export function estimateTotalCost(
   stateCodes: string[],
   cargo: CargoSpecs,
-  stateDistances?: Record<string, number>
+  stateDistances?: Record<string, number>,
+  routePoints?: Array<{ lat: number; lng: number }>
 ): number {
-  const summary = calculateRoutePermits(stateCodes, cargo, stateDistances)
+  const summary = calculateRoutePermits(stateCodes, cargo, stateDistances, routePoints)
   return summary.totalPermitFees + summary.totalEscortCost
 }

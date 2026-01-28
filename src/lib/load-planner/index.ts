@@ -46,6 +46,8 @@ export type {
   TravelRestrictions,
   StateContact,
   SuperloadThresholds,
+  SpecialJurisdiction,
+  SpecialJurisdictionPermit,
   StatePermitData,
   PermitRequirement,
   RoutePermitSummary,
@@ -257,7 +259,9 @@ export {
 // =============================================================================
 export {
   calculateStatePermit,
+  calculateDetailedStatePermit,
   calculateRoutePermits,
+  calculateDetailedRoutePermits,
   needsPermit,
   formatPermitSummary,
   getStatesRequiringPermits,

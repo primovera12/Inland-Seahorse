@@ -1415,8 +1415,38 @@ export const statePermits: StatePermitData[] = [
       phone: '518-457-1014',
       website: 'https://www.dot.ny.gov/divisions/operating/oom/transportation-systems/special-hauling-permits'
     },
+    specialJurisdictions: [
+      {
+        code: 'NYC',
+        name: 'New York City',
+        agency: 'NYC DOT - Office of Permit Management',
+        phone: '212-839-6540',
+        website: 'https://www.nyc.gov/html/dot/html/motorist/oversize.shtml',
+        geoBounds: { minLat: 40.49, maxLat: 40.92, minLng: -74.26, maxLng: -73.70 },
+        additionalPermitRequired: true,
+        additionalFees: {
+          oversizeBase: 150,    // NYC DOT oversize permit base fee
+          overweightBase: 200   // NYC DOT overweight permit base fee
+        },
+        restrictions: [
+          'No oversize vehicles on parkways (Belt Parkway, FDR Drive, West Side Highway, etc.)',
+          'Height limit 13\'6" on most NYC bridges and tunnels',
+          'No oversize on FDR Drive, Henry Hudson Parkway, Harlem River Drive',
+          'Restricted hours: no oversize 7-10 AM, 3-7 PM weekdays in Manhattan',
+          'No oversize vehicles on residential streets without specific route approval',
+          'All 5 boroughs (Manhattan, Brooklyn, Queens, Bronx, Staten Island) require NYC permits'
+        ],
+        notes: [
+          'NYC DOT permit is required IN ADDITION to NYS DOT permit',
+          'NYC permit processing can take 5-10 business days',
+          'Route must be pre-approved by NYC DOT for oversize/overweight vehicles',
+          'George Washington Bridge, Verrazano-Narrows Bridge have separate authority (Port Authority / MTA)',
+          'Loads over 80,000 lbs require NYC DOT engineering review'
+        ]
+      }
+    ],
     notes: [
-      'NYC requires additional city permits',
+      'NYC requires additional city permits — see specialJurisdictions for details',
       'Many bridges and parkways prohibited for oversize',
       'Long processing times during busy seasons'
     ]

@@ -514,6 +514,34 @@ export interface SuperloadThresholds {
   requiresBridgeAnalysis?: boolean
 }
 
+export interface SpecialJurisdiction {
+  code: string                    // e.g., 'NYC'
+  name: string                    // e.g., 'New York City'
+  agency: string
+  phone: string
+  website: string
+  geoBounds: { minLat: number; maxLat: number; minLng: number; maxLng: number }
+  additionalPermitRequired: boolean
+  additionalFees: {
+    oversizeBase: number          // dollars (converted to cents at calculation boundary)
+    overweightBase: number        // dollars
+  }
+  restrictions: string[]
+  notes?: string[]
+}
+
+export interface SpecialJurisdictionPermit {
+  jurisdiction: string            // e.g., 'New York City'
+  code: string                    // e.g., 'NYC'
+  additionalPermitRequired: boolean
+  estimatedAdditionalFee: number  // cents
+  agency: string
+  phone: string
+  website: string
+  restrictions: string[]
+  warnings: string[]
+}
+
 export interface StatePermitData {
   stateCode: string
   stateName: string
@@ -525,6 +553,7 @@ export interface StatePermitData {
   travelRestrictions: TravelRestrictions
   contact: StateContact
   superloadThresholds?: SuperloadThresholds
+  specialJurisdictions?: SpecialJurisdiction[]
   notes?: string[]
 }
 
@@ -542,6 +571,7 @@ export interface PermitRequirement {
   reasons: string[]
   travelRestrictions: string[]
   warnings?: string[]             // Calculation quality warnings (e.g., missing distance)
+  specialJurisdictionPermits?: SpecialJurisdictionPermit[]
 }
 
 export interface RoutePermitSummary {
@@ -648,6 +678,7 @@ export interface DetailedPermitRequirement {
   travelRestrictions: string[]   // Time/weather restrictions
   reasons: string[]              // Why permit is required
   warnings?: string[]            // Calculation quality warnings (e.g., missing distance)
+  specialJurisdictionPermits?: SpecialJurisdictionPermit[]
 }
 
 /**
