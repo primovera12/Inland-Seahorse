@@ -769,6 +769,7 @@ export const AXLE_LIMITS = {
   SINGLE_AXLE: 20000,       // Single axle max (lbs)
   TANDEM_AXLE: 34000,       // Tandem axle max (lbs)
   TRIDEM_AXLE: 42000,       // Tridem axle max (lbs)
+  PER_ADDITIONAL_AXLE: 5500, // Per-axle increment beyond tridem (lbs) — conservative estimate for typical 4-5 ft spacing per 23 CFR 658.17
   GROSS_WEIGHT: 80000,      // Total gross max (lbs)
 } as const
 
@@ -931,14 +932,16 @@ export interface TieDownPoint {
   x: number              // Position from front of cargo (feet)
   z: number              // Position from left edge (feet)
   type: TieDownType
-  wll: number            // Working Load Limit (lbs)
+  wll: number            // Rated Working Load Limit (lbs)
   angle: number          // Angle from horizontal (degrees)
+  effectiveWLL: number   // Angle-adjusted WLL: wll × cos(angle) — per 49 CFR 393.106
 }
 
 export interface SecurementPlan {
   itemId: string
   tieDowns: TieDownPoint[]
-  totalWLL: number           // Total working load limit
+  totalWLL: number           // Total effective (angle-adjusted) WLL
+  totalRatedWLL: number      // Total rated WLL before angle adjustment
   requiredWLL: number        // Required WLL (50% of cargo weight)
   isCompliant: boolean       // Meets DOT requirements
   notes: string[]            // "Use edge protectors", etc.

@@ -189,7 +189,7 @@ export function scoreWeightDistribution(
   if (numTrailerAxles === 1) {
     trailerAxleLimit = AXLE_LIMITS.SINGLE_AXLE
   } else if (numTrailerAxles >= 3) {
-    trailerAxleLimit = AXLE_LIMITS.TRIDEM_AXLE + (numTrailerAxles - 3) * 8000
+    trailerAxleLimit = AXLE_LIMITS.TRIDEM_AXLE + (numTrailerAxles - 3) * AXLE_LIMITS.PER_ADDITIONAL_AXLE
   }
 
   // Check steer axle

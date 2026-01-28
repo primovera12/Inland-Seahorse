@@ -80,6 +80,19 @@ const CARGO_SECUREMENT_NOTES: Record<string, string[]> = {
 // ============================================================================
 
 /**
+ * Calculate angle-adjusted effective WLL.
+ * Per 49 CFR 393.106, the effective horizontal restraint of a tie-down
+ * is reduced by the cosine of its angle from horizontal.
+ * A tie-down at 0° (horizontal/direct) has full effectiveness.
+ * A tie-down at 45° retains ~70.7% of its rated WLL.
+ * A tie-down at 90° (vertical) provides 0% horizontal restraint.
+ */
+export function calculateEffectiveWLL(ratedWLL: number, angleDegrees: number): number {
+  const angleRad = (angleDegrees * Math.PI) / 180
+  return Math.round(ratedWLL * Math.cos(angleRad))
+}
+
+/**
  * Calculate minimum number of tie-downs required
  * Based on 49 CFR 393.106
  */
@@ -176,12 +189,14 @@ export function generateTieDownPositions(
     const xOffset = lengthSpacing * (i + 1)
 
     // Driver side (left)
+    const sideAngle = 45 // Typical angle for over-the-top securement
     tieDowns.push({
       x: Math.round(xOffset * 10) / 10,
       z: 0,
       type,
       wll,
-      angle: 45, // Typical angle for over-the-top securement
+      angle: sideAngle,
+      effectiveWLL: calculateEffectiveWLL(wll, sideAngle),
     })
     pointIndex++
 
@@ -192,7 +207,8 @@ export function generateTieDownPositions(
         z: Math.round(itemWidth * 10) / 10,
         type,
         wll,
-        angle: 45,
+        angle: sideAngle,
+        effectiveWLL: calculateEffectiveWLL(wll, sideAngle),
       })
       pointIndex++
     }
@@ -201,20 +217,26 @@ export function generateTieDownPositions(
   // For very heavy items, add corner tie-downs
   const totalWeight = item.weight * (item.quantity || 1)
   if (totalWeight > 30000) {
+    const cornerAngle = 30 // Lower angle for direct forward restraint
+    const cornerWLL = WLL_RATINGS.chain_1_2
+    const cornerEffective = calculateEffectiveWLL(cornerWLL, cornerAngle)
+
     // Front corners (direct pull)
     tieDowns.push({
       x: 0.5,
       z: 0.5,
       type: 'chain',
-      wll: WLL_RATINGS.chain_1_2,
-      angle: 30, // Lower angle for direct forward restraint
+      wll: cornerWLL,
+      angle: cornerAngle,
+      effectiveWLL: cornerEffective,
     })
     tieDowns.push({
       x: 0.5,
       z: Math.round((itemWidth - 0.5) * 10) / 10,
       type: 'chain',
-      wll: WLL_RATINGS.chain_1_2,
-      angle: 30,
+      wll: cornerWLL,
+      angle: cornerAngle,
+      effectiveWLL: cornerEffective,
     })
 
     // Rear corners
@@ -222,15 +244,17 @@ export function generateTieDownPositions(
       x: Math.round((itemLength - 0.5) * 10) / 10,
       z: 0.5,
       type: 'chain',
-      wll: WLL_RATINGS.chain_1_2,
-      angle: 30,
+      wll: cornerWLL,
+      angle: cornerAngle,
+      effectiveWLL: cornerEffective,
     })
     tieDowns.push({
       x: Math.round((itemLength - 0.5) * 10) / 10,
       z: Math.round((itemWidth - 0.5) * 10) / 10,
       type: 'chain',
-      wll: WLL_RATINGS.chain_1_2,
-      angle: 30,
+      wll: cornerWLL,
+      angle: cornerAngle,
+      effectiveWLL: cornerEffective,
     })
   }
 
@@ -249,16 +273,26 @@ export function generateSecurementPlan(
   placement: ItemPlacement3D
 ): SecurementPlan {
   const tieDowns = generateTieDownPositions(item, placement)
-  const totalWLL = tieDowns.reduce((sum, td) => sum + td.wll, 0)
+  const totalRatedWLL = tieDowns.reduce((sum, td) => sum + td.wll, 0)
+  const totalWLL = tieDowns.reduce((sum, td) => sum + td.effectiveWLL, 0)
   const requiredWLL = calculateRequiredWLL(item)
 
   // Determine cargo type for notes
   const notes = getSecurementNotes(item)
 
+  // Note the angle adjustment if it significantly reduces effectiveness
+  if (totalRatedWLL > 0 && totalWLL < totalRatedWLL * 0.85) {
+    const reduction = Math.round((1 - totalWLL / totalRatedWLL) * 100)
+    notes.push(
+      `Tie-down angles reduce effective WLL by ${reduction}% (rated: ${totalRatedWLL.toLocaleString()} lbs, effective: ${totalWLL.toLocaleString()} lbs)`
+    )
+  }
+
   return {
     itemId: item.id,
     tieDowns,
     totalWLL,
+    totalRatedWLL,
     requiredWLL,
     isCompliant: totalWLL >= requiredWLL,
     notes,
@@ -338,12 +372,15 @@ export function validateSecurement(plan: SecurementPlan): {
   const violations: string[] = []
   const recommendations: string[] = []
 
-  // Check WLL requirement (50% of cargo weight)
+  // Check WLL requirement (50% of cargo weight) using angle-adjusted effective WLL
   if (plan.totalWLL < plan.requiredWLL) {
     const deficit = plan.requiredWLL - plan.totalWLL
+    const ratedNote = plan.totalRatedWLL > plan.totalWLL
+      ? ` (rated WLL: ${plan.totalRatedWLL.toLocaleString()} lbs — reduced by tie-down angles)`
+      : ''
     violations.push(
-      `Insufficient WLL: ${plan.totalWLL.toLocaleString()} lbs provided, ` +
-      `${plan.requiredWLL.toLocaleString()} lbs required (deficit: ${deficit.toLocaleString()} lbs)`
+      `Insufficient effective WLL: ${plan.totalWLL.toLocaleString()} lbs provided, ` +
+      `${plan.requiredWLL.toLocaleString()} lbs required (deficit: ${deficit.toLocaleString()} lbs)${ratedNote}`
     )
   }
 
@@ -367,10 +404,14 @@ export function validateSecurement(plan: SecurementPlan): {
     violations.push('Both sides of cargo must be secured')
   }
 
-  // Check angles
+  // Check angles — steep angles severely reduce horizontal restraint
   const steepAngles = plan.tieDowns.filter(td => td.angle > 60)
   if (steepAngles.length > 0) {
-    recommendations.push('Tie-down angles greater than 60° reduce effective restraint')
+    const worstAngle = Math.max(...steepAngles.map(td => td.angle))
+    const effectiveness = Math.round(Math.cos((worstAngle * Math.PI) / 180) * 100)
+    recommendations.push(
+      `${steepAngles.length} tie-down(s) at >60° — only ${effectiveness}% effective. Consider lower angle or direct attachment`
+    )
   }
 
   return {
@@ -410,13 +451,14 @@ export function generateLoadSecurementPlan(
 
   const totalTieDowns = plans.reduce((sum, p) => sum + p.tieDowns.length, 0)
   const totalWLLProvided = plans.reduce((sum, p) => sum + p.totalWLL, 0)
+  const totalRatedWLLProvided = plans.reduce((sum, p) => sum + p.totalRatedWLL, 0)
   const totalWLLRequired = plans.reduce((sum, p) => sum + p.requiredWLL, 0)
   const isFullyCompliant = plans.every(p => p.isCompliant)
 
   // Generate summary
   const summary: string[] = [
     `Total tie-downs: ${totalTieDowns}`,
-    `Total WLL provided: ${totalWLLProvided.toLocaleString()} lbs`,
+    `Total effective WLL: ${totalWLLProvided.toLocaleString()} lbs (rated: ${totalRatedWLLProvided.toLocaleString()} lbs)`,
     `Total WLL required: ${totalWLLRequired.toLocaleString()} lbs`,
   ]
 

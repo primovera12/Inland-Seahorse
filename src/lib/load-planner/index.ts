@@ -172,6 +172,7 @@ export {
   generateLoadSecurementPlan,
   calculateRequiredTieDowns,
   calculateRequiredWLL,
+  calculateEffectiveWLL,
   validateSecurement,
   getSecurementNotes,
 } from './securement-planner'
