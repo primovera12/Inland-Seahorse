@@ -1430,7 +1430,7 @@ export const statePermits: StatePermitData[] = [
     legalLimits: {
       maxWidth: 8.5,
       maxHeight: 13.5,
-      maxLength: { single: 40, combination: 60 },
+      maxLength: { single: 40, combination: 65 }, // 65' on designated highways per NCDOT; some local roads restrict to 55-60'
       maxWeight: { gross: 80000 }
     },
     oversizePermits: {
