@@ -238,7 +238,7 @@ function analyzeFit(cargo: ParsedLoad, truck: TruckType): FitAnalysis {
 
   // Calculate total weight (cargo + trailer tare + tractor)
   const totalWeight =
-    cargo.weight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+    cargo.weight + truck.tareWeight + truck.powerUnitWeight
 
   // Check against legal limits
   const exceedsHeight = totalHeight > LEGAL_LIMITS.HEIGHT
@@ -453,7 +453,7 @@ function calculateScore(
   // If route traverses states with active seasonal weight restrictions,
   // penalize trucks that would be overweight under the reduced limits
   if (seasonalContext && seasonalContext.adjustedMaxWeight < LEGAL_LIMITS.GROSS_WEIGHT) {
-    const truckGrossWeight = cargo.weight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+    const truckGrossWeight = cargo.weight + truck.tareWeight + truck.powerUnitWeight
     if (truckGrossWeight > seasonalContext.adjustedMaxWeight) {
       // Calculate how much over the seasonal limit
       const excessPercent = ((truckGrossWeight - seasonalContext.adjustedMaxWeight) / seasonalContext.adjustedMaxWeight) * 100

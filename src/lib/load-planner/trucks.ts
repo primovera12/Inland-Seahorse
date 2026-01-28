@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Complete Truck/Trailer Database with Accurate Specifications
  *
  * Comprehensive list of all trailer types used in Continental USA
@@ -42,6 +42,7 @@ export const trucks: TruckType[] = [
       'Palletized freight',
       'Construction materials',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -68,6 +69,7 @@ export const trucks: TruckType[] = [
       'Multiple items requiring extra length',
       'Pipe and tubing',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -95,6 +97,7 @@ export const trucks: TruckType[] = [
       'Utility poles',
       'Long pipe strings',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -122,6 +125,7 @@ export const trucks: TruckType[] = [
       'Small construction equipment',
       'Vehicles',
     ],
+    powerUnitWeight: 9000,
     loadingMethod: 'drive-on',
   },
 
@@ -154,6 +158,7 @@ export const trucks: TruckType[] = [
       'Agricultural equipment',
       'Scissor lifts and aerial lifts',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -181,6 +186,7 @@ export const trucks: TruckType[] = [
       'Extended agricultural equipment',
       'Construction vehicles',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -208,6 +214,7 @@ export const trucks: TruckType[] = [
       'Borderline oversize loads',
       'Maximizing legal height',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -235,6 +242,7 @@ export const trucks: TruckType[] = [
       'Crane booms',
       'Long industrial equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
 
@@ -269,6 +277,7 @@ export const trucks: TruckType[] = [
       'Equipment that must drive on',
       'Cranes and heavy construction equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -297,6 +306,7 @@ export const trucks: TruckType[] = [
       'Mining equipment',
       'Heavy tracked machinery',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -325,6 +335,7 @@ export const trucks: TruckType[] = [
       'Large cranes',
       'Extreme heavy equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -353,6 +364,7 @@ export const trucks: TruckType[] = [
       'Mining equipment with attachments',
       'Extended drilling equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
 
@@ -386,6 +398,7 @@ export const trucks: TruckType[] = [
       'Crane components',
       'Wind turbine parts',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -414,6 +427,7 @@ export const trucks: TruckType[] = [
       'Mining equipment',
       'Superload candidates',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -442,6 +456,7 @@ export const trucks: TruckType[] = [
       'Heavy industrial equipment',
       'Bridge sections',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -470,6 +485,7 @@ export const trucks: TruckType[] = [
       'When crane not available',
       'Versatile heavy loads',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -498,6 +514,7 @@ export const trucks: TruckType[] = [
       'Reactor vessels',
       'Long industrial tanks',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
 
@@ -530,6 +547,7 @@ export const trucks: TruckType[] = [
       'Large compressors',
       'Processing equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -558,6 +576,7 @@ export const trucks: TruckType[] = [
       'Large generator packages',
       'Mining equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
 
@@ -590,6 +609,7 @@ export const trucks: TruckType[] = [
       'Quick turnaround loads',
       'Vehicles and small equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'tilt',
   },
   {
@@ -618,6 +638,7 @@ export const trucks: TruckType[] = [
       'Finished goods needing protection',
       'Electronics and machinery',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
   {
@@ -646,6 +667,7 @@ export const trucks: TruckType[] = [
       'Retail merchandise',
       'Non-temperature sensitive goods',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
   {
@@ -674,6 +696,7 @@ export const trucks: TruckType[] = [
       'Temperature-sensitive chemicals',
       'Dairy products',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
   {
@@ -702,6 +725,7 @@ export const trucks: TruckType[] = [
       'Quick-turn freight',
       'Multi-stop deliveries',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
 
@@ -736,6 +760,7 @@ export const trucks: TruckType[] = [
       'Heavy industrial equipment',
       'Bridge sections',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -766,6 +791,7 @@ export const trucks: TruckType[] = [
       'Offshore platform modules',
       'Ship components',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -796,6 +822,7 @@ export const trucks: TruckType[] = [
       'Heavy refinery equipment',
       'Single-piece extreme loads',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -825,6 +852,7 @@ export const trucks: TruckType[] = [
       'Oversized generators',
       'Maximum height loads',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -854,6 +882,7 @@ export const trucks: TruckType[] = [
       'Wind turbine components',
       'Construction in urban areas',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -880,6 +909,7 @@ export const trucks: TruckType[] = [
       'Long composite structures',
       'Aerospace components',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
 
@@ -911,6 +941,7 @@ export const trucks: TruckType[] = [
       'Lumber yards',
       'Multi-stop deliveries',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
   {
@@ -937,6 +968,7 @@ export const trucks: TruckType[] = [
       'Construction sites',
       'Agricultural deliveries',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
   {
@@ -963,6 +995,7 @@ export const trucks: TruckType[] = [
       'Steel coils (maximizing payload)',
       'When every pound counts',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -990,6 +1023,7 @@ export const trucks: TruckType[] = [
       'Maximum fleet flexibility',
       'Owner-operators',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
 
@@ -1021,6 +1055,7 @@ export const trucks: TruckType[] = [
       'Agricultural equipment',
       'Rolling stock',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -1048,6 +1083,7 @@ export const trucks: TruckType[] = [
       'Mixed loads',
       'Versatile operations',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
 
@@ -1081,6 +1117,7 @@ export const trucks: TruckType[] = [
       'Small tracked equipment',
       'Compact track loaders (CTL)',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
 
@@ -1113,6 +1150,7 @@ export const trucks: TruckType[] = [
       'When height adjustment needed',
       'Multi-purpose operations',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
 
@@ -1145,6 +1183,7 @@ export const trucks: TruckType[] = [
       'Tall wheeled machinery',
       'When crane not available',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
 
@@ -1177,6 +1216,7 @@ export const trucks: TruckType[] = [
       'Large machinery',
       'Mining equipment',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
 
@@ -1207,6 +1247,7 @@ export const trucks: TruckType[] = [
       'Cylindrical tanks',
       'Large diameter loads',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -1233,6 +1274,7 @@ export const trucks: TruckType[] = [
       'Large rectangular loads',
       'Heavy equipment housings',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
 
@@ -1263,6 +1305,7 @@ export const trucks: TruckType[] = [
       'Consumer products',
       'Retail merchandise',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
   {
@@ -1289,6 +1332,7 @@ export const trucks: TruckType[] = [
       'Pharmaceuticals',
       'Temperature-sensitive chemicals',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'forklift',
   },
 
@@ -1319,6 +1363,7 @@ export const trucks: TruckType[] = [
       'Remote locations',
       'Long loads without crane',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'tilt',
   },
 
@@ -1349,6 +1394,7 @@ export const trucks: TruckType[] = [
       'Food-grade liquids',
       'Industrial liquids',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'pump',
   },
   {
@@ -1375,6 +1421,7 @@ export const trucks: TruckType[] = [
       'Plastic pellets',
       'Dry bulk commodities',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'pneumatic',
   },
 
@@ -1405,6 +1452,7 @@ export const trucks: TruckType[] = [
       'Gravel',
       'Agricultural products',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'gravity',
   },
   {
@@ -1431,6 +1479,7 @@ export const trucks: TruckType[] = [
       'Scrap metal',
       'Demolition materials',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'dump',
   },
   {
@@ -1457,6 +1506,7 @@ export const trucks: TruckType[] = [
       'Aggregates',
       'Large stockpile building',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'dump',
   },
 
@@ -1493,6 +1543,7 @@ export const trucks: TruckType[] = [
       'Offshore platform modules',
       'Nuclear components',
     ],
+    powerUnitWeight: 0,
     loadingMethod: 'crane',
   },
   {
@@ -1521,6 +1572,7 @@ export const trucks: TruckType[] = [
       'Drilling equipment',
       'Long industrial machinery',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -1547,6 +1599,7 @@ export const trucks: TruckType[] = [
       'Wide agricultural equipment',
       'Manufacturing equipment',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -1575,6 +1628,7 @@ export const trucks: TruckType[] = [
       'Heavy mining equipment',
       'Transformers on standard trailers',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -1601,6 +1655,7 @@ export const trucks: TruckType[] = [
       'Fleet vehicles',
       'Consumer vehicle transport',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -1627,6 +1682,7 @@ export const trucks: TruckType[] = [
       'High-value automobiles',
       'Auction-quality transport',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -1653,6 +1709,7 @@ export const trucks: TruckType[] = [
       'Heavy industrial equipment',
       'Concentrated heavy loads',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
   {
@@ -1679,6 +1736,7 @@ export const trucks: TruckType[] = [
       'Industrial tanks',
       'Pre-cast concrete sections',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -1707,6 +1765,7 @@ export const trucks: TruckType[] = [
       'Frac equipment',
       'Pipeline equipment',
     ],
+    powerUnitWeight: 20000,
     loadingMethod: 'crane',
   },
   {
@@ -1733,6 +1792,7 @@ export const trucks: TruckType[] = [
       'Long pipe strings',
       'Utility poles',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -1759,6 +1819,7 @@ export const trucks: TruckType[] = [
       'Utility poles',
       'Long pipe',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'crane',
   },
   {
@@ -1785,6 +1846,7 @@ export const trucks: TruckType[] = [
       'Livestock to market',
       'Agricultural animals',
     ],
+    powerUnitWeight: 17000,
     loadingMethod: 'drive-on',
   },
 ]

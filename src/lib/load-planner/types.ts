@@ -54,6 +54,9 @@ export interface TruckType {
   features: string[]
   // Best suited for
   bestFor: string[]
+  // Power unit weight (tractor/pickup pulling this trailer) in pounds
+  // Hotshot: ~9,000 (pickup), Standard semi: ~17,000 (Class 8), Heavy haul: ~20,000, SPMT: 0
+  powerUnitWeight: number
   // Loading method
   loadingMethod: 'crane' | 'drive-on' | 'forklift' | 'ramp' | 'tilt' | 'pump' | 'pneumatic' | 'gravity' | 'dump'
   // Image/icon
@@ -82,7 +85,7 @@ export interface FitAnalysis {
   heightClearance: number // 13.5 - totalHeight
   widthClearance: number // 8.5 - cargoWidth
   // Weight analysis
-  totalWeight: number // cargo + tare + tractor (~17000 lbs)
+  totalWeight: number // cargo + tare + tractor (uses truck.powerUnitWeight)
   weightClearance: number // 80000 - totalWeight
   // Legal status
   isLegal: boolean
@@ -159,7 +162,7 @@ export const LEGAL_LIMITS = {
   LENGTH_SINGLE: 48, // feet (single trailer)
   LENGTH_COMBINATION: 75, // feet (tractor + trailer)
   GROSS_WEIGHT: 80000, // pounds
-  TRACTOR_WEIGHT: 17000, // typical tractor weight in pounds
+  TRACTOR_WEIGHT: 17000, // Default for Class 8. Use truck.powerUnitWeight when available.
 } as const
 
 // Escort & service cost constants (all values in cents, integer)

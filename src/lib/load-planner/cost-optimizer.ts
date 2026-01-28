@@ -98,7 +98,7 @@ export function calculatePermitCosts(
   }
 
   // Weight permit (over 80,000 lbs gross)
-  const grossWeight = cargoWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+  const grossWeight = cargoWeight + truck.tareWeight + truck.powerUnitWeight
   if (grossWeight > LEGAL_LIMITS.GROSS_WEIGHT) {
     costs.weightPermit = PERMIT_BASE_COSTS_CENTS.WEIGHT * statesCount
     // Additional weight surcharges

@@ -22,6 +22,8 @@
 > 6. Phase detail files with full subtask breakdowns are in this same folder (`docs/Load Planner upgrade/`).
 >
 > **This file must always be kept up to date. It is the memory of this project across chat sessions.**
+>
+> **IMPORTANT — Context limit rule:** When your context usage reaches **85%**, stop working immediately — even mid-task. Update this file with your progress (Living Context, Current Focus, Work Log), commit, and tell the user to start a new chat. Do not try to finish the current task if you are at 85%+.
 
 ---
 
@@ -37,6 +39,7 @@
 > - 45 issues identified across 5 severity phases
 > - Detailed implementation plans written for all 45 issues (see phase files)
 > - **P1-01 COMPLETED**: Dollar vs cents unit mismatch fixed. All monetary values now standardized to cents across escort-calculator, cost-optimizer, permit-calculator, and load-planner modules.
+> - **P1-02 COMPLETED**: Hotshot tractor weight fixed. Added `powerUnitWeight` field to `TruckType` interface and all 62 truck definitions. Hotshot=9k, SPMT=0, heavy haul=20k, standard=17k. All GVW calculations across 7 files now use `truck.powerUnitWeight` instead of hardcoded `LEGAL_LIMITS.TRACTOR_WEIGHT`.
 >
 > ### What We Learned During Audit
 > - The codebase is well-architected with clean module separation
@@ -53,15 +56,17 @@
 > - `DEFAULT_COST_DATA` now uses `dailyCostCents` field (was `dailyCost` in dollars)
 > - `PlanningOptions.fuelPrice` is now in cents per gallon (was dollars)
 > - State permit data in `state-permits.ts` still stores fees in dollars — `permit-calculator.ts` converts to cents at the boundary with `* 100`
+> - Each truck now has its own `powerUnitWeight` (tractor weight) — hotshot 9k, standard 17k, heavy haul 20k, SPMT 0
+> - `truck-type-converter.ts` derives `powerUnitWeight` from category/name for database-backed trucks
 > - Truck scoring flows: `truck-selector.ts` has the full algorithm; `load-planner.ts` has a simplified copy
 > - Smart features (stacking, weight distribution, securement, HOS, escorts) are optional modules toggled via `PlanningOptions`
 > - State permit data is in `state-permits.ts` (~2000 lines, all 50 states)
 > - The placement algorithm uses 0.5-foot grid steps scanning the deck (fine for <10 items, watch performance for more)
 
 ### Current Focus
-> **Next up:** Phase 1, Issue P1-02 — Hotshot tractor weight uses semi weight (17k vs 9k)
-> **Phase file:** `phase-1-safety-compliance.md` → Section P1-02
-> **Why next:** Affects GVW calculations for all hotshot loads, causing incorrect weight limit checks and truck recommendations.
+> **Next up:** Phase 1, Issue P1-03 — Fallback placement at (0,0) creates overlapping cargo
+> **Phase file:** `phase-1-safety-compliance.md` → Section P1-03
+> **Why next:** Silent fallback placement creates physically impossible overlapping cargo configurations that are shown as valid.
 
 ---
 
@@ -69,13 +74,13 @@
 
 | Phase | Description | Issues | Done | Remaining | Status |
 |-------|-------------|--------|------|-----------|--------|
-| 1 | Safety & DOT Compliance | 9 | 1 | 8 | In Progress |
+| 1 | Safety & DOT Compliance | 9 | 2 | 7 | In Progress |
 | 2 | Cost Accuracy | 5 | 0 | 5 | Not Started |
 | 3 | Algorithm Correctness | 7 | 0 | 7 | Not Started |
 | 4 | Data & Coverage | 10 | 0 | 10 | Not Started |
 | 5 | Advanced Compliance | 7 | 0 | 7 | Not Started |
 | -- | Minor / Polish | 7 | 0 | 7 | Not Started |
-| **Total** | | **45** | **1** | **44** | |
+| **Total** | | **45** | **2** | **43** | |
 
 ---
 
@@ -84,7 +89,7 @@
 | ID | Issue | Severity | File(s) | Line(s) | Status |
 |----|-------|----------|---------|---------|--------|
 | P1-01 | Dollar vs cents unit mismatch in escort costs | CRITICAL | `escort-calculator.ts`, `permit-calculator.ts` | 21-24, 27-29 | [x] Done |
-| P1-02 | Hotshot tractor weight uses semi weight (17k vs 9k) | CRITICAL | `load-planner.ts`, `truck-selector.ts`, `types.ts` | 316 | [ ] Not Started |
+| P1-02 | Hotshot tractor weight uses semi weight (17k vs 9k) | CRITICAL | `load-planner.ts`, `truck-selector.ts`, `types.ts` | 316 | [x] Done |
 | P1-03 | Fallback placement at (0,0) creates overlapping cargo | CRITICAL | `load-planner.ts` | 154-161 | [ ] Not Started |
 | P1-04 | Drive axle weight can go negative | CRITICAL | `weight-distribution.ts` | 71-77 | [ ] Not Started |
 | P1-05 | Tridem axle limit formula wrong (8k vs 5.5k per axle) | CRITICAL | `weight-distribution.ts` | 161-162 | [ ] Not Started |
@@ -172,6 +177,7 @@
 
 | # | Date | Issue ID | What Was Done | Files Modified | Notes |
 |---|------|----------|---------------|----------------|-------|
+| 3 | 2026-01-27 | P1-02 | Added `powerUnitWeight` field to `TruckType` interface and all 62 truck definitions (hotshot=9000, SPMT=0, heavy haul=20000, standard=17000). Replaced all `LEGAL_LIMITS.TRACTOR_WEIGHT` references in GVW calculations with `truck.powerUnitWeight`. Updated `truck-type-converter.ts` to derive power unit weight from category/name for DB-backed trucks. Fixed `QuotePDFTemplate.tsx` inline truck objects. | `types.ts`, `trucks.ts`, `load-planner.ts`, `truck-selector.ts`, `weight-distribution.ts`, `cost-optimizer.ts`, `escort-calculator.ts`, `route-validator.ts`, `truck-type-converter.ts`, `QuotePDFTemplate.tsx` | TypeScript compiles clean. `LEGAL_LIMITS.TRACTOR_WEIGHT` kept as fallback default. |
 | 2 | 2026-01-27 | P1-01 | Standardized all monetary values to cents. Created shared `ESCORT_COSTS` and `PERMIT_BASE_COSTS_CENTS` constants in types.ts. Converted `escort-calculator.ts`, `cost-optimizer.ts`, `permit-calculator.ts` from dollars to cents. Updated `DEFAULT_COST_DATA.dailyCost` → `dailyCostCents`. Updated `PlanningOptions.fuelPrice` to cents. Fixed all display formatting in `load-planner.ts` and `PlanComparisonPanel.tsx` to divide by 100. | `types.ts`, `escort-calculator.ts`, `cost-optimizer.ts`, `permit-calculator.ts`, `load-planner.ts`, `PlanComparisonPanel.tsx` | TypeScript compiles clean. State permit data still in dollars internally — converted at boundary in permit-calculator. |
 | 1 | 2026-01-27 | -- | Initial audit completed. 45 issues documented across 5 phases. Created progress tracker and 5 phase detail files. | `docs/Load Planner upgrade/*` (new files) | No code changes. Audit only. |
 

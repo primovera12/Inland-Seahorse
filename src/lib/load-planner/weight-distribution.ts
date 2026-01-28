@@ -12,7 +12,6 @@ import {
   WeightDistributionResult,
   AxleConfiguration,
   AXLE_LIMITS,
-  LEGAL_LIMITS,
   DEFAULT_AXLE_CONFIGS,
 } from './types'
 
@@ -34,7 +33,7 @@ export function calculateAxleWeights(
   const config = axleConfig || DEFAULT_AXLE_CONFIGS[truck.category]
 
   // Base weights (empty truck)
-  const tractorWeight = LEGAL_LIMITS.TRACTOR_WEIGHT
+  const tractorWeight = truck.powerUnitWeight
   const trailerTareWeight = truck.tareWeight
 
   // Calculate cargo weight and moment about kingpin

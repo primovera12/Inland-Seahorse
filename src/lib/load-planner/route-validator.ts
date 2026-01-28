@@ -552,7 +552,7 @@ export function validateRoute(
   const maxHeight = Math.max(...items.map((i) => i.height))
   const totalHeight = maxHeight + (truck.deckHeight || 0)
   const totalWeight = items.reduce((sum, i) => sum + i.weight * (i.quantity || 1), 0)
-  const grossWeight = totalWeight + (truck.tareWeight || 0) + LEGAL_LIMITS.TRACTOR_WEIGHT
+  const grossWeight = totalWeight + (truck.tareWeight || 0) + (truck.powerUnitWeight ?? LEGAL_LIMITS.TRACTOR_WEIGHT)
   const hasHazmat = items.some((i) => i.hazmat)
 
   // Collect all restrictions to check

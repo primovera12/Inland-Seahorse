@@ -117,7 +117,7 @@ export function calculateStateEscortRequirements(
   // Calculate total dimensions
   const totalHeight = truck.deckHeight + cargo.height
   const totalLength = cargo.length // Could add tractor length for overall
-  const grossWeight = cargo.weight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+  const grossWeight = cargo.weight + truck.tareWeight + truck.powerUnitWeight
 
   // Initialize requirements
   const requirements: SmartEscortRequirements = {

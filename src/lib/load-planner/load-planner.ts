@@ -313,7 +313,7 @@ function findBestTruckForItem(item: LoadItem): {
 
   for (const truck of trucks) {
     const totalHeight = item.height + truck.deckHeight
-    const totalWeight = item.weight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+    const totalWeight = item.weight + truck.tareWeight + truck.powerUnitWeight
 
     // Check if item physically fits
     const fits =
@@ -1046,7 +1046,7 @@ function enhanceLoadWithSmartFeatures(
       width: load.width,
       height: load.height + load.recommendedTruck.deckHeight,
       length: load.length,
-      weight: load.weight + load.recommendedTruck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT,
+      weight: load.weight + load.recommendedTruck.tareWeight + load.recommendedTruck.powerUnitWeight,
     }
     enhanced.escortRequirements = calculateEscortRequirements(
       routeStates,
@@ -1533,7 +1533,7 @@ function generateLegalOnlyPlan(parsedLoad: ParsedLoad): LoadPlan {
     // Find trucks that can carry this item legally
     const legalTrucks = trucks.filter(truck => {
       const totalHeight = item.height + truck.deckHeight
-      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+      const totalWeight = itemWeight + truck.tareWeight + truck.powerUnitWeight
 
       return (
         item.length <= truck.deckLength &&
@@ -1668,7 +1668,7 @@ function canAddItemLegally(load: PlannedLoad, item: LoadItem, truck: TruckType):
   const newLength = Math.max(load.length, item.length)
 
   const totalHeight = newHeight + truck.deckHeight
-  const grossWeight = newWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+  const grossWeight = newWeight + truck.tareWeight + truck.powerUnitWeight
 
   // Check all legal limits
   return (
@@ -1801,7 +1801,7 @@ function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
     // Prefer common trucks that can carry legally
     const legalCommonTrucks = trucks.filter(truck => {
       const totalHeight = item.height + truck.deckHeight
-      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+      const totalWeight = itemWeight + truck.tareWeight + truck.powerUnitWeight
       return (
         commonCategories.includes(truck.category) &&
         item.length <= truck.deckLength &&
@@ -1816,7 +1816,7 @@ function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
     // Fallback to any legal truck, then any truck
     const legalTrucks = legalCommonTrucks.length > 0 ? legalCommonTrucks : trucks.filter(truck => {
       const totalHeight = item.height + truck.deckHeight
-      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+      const totalWeight = itemWeight + truck.tareWeight + truck.powerUnitWeight
       return (
         item.length <= truck.deckLength &&
         item.width <= truck.deckWidth &&
@@ -1926,7 +1926,7 @@ function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
 
     // Check if the safety-preferred truck fits legally
     const totalHeight = item.height + bestTruck.deckHeight
-    const totalWeight = itemWeight + bestTruck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+    const totalWeight = itemWeight + bestTruck.tareWeight + bestTruck.powerUnitWeight
     const safetyIsLegal = (
       item.length <= bestTruck.deckLength &&
       item.width <= bestTruck.deckWidth &&
@@ -1998,7 +1998,7 @@ function generateBestPlacementPlan(parsedLoad: ParsedLoad): LoadPlan {
       if (item.length > truck.deckLength) continue
 
       const totalHeight = item.height + truck.deckHeight
-      const totalWeight = itemWeight + truck.tareWeight + LEGAL_LIMITS.TRACTOR_WEIGHT
+      const totalWeight = itemWeight + truck.tareWeight + truck.powerUnitWeight
 
       const isLegal = (
         item.width <= truck.deckWidth &&
