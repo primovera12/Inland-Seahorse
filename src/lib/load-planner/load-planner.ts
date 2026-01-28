@@ -53,6 +53,7 @@ export interface ItemPlacement {
   x: number // position from front of trailer (feet)
   z: number // position from left edge (feet)
   rotated: boolean
+  failed?: boolean // true if item could not be placed (no valid position found)
 }
 
 export interface PlannedLoad {
@@ -151,12 +152,13 @@ function calculatePlacements(items: LoadItem[], truck: TruckType): ItemPlacement
         width: itemWidth
       })
     } else {
-      // Fallback: place at origin if no space found (shouldn't happen if canShareTruck works)
+      // No valid position found — mark as failed placement
       placements.push({
         itemId: item.id,
         x: 0,
         z: 0,
-        rotated: false
+        rotated: false,
+        failed: true,
       })
     }
   }
@@ -518,10 +520,10 @@ function canFitOnTruck(newItem: LoadItem, existingItems: LoadItem[], truck: Truc
   const newArea = newItem.length * newItem.width
   if ((usedArea + newArea) > deckArea * PACKING_EFFICIENCY) return false
 
-  // Try actual 2D placement to verify items fit
+  // Try actual 2D placement to verify items fit (no failed placements allowed)
   const testItems = [...existingItems, newItem]
   const placements = calculatePlacements(testItems, truck)
-  return placements.length === testItems.length
+  return placements.length === testItems.length && !placements.some(p => p.failed)
 }
 
 /**
@@ -683,9 +685,9 @@ function rebalanceLoads(loads: PlannedLoad[]): void {
       const totalArea = combinedItems.reduce((s, i) => s + (i.length * i.width), 0)
       if (totalArea > deckArea * 0.75) continue
 
-      // Verify with actual placement
+      // Verify with actual placement (no failed placements allowed)
       const placements = calculatePlacements(combinedItems, targetTruck)
-      if (placements.length < combinedItems.length) continue
+      if (placements.length < combinedItems.length || placements.some(p => p.failed)) continue
 
       // Merge successful
       loadA.items = combinedItems
@@ -878,6 +880,23 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
 
   // Post-processing: Try to rebalance if loads are very uneven
   rebalanceLoads(loads)
+
+  // Check for failed placements and add per-load warnings
+  for (const load of loads) {
+    const failedPlacements = load.placements.filter(p => p.failed)
+    if (failedPlacements.length > 0) {
+      for (const fp of failedPlacements) {
+        const item = load.items.find(i => i.id === fp.itemId)
+        const desc = item?.description || fp.itemId
+        load.warnings.push(
+          `Item "${desc}" could not be placed on deck — manual arrangement required`
+        )
+      }
+      warnings.push(
+        `${load.id}: ${failedPlacements.length} item(s) could not be automatically placed`
+      )
+    }
+  }
 
   // Calculate totals using effective weights
   const totalWeight = loads.reduce((sum, load) => sum + getLoadWeight(load.items), 0)

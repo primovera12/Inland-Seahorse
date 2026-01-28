@@ -329,6 +329,7 @@ export interface ItemPlacement {
   x: number // position from front of trailer (feet)
   z: number // position from left edge (feet)
   rotated: boolean
+  failed?: boolean // true if item could not be placed (no valid position found)
 }
 
 export interface PlannedLoad {
@@ -782,6 +783,7 @@ export interface ItemPlacement3D {
   rotated: boolean       // 90-degree rotation applied
   stackedOn?: string     // ID of item this is stacked on
   layer: number          // 0 = deck, 1+ = stacked layer
+  failed?: boolean       // true if item could not be placed (no valid position found)
 }
 
 export interface StackingCell {

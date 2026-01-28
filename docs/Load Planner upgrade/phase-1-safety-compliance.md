@@ -112,7 +112,7 @@ Defensive fallback was added to prevent crashes, but it masks a real problem (it
 ### Implementation Plan
 
 #### Subtask 3.1: Replace fallback with explicit failure handling
-- [ ] In `calculatePlacements()`, when `findBestPlacement()` returns null:
+- [x] In `calculatePlacements()`, when `findBestPlacement()` returns null:
   ```typescript
   if (placement) {
     placements.push(placement)
@@ -130,18 +130,18 @@ Defensive fallback was added to prevent crashes, but it masks a real problem (it
   ```
 
 #### Subtask 3.2: Add `failed` field to ItemPlacement interface
-- [ ] Update `ItemPlacement` interface to include `failed?: boolean`
-- [ ] Update `ItemPlacement3D` similarly
+- [x] Update `ItemPlacement` interface to include `failed?: boolean`
+- [x] Update `ItemPlacement3D` similarly
 
 #### Subtask 3.3: Propagate placement failures to warnings
-- [ ] In `planLoads()`, after placement calculation, check for failed placements
-- [ ] Add warning: `"Item '{description}' could not be placed on deck - manual arrangement required"`
-- [ ] Include failed items in `PlannedLoad.warnings`
+- [x] In `planLoads()`, after placement calculation, check for failed placements
+- [x] Add warning: `"Item '{description}' could not be placed on deck — manual arrangement required"`
+- [x] Include failed items in `PlannedLoad.warnings`
 
 #### Subtask 3.4: Update visualization components
-- [ ] `LoadPlanVisualizer`: Show failed-placement items in red/warning color
-- [ ] `TrailerDiagram`: Display "!" icon for items without valid placement
-- [ ] Tooltip: "This item could not be automatically placed. Manual arrangement needed."
+- [x] `LoadPlanVisualizer`: Show failed-placement items in red/warning color with "Not placed" badge
+- [x] `TrailerDiagram`: Display "!" icon and red hatched pattern for items without valid placement
+- [x] Label: "NOT PLACED" / "Manual arrangement needed" shown on failed items in diagrams
 
 ### Testing
 - [ ] Test: Load 3 items that collectively exceed deck area - third should show as failed

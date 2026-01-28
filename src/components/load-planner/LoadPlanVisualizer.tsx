@@ -241,26 +241,35 @@ function LoadCard({ load, loadIndex, isExpanded, onToggle, onTruckChange }: Load
           <div className="pt-4 border-t">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Items on this truck</h4>
             <div className="space-y-1">
-              {load.items.map((item, i) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-gray-50"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded"
-                      style={{ backgroundColor: getItemColor(i) }}
-                    />
-                    <span>{item.description}</span>
-                    {item.quantity > 1 && (
-                      <span className="text-gray-400">x{item.quantity}</span>
-                    )}
+              {load.items.map((item, i) => {
+                const placement = load.placements.find(p => p.itemId === item.id)
+                const isFailed = placement?.failed === true
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-gray-50 ${isFailed ? 'bg-red-50' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded"
+                        style={{ backgroundColor: isFailed ? '#dc2626' : getItemColor(i) }}
+                      />
+                      <span className={isFailed ? 'text-red-700' : ''}>{item.description}</span>
+                      {item.quantity > 1 && (
+                        <span className="text-gray-400">x{item.quantity}</span>
+                      )}
+                      {isFailed && (
+                        <span className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                          Not placed
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-gray-500">
+                      {item.length.toFixed(1)}' x {item.width.toFixed(1)}' x {item.height.toFixed(1)}'
+                    </span>
                   </div>
-                  <span className="text-gray-500">
-                    {item.length.toFixed(1)}' x {item.width.toFixed(1)}' x {item.height.toFixed(1)}'
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </CardContent>

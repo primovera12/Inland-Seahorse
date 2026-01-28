@@ -65,38 +65,51 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
         </div>
         <div className="text-xs text-gray-500">
           {items.length} item{items.length !== 1 ? 's' : ''} placed
+          {placements.some(p => p.failed) && (
+            <span className="text-red-600 ml-1">
+              ({placements.filter(p => p.failed).length} need manual arrangement)
+            </span>
+          )}
         </div>
       </div>
 
       {/* Legend */}
       {items.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {items.map((item, index) => (
-            <div
-              key={item.id}
-              className={`
-                flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer
-                transition-all border
-                ${hoveredItem === item.id ? 'ring-2 ring-blue-400 border-blue-300' : 'border-transparent'}
-              `}
-              style={{ backgroundColor: `${getItemColor(index)}15` }}
-              onMouseEnter={() => setHoveredItem(item.id)}
-              onMouseLeave={() => setHoveredItem(null)}
-            >
+          {items.map((item, index) => {
+            const placement = getPlacement(item.id)
+            const isFailed = placement?.failed === true
+            return (
               <div
-                className="w-4 h-4 rounded flex-shrink-0"
-                style={{ backgroundColor: getItemColor(index) }}
-              />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-gray-800 font-medium">{item.description}</span>
-                <div className="flex items-center gap-2 text-gray-500">
-                  <span>{item.length}' × {item.width}' × {item.height}'</span>
-                  <span className="text-gray-300">•</span>
-                  <span>{item.weight.toLocaleString()} lbs</span>
+                key={item.id}
+                className={`
+                  flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer
+                  transition-all border
+                  ${hoveredItem === item.id ? 'ring-2 ring-blue-400 border-blue-300' : 'border-transparent'}
+                  ${isFailed ? 'bg-red-50' : ''}
+                `}
+                style={isFailed ? undefined : { backgroundColor: `${getItemColor(index)}15` }}
+                onMouseEnter={() => setHoveredItem(item.id)}
+                onMouseLeave={() => setHoveredItem(null)}
+              >
+                <div
+                  className="w-4 h-4 rounded flex-shrink-0"
+                  style={{ backgroundColor: isFailed ? '#dc2626' : getItemColor(index) }}
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span className={isFailed ? 'text-red-800 font-medium' : 'text-gray-800 font-medium'}>
+                    {item.description}
+                    {isFailed && <span className="ml-1 text-red-600">(not placed)</span>}
+                  </span>
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <span>{item.length}' × {item.width}' × {item.height}'</span>
+                    <span className="text-gray-300">•</span>
+                    <span>{item.weight.toLocaleString()} lbs</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -139,6 +152,16 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                   <stop offset="100%" stopColor={color.dark} />
                 </linearGradient>
               ))}
+
+              {/* Hatched pattern for failed placements */}
+              <pattern id="failedHatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#dc2626" strokeWidth="2" opacity="0.4" />
+              </pattern>
+              <linearGradient id="failedGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#fca5a5" />
+                <stop offset="50%" stopColor="#f87171" />
+                <stop offset="100%" stopColor="#dc2626" />
+              </linearGradient>
             </defs>
 
             {/* Trailer Deck with gradient and shadow */}
@@ -224,6 +247,7 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
               const placement = getPlacement(item.id)
               if (!placement) return null
 
+              const isFailed = placement.failed === true
               const itemLength = placement.rotated ? item.width : item.length
               const itemWidth = placement.rotated ? item.length : item.width
               const isHovered = hoveredItem === item.id
@@ -258,41 +282,58 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                     }}
                   />
 
-                  {/* Main block with gradient */}
+                  {/* Main block — failed placements use red warning style */}
                   <rect
                     x={x}
                     y={y}
                     width={w}
                     height={h}
-                    fill={`url(#itemGradient-${index % ITEM_COLOR_CONFIG.length})`}
-                    stroke={isHovered ? '#1f2937' : colorConfig.dark}
-                    strokeWidth={isHovered ? 2.5 : 1.5}
+                    fill={isFailed ? 'url(#failedGradient)' : `url(#itemGradient-${index % ITEM_COLOR_CONFIG.length})`}
+                    stroke={isFailed ? '#991b1b' : isHovered ? '#1f2937' : colorConfig.dark}
+                    strokeWidth={isHovered ? 2.5 : isFailed ? 2 : 1.5}
                     rx="3"
+                    opacity={isFailed ? 0.7 : 1}
                     style={{ transition: 'all 0.15s ease' }}
                   />
 
-                  {/* Top highlight for 3D effect */}
-                  <rect
-                    x={x + 2}
-                    y={y + 2}
-                    width={w - 4}
-                    height={Math.min(h * 0.25, 8)}
-                    fill="rgba(255,255,255,0.3)"
-                    rx="2"
-                  />
+                  {/* Hatched overlay for failed placements */}
+                  {isFailed && (
+                    <rect
+                      x={x}
+                      y={y}
+                      width={w}
+                      height={h}
+                      fill="url(#failedHatch)"
+                      rx="3"
+                    />
+                  )}
 
-                  {/* Bottom shadow for 3D effect */}
-                  <rect
-                    x={x + 2}
-                    y={y + h - Math.min(h * 0.15, 5)}
-                    width={w - 4}
-                    height={Math.min(h * 0.15, 5)}
-                    fill="rgba(0,0,0,0.15)"
-                    rx="2"
-                  />
+                  {/* Top highlight for 3D effect (skip for failed) */}
+                  {!isFailed && (
+                    <rect
+                      x={x + 2}
+                      y={y + 2}
+                      width={w - 4}
+                      height={Math.min(h * 0.25, 8)}
+                      fill="rgba(255,255,255,0.3)"
+                      rx="2"
+                    />
+                  )}
+
+                  {/* Bottom shadow for 3D effect (skip for failed) */}
+                  {!isFailed && (
+                    <rect
+                      x={x + 2}
+                      y={y + h - Math.min(h * 0.15, 5)}
+                      width={w - 4}
+                      height={Math.min(h * 0.15, 5)}
+                      fill="rgba(0,0,0,0.15)"
+                      rx="2"
+                    />
+                  )}
 
                   {/* Oversize/Overweight indicator stripe */}
-                  {(isOversize || isOverweight) && (
+                  {!isFailed && (isOversize || isOverweight) && (
                     <rect
                       x={x}
                       y={y}
@@ -304,14 +345,14 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                     />
                   )}
 
-                  {/* Warning badge for oversize/overweight */}
-                  {(isOversize || isOverweight) && w > 35 && h > 25 && (
+                  {/* Warning badge for failed placement or oversize/overweight */}
+                  {(isFailed || ((isOversize || isOverweight) && w > 35 && h > 25)) && (
                     <g>
                       <circle
                         cx={x + w - 10}
                         cy={y + 10}
                         r={7}
-                        fill={isOverweight ? '#dc2626' : '#f59e0b'}
+                        fill={isFailed ? '#991b1b' : isOverweight ? '#dc2626' : '#f59e0b'}
                         stroke="white"
                         strokeWidth="1.5"
                       />
@@ -340,11 +381,11 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                       fontWeight="600"
                       style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
                     >
-                      {item.description.slice(0, 10)}{item.description.length > 10 ? '..' : ''}
+                      {isFailed ? 'NOT PLACED' : `${item.description.slice(0, 10)}${item.description.length > 10 ? '..' : ''}`}
                     </text>
                   )}
 
-                  {/* Dimensions */}
+                  {/* Dimensions or failed message */}
                   {w > 60 && h > 35 && (
                     <text
                       x={x + w / 2}
@@ -355,7 +396,7 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                       fontSize="8"
                       fontWeight="500"
                     >
-                      {itemLength.toFixed(1)}' × {itemWidth.toFixed(1)}'
+                      {isFailed ? 'Manual arrangement needed' : `${itemLength.toFixed(1)}' × ${itemWidth.toFixed(1)}'`}
                     </text>
                   )}
                 </g>
@@ -451,6 +492,11 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                   <stop offset="100%" stopColor={color.dark} />
                 </linearGradient>
               ))}
+
+              {/* Hatched pattern for failed placements (side view) */}
+              <pattern id="sideFailedHatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#dc2626" strokeWidth="2" opacity="0.4" />
+              </pattern>
             </defs>
 
             {/* Ground line */}
@@ -569,6 +615,7 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
               const placement = getPlacement(item.id)
               if (!placement) return null
 
+              const isFailed = placement.failed === true
               const itemLength = placement.rotated ? item.width : item.length
               const itemHeight = item.height
               const isHovered = hoveredItem === item.id
@@ -598,31 +645,35 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                     rx="3"
                   />
 
-                  {/* Main block with gradient */}
+                  {/* Main block — failed placements use red warning style */}
                   <rect
                     x={x}
                     y={y}
                     width={w}
                     height={h}
-                    fill={`url(#sideItemGradient-${index % ITEM_COLOR_CONFIG.length})`}
-                    stroke={isHovered ? '#1f2937' : exceedsHeight ? '#dc2626' : colorConfig.dark}
-                    strokeWidth={isHovered ? 2.5 : exceedsHeight ? 2 : 1.5}
+                    fill={isFailed ? '#f87171' : `url(#sideItemGradient-${index % ITEM_COLOR_CONFIG.length})`}
+                    stroke={isFailed ? '#991b1b' : isHovered ? '#1f2937' : exceedsHeight ? '#dc2626' : colorConfig.dark}
+                    strokeWidth={isHovered ? 2.5 : (isFailed || exceedsHeight) ? 2 : 1.5}
                     rx="3"
+                    opacity={isFailed ? 0.7 : 1}
+                    strokeDasharray={isFailed ? '4,3' : undefined}
                     style={{ transition: 'all 0.15s ease' }}
                   />
 
-                  {/* Top highlight */}
-                  <rect
-                    x={x + 2}
-                    y={y + 2}
-                    width={w - 4}
-                    height={Math.min(h * 0.2, 6)}
-                    fill="rgba(255,255,255,0.3)"
-                    rx="2"
-                  />
+                  {/* Top highlight (skip for failed) */}
+                  {!isFailed && (
+                    <rect
+                      x={x + 2}
+                      y={y + 2}
+                      width={w - 4}
+                      height={Math.min(h * 0.2, 6)}
+                      fill="rgba(255,255,255,0.3)"
+                      rx="2"
+                    />
+                  )}
 
                   {/* Height exceeds legal indicator */}
-                  {exceedsHeight && (
+                  {exceedsHeight && !isFailed && (
                     <line
                       x1={x}
                       y1={PADDING}
@@ -633,7 +684,7 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                     />
                   )}
 
-                  {/* Height label */}
+                  {/* Height label or failed label */}
                   {w > 35 && h > 18 && (
                     <text
                       x={x + w / 2}
@@ -645,7 +696,7 @@ export function TrailerDiagram({ truck, items, placements }: TrailerDiagramProps
                       fontWeight="600"
                       style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
                     >
-                      {itemHeight.toFixed(1)}' H
+                      {isFailed ? 'NOT PLACED' : `${itemHeight.toFixed(1)}' H`}
                     </text>
                   )}
                 </g>
