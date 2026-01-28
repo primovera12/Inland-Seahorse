@@ -737,8 +737,8 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
 
   // Target utilization for balanced loading (aim for 85% to leave room for optimization)
   const TARGET_UTILIZATION = 85
-  // Hard limit - never exceed this
-  const MAX_UTILIZATION = 100
+  // Fallback limit - leave 5% room so rebalancing can still move items between trucks
+  const FALLBACK_UTILIZATION = 95
 
   // Process each item
   for (const item of items) {
@@ -798,7 +798,7 @@ export function planLoads(parsedLoad: ParsedLoad): LoadPlan {
           item,
           load.items,
           load.recommendedTruck,
-          MAX_UTILIZATION  // Use hard limit
+          FALLBACK_UTILIZATION  // Cap at 95% so rebalancing has room
         )
 
         if (canAdd && newUtilization < bestNewUtilization) {

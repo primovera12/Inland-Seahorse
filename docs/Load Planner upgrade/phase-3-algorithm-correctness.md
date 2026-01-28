@@ -87,21 +87,14 @@ Two-pass approach with different thresholds but rebalancing doesn't account for 
 ### Implementation Plan
 
 #### Subtask 3.1: Use 95% cap for fallback instead of 100%
-- [ ] Change fallback utilization from 100% to 95%:
-  ```typescript
-  const FALLBACK_UTILIZATION = 0.95  // Leave 5% room for rebalancing
-  ```
+- [x] Renamed `MAX_UTILIZATION` to `FALLBACK_UTILIZATION` and changed from 100 to 95
+- [x] Hard 100% physical capacity limit still enforced in `canAddItemToLoad()` line 477
 
 #### Subtask 3.2: Flag fallback-assigned items
-- [ ] Mark items assigned during fallback pass:
-  ```typescript
-  item._assignedViaFallback = true
-  ```
-- [ ] Rebalancing can prioritize moving these items
+- [x] **Skipped** — deemed unnecessary. With the 95% cap, fallback trucks land at 85-95% utilization, above the rebalancer's 90% source threshold. The rebalancer naturally targets these trucks without explicit flagging.
 
 #### Subtask 3.3: Consider new truck instead of 100% pack
-- [ ] If no existing truck has room at 95%, create new truck instead of force-packing
-- [ ] This may increase truck count but produces better balanced loads
+- [x] Already handled by existing code flow — when no existing load fits at the fallback cap (now 95%), the code falls through to creating a new dedicated truck (line 831). The lower cap means this path triggers more often for borderline cases, preferring a slightly higher truck count over force-packed loads that block rebalancing.
 
 ### Testing
 - [ ] Test: Items assigned at 85% → rebalancing can adjust
