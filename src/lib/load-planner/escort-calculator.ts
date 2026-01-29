@@ -325,7 +325,7 @@ export function calculateEscortRequirements(
 export function estimateEscortCost(
   requirements: SmartEscortRequirements,
   distanceMiles: number,
-  averageSpeedMph: number = 45
+  averageSpeedMph: number = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH
 ): number {
   // Calculate trip hours and days
   const tripHours = distanceMiles / averageSpeedMph
@@ -367,7 +367,8 @@ export function estimateEscortCost(
 export function getEscortCostBreakdown(
   requirements: SmartEscortRequirements,
   distanceMiles: number,
-  stateDistances?: Record<string, number>
+  stateDistances?: Record<string, number>,
+  averageSpeedMph: number = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH
 ): {
   frontPilotCost: number
   rearPilotCost: number
@@ -377,7 +378,7 @@ export function getEscortCostBreakdown(
   tripDays: number
   notes: string[]
 } {
-  const tripHours = distanceMiles / 45
+  const tripHours = distanceMiles / averageSpeedMph
   const tripDays = Math.ceil(tripHours / 10)
 
   const breakdown = {

@@ -134,6 +134,16 @@ export {
   suggestOptimalPosition,
 } from './weight-distribution'
 
+// Bridge Formula B Validation (23 CFR 658.17)
+export {
+  calculateBridgeFormulaLimit,
+  getAxlePositions,
+  getTotalAxleCount,
+  validateBridgeFormula,
+} from './bridge-formula'
+
+export type { AxlePosition } from './bridge-formula'
+
 // 3D Stacking Engine
 export {
   calculatePlacements3D,
@@ -215,6 +225,8 @@ export type {
   // Weight distribution
   AxleWeights,
   WeightDistributionResult,
+  BridgeFormulaCheck,
+  BridgeFormulaResult,
   // 3D stacking
   ItemPlacement3D,
   StackingCell,

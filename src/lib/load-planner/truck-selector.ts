@@ -19,14 +19,18 @@ import type {
   ParsedLoad,
   ScoreBreakdown,
   FitOptimization,
+  ItemPlacement3D,
 } from './types'
 import { trucks, LEGAL_LIMITS, SUPERLOAD_THRESHOLDS } from './trucks'
+import { DEFAULT_AXLE_CONFIGS } from './types'
 import {
   hasSeasonalRestrictions,
   getSeasonalRestriction,
   calculateAdjustedWeightLimits,
   type SeasonalRestriction,
 } from './seasonal-restrictions'
+import { calculateAxleWeights } from './weight-distribution'
+import { validateBridgeFormula } from './bridge-formula'
 
 // =============================================================================
 // TRUCK AVAILABILITY TIERS
@@ -460,6 +464,35 @@ function calculateScore(
       // Penalty based on severity: 10-25 points
       breakdown.seasonalPenalty = Math.min(25, Math.max(10, Math.round(excessPercent / 2)))
       score -= breakdown.seasonalPenalty
+    }
+  }
+
+  // Bridge Formula B penalty
+  // Estimate axle weights assuming cargo CG at deck center, then validate
+  if (cargo.weight > 0 && truck.powerUnitWeight > 0) {
+    const syntheticItem = {
+      id: '_scoring', description: '', quantity: 1,
+      length: cargo.length, width: cargo.width, height: cargo.height,
+      weight: cargo.weight,
+    }
+    const syntheticPlacement: ItemPlacement3D = {
+      itemId: '_scoring',
+      x: Math.max(0, truck.deckLength / 2 - cargo.length / 2),
+      y: 0, z: 0, rotated: false, layer: 0,
+    }
+    const axleConfig = DEFAULT_AXLE_CONFIGS[truck.category]
+    const estimatedAxleWeights = calculateAxleWeights(
+      [syntheticItem], [syntheticPlacement], truck, axleConfig
+    )
+    const bridgeResult = validateBridgeFormula(estimatedAxleWeights, truck, axleConfig)
+    if (!bridgeResult.passes) {
+      // Penalty: 15-30 points based on severity
+      breakdown.bridgePenalty = Math.min(30, 15 + bridgeResult.violations.length * 5)
+      score -= breakdown.bridgePenalty
+    } else if (bridgeResult.worstMarginPercent < 5) {
+      // Near-limit: small penalty
+      breakdown.bridgePenalty = 5
+      score -= 5
     }
   }
 

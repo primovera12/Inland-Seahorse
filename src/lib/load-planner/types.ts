@@ -856,6 +856,28 @@ export interface WeightDistributionResult {
   balanceScore: number    // 0-100, higher is better balanced
   warnings: string[]      // Weight distribution warnings
   isLegal: boolean        // All axle weights within limits
+  bridgeFormula?: BridgeFormulaResult  // Bridge Formula B validation results
+}
+
+// Bridge Formula B Validation Types (23 CFR 658.17)
+// -----------------------------------------------------------------------------
+
+export interface BridgeFormulaCheck {
+  axleCount: number         // N — number of axles in the group
+  outerSpacing: number      // L — feet between first and last axle
+  actualWeight: number      // actual weight on these axles (lbs)
+  allowedWeight: number     // Bridge Formula B maximum (lbs)
+  passes: boolean
+  margin: number            // allowed - actual (negative = violation)
+  groupDescription: string  // e.g., "drive + trailer (4 axles, 43.0' spacing)"
+}
+
+export interface BridgeFormulaResult {
+  passes: boolean
+  checks: BridgeFormulaCheck[]
+  violations: BridgeFormulaCheck[]   // subset of checks that failed
+  warnings: string[]
+  worstMarginPercent: number  // smallest margin as % of allowed (negative = worst violation)
 }
 
 // Axle Weight Limits (Federal Defaults)
@@ -940,6 +962,8 @@ export interface AxleConfiguration {
   trailerAxlePosition: number // Distance from kingpin to trailer axle(s)
   trailerAxleSpread?: number  // Spread between multiple trailer axles
   numberOfTrailerAxles?: number // 1, 2, 3, etc.
+  driveAxleSpread?: number    // Spread between drive tandem axles (ft), typically ~4.33 (52")
+  numberOfDriveAxles?: number // Usually 2 (tandem), sometimes 1 (single drive)
 }
 
 export interface TruckCostData {
@@ -979,25 +1003,27 @@ export const DEFAULT_COST_DATA: Record<TrailerCategory, TruckCostData> = {
 // steerAxlePosition: distance from kingpin to front (steer) axle of tractor
 //   Standard Class 8 day cab: ~-17 ft (12 ft wheelbase)
 //   Heavy haul tractor: ~-20 ft (15 ft wheelbase)
+// driveAxleSpread: distance between drive tandem axles
+//   Standard Class 8: ~4.33 ft (52"), heavy haul: ~4.5 ft (54")
 export const DEFAULT_AXLE_CONFIGS: Record<TrailerCategory, AxleConfiguration> = {
-  FLATBED: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
-  STEP_DECK: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  RGN: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
-  LOWBOY: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
-  DOUBLE_DROP: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
-  LANDOLL: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  CONESTOGA: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2 },
-  DRY_VAN: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  REEFER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  CURTAIN_SIDE: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2 },
-  MULTI_AXLE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 13, trailerAxleSpread: 4.5 },
-  SCHNABEL: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 20, numberOfTrailerAxles: 8, trailerAxleSpread: 5 },
-  PERIMETER: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 22, numberOfTrailerAxles: 6, trailerAxleSpread: 4.5 },
-  STEERABLE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
-  BLADE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 4, trailerAxleSpread: 4 },
-  TANKER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
-  HOPPER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2 },
-  SPECIALIZED: { kingpinPosition: 0, steerAxlePosition: -18, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4 },
+  FLATBED: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  STEP_DECK: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  RGN: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  LOWBOY: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4, driveAxleSpread: 4.5, numberOfDriveAxles: 2 },
+  DOUBLE_DROP: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  LANDOLL: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  CONESTOGA: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 38, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  DRY_VAN: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  REEFER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  CURTAIN_SIDE: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 40, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  MULTI_AXLE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 13, trailerAxleSpread: 4.5, driveAxleSpread: 4.5, numberOfDriveAxles: 2 },
+  SCHNABEL: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 20, numberOfTrailerAxles: 8, trailerAxleSpread: 5, driveAxleSpread: 4.5, numberOfDriveAxles: 2 },
+  PERIMETER: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 22, numberOfTrailerAxles: 6, trailerAxleSpread: 4.5, driveAxleSpread: 4.5, numberOfDriveAxles: 2 },
+  STEERABLE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 25, numberOfTrailerAxles: 4, trailerAxleSpread: 4, driveAxleSpread: 4.5, numberOfDriveAxles: 2 },
+  BLADE: { kingpinPosition: 0, steerAxlePosition: -20, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 4, trailerAxleSpread: 4, driveAxleSpread: 4.5, numberOfDriveAxles: 2 },
+  TANKER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  HOPPER: { kingpinPosition: 0, steerAxlePosition: -17, driveAxlePosition: -5, trailerAxlePosition: 35, numberOfTrailerAxles: 2, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
+  SPECIALIZED: { kingpinPosition: 0, steerAxlePosition: -18, driveAxlePosition: -5, trailerAxlePosition: 30, numberOfTrailerAxles: 3, trailerAxleSpread: 4, driveAxleSpread: 4.33, numberOfDriveAxles: 2 },
 }
 
 // Item Constraint Types

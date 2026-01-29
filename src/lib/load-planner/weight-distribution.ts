@@ -14,6 +14,7 @@ import {
   AXLE_LIMITS,
   DEFAULT_AXLE_CONFIGS,
 } from './types'
+import { validateBridgeFormula } from './bridge-formula'
 
 // ============================================================================
 // AXLE WEIGHT CALCULATION
@@ -21,6 +22,47 @@ import {
 
 // Tractor center of gravity is approximately 60% from steer axle toward drive axle
 const TRACTOR_CG_RATIO = 0.6
+
+// Default optimal CG ratio (fraction of deck length from front)
+// Slightly forward of center to balance drive vs trailer axle loading
+const DEFAULT_OPTIMAL_CG_RATIO = 0.42
+
+/**
+ * Calculate optimal CG position ratio from axle geometry.
+ *
+ * The ideal cargo CG splits weight proportionally between drive and trailer
+ * axle groups based on the kingpin-to-trailer-axle geometry. For most standard
+ * trailers this is approximately 40-45% from the front of the deck.
+ *
+ * Uses trailer axle position and drive axle position to compute the ratio.
+ * Falls back to 0.42 when geometry is insufficient.
+ */
+function getOptimalCGRatio(config: AxleConfiguration): number {
+  const trailerAxlePos = config.trailerAxlePosition
+  if (trailerAxlePos <= 0) return DEFAULT_OPTIMAL_CG_RATIO
+
+  // The kingpin is at position 0. Cargo placed at position x from kingpin
+  // creates moment x * weight about the kingpin. Trailer axle at position
+  // trailerAxlePos supports (x / trailerAxlePos) fraction of cargo weight.
+  // For balanced loading (equal utilization of drive and trailer axles),
+  // we want the CG at ~40-45% of the trailer axle distance from kingpin.
+  //
+  // Drive tandem capacity = 34,000 lbs (federal)
+  // Trailer tandem capacity = 34,000 lbs (federal)
+  // For equal capacity: optimal = trailerAxlePos * 0.5
+  // But drive axles also carry tractor weight, so cargo should be shifted
+  // slightly rearward. Net effect: ~42% of deck length is optimal for
+  // most configurations.
+  //
+  // For multi-axle trailers (higher trailer capacity), shift further back.
+  const numTrailerAxles = config.numberOfTrailerAxles || 2
+  if (numTrailerAxles >= 3) {
+    // Tridem+ trailers can carry more on trailer axles — shift CG rearward
+    return 0.45
+  }
+
+  return DEFAULT_OPTIMAL_CG_RATIO
+}
 
 /**
  * Calculate axle weights based on item placements and truck configuration.
@@ -273,8 +315,12 @@ export function scoreWeightDistribution(
     score -= Math.min(20, lateralOffset * 10)
   }
 
-  // Check longitudinal balance (optimal CG position is roughly 40-60% of trailer length)
-  const optimalX = truck.deckLength * 0.5
+  // Check longitudinal balance
+  // Optimal CG is ~42% from front of deck (slightly forward of center) to properly
+  // distribute between drive and trailer axles. For standard trailers, placing CG
+  // at 50% overloads the trailer axles relative to drive axles.
+  const optimalRatio = getOptimalCGRatio(config)
+  const optimalX = truck.deckLength * optimalRatio
   const longitudinalOffset = Math.abs(centerOfGravity.x - optimalX)
   const maxAllowedOffset = truck.deckLength * 0.3
   if (longitudinalOffset > maxAllowedOffset) {
@@ -353,12 +399,30 @@ export function analyzeWeightDistribution(
     axleConfig
   )
 
+  // Bridge Formula B validation (23 CFR 658.17)
+  const bridgeFormula = validateBridgeFormula(axleWeights, truck, axleConfig)
+
+  // Merge bridge formula results
+  const allWarnings = [...warnings, ...bridgeFormula.warnings]
+  let adjustedScore = score
+  let adjustedLegal = isLegal
+
+  if (!bridgeFormula.passes) {
+    adjustedLegal = false
+    // Penalty: -25 per violation, capped at -50
+    adjustedScore -= Math.min(50, bridgeFormula.violations.length * 25)
+  } else if (bridgeFormula.worstMarginPercent < 5) {
+    // Near-limit warning penalty
+    adjustedScore -= 5
+  }
+
   return {
     axleWeights,
     centerOfGravity,
-    balanceScore: score,
-    warnings,
-    isLegal,
+    balanceScore: Math.max(0, Math.round(adjustedScore)),
+    warnings: allWarnings,
+    isLegal: adjustedLegal,
+    bridgeFormula,
   }
 }
 
@@ -398,9 +462,10 @@ export function suggestOptimalPosition(
     optimalX = truck.deckLength * 0.7
     reason = 'Trailer axle underloaded - placing cargo toward rear'
   } else {
-    // Balanced - put in center
-    optimalX = truck.deckLength * 0.5 - item.length / 2
-    reason = 'Balanced distribution - placing cargo at center'
+    // Balanced - place at optimal CG position (~42% from front, not 50%)
+    const ratio = getOptimalCGRatio(config)
+    optimalX = truck.deckLength * ratio - item.length / 2
+    reason = `Balanced distribution - placing cargo at ${Math.round(ratio * 100)}% from front`
   }
 
   // Ensure within bounds
