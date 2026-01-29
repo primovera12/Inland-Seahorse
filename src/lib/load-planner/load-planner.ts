@@ -129,6 +129,74 @@ export interface LoadPlan {
   totalEscortCost?: number
 }
 
+// =============================================================================
+// DECK ZONE HELPERS
+// =============================================================================
+
+/**
+ * Get the deck zone at a given X position on the trailer
+ * For multi-level trailers (step deck, double drop, RGN), returns the zone
+ * that contains the position. For single-level trailers, returns undefined.
+ */
+export function getZoneAtPosition(truck: TruckType, x: number): import('./types').DeckZone | undefined {
+  if (!truck.deckZones || truck.deckZones.length === 0) {
+    return undefined
+  }
+  return truck.deckZones.find(zone => x >= zone.startX && x < zone.endX)
+}
+
+/**
+ * Get the deck height at a given X position on the trailer
+ * For multi-level trailers, returns the zone-specific deck height.
+ * For single-level trailers, returns truck.deckHeight.
+ */
+export function getDeckHeightAtPosition(truck: TruckType, x: number): number {
+  const zone = getZoneAtPosition(truck, x)
+  return zone ? zone.deckHeight : truck.deckHeight
+}
+
+/**
+ * Get the maximum legal cargo height at a given X position on the trailer
+ * For multi-level trailers, returns the zone-specific max cargo height.
+ * For single-level trailers, returns truck.maxLegalCargoHeight.
+ */
+export function getMaxCargoHeightAtPosition(truck: TruckType, x: number): number {
+  const zone = getZoneAtPosition(truck, x)
+  return zone ? zone.maxCargoHeight : truck.maxLegalCargoHeight
+}
+
+/**
+ * Check if an item would fit legally within a zone (height-wise)
+ * Returns true if the item height is within the zone's legal cargo height limit
+ */
+export function doesItemFitInZone(itemHeight: number, truck: TruckType, x: number): boolean {
+  const maxCargoHeight = getMaxCargoHeightAtPosition(truck, x)
+  return itemHeight <= maxCargoHeight
+}
+
+/**
+ * Find the best zone for a given item height
+ * Prefers zones where the item fits legally, with lowest deck height (most clearance)
+ * Returns undefined if no zone can fit the item legally
+ */
+export function findBestZoneForItem(itemHeight: number, truck: TruckType): import('./types').DeckZone | undefined {
+  if (!truck.deckZones || truck.deckZones.length === 0) {
+    // Single-level trailer — item fits if within truck's max legal cargo height
+    return itemHeight <= truck.maxLegalCargoHeight ? undefined : undefined
+  }
+
+  // Find zones where item fits legally, prefer lowest deck height (most height clearance)
+  const fittingZones = truck.deckZones
+    .filter(zone => itemHeight <= zone.maxCargoHeight)
+    .sort((a, b) => a.deckHeight - b.deckHeight) // Prefer lowest deck
+
+  return fittingZones.length > 0 ? fittingZones[0] : undefined
+}
+
+// =============================================================================
+// PLACEMENT FUNCTIONS
+// =============================================================================
+
 /**
  * Calculate optimal placements for items on a truck deck
  * Uses a simple bin-packing algorithm (bottom-left first fit)
@@ -199,6 +267,18 @@ function findBestPlacement(
 
     for (let x = 0; x <= truck.deckLength - orientation.length; x += stepSize) {
       for (let z = 0; z <= truck.deckWidth - orientation.width; z += stepSize) {
+        // For multi-zone trailers, check if item height fits in this zone
+        // Check both the start and end of the item's footprint for zone coverage
+        if (truck.deckZones && truck.deckZones.length > 0) {
+          const startZoneMaxHeight = getMaxCargoHeightAtPosition(truck, x)
+          const endZoneMaxHeight = getMaxCargoHeightAtPosition(truck, x + orientation.length - 0.1)
+          // Use the more restrictive of the two zone limits
+          const effectiveMaxHeight = Math.min(startZoneMaxHeight, endZoneMaxHeight)
+          if (item.height > effectiveMaxHeight) {
+            continue // Item too tall for this zone position
+          }
+        }
+
         // Check if this position overlaps with existing items
         const testArea = {
           x,

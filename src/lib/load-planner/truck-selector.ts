@@ -236,10 +236,19 @@ function getEquipmentMatchBonus(cargo: ParsedLoad, truck: TruckType): { bonus: n
 
 /**
  * Analyze how cargo fits on a specific truck
+ * For multi-zone trailers (step deck, double drop, RGN), uses the lowest deck height
+ * (best case for height legality). Zone-specific placement is handled by the placement algorithm.
  */
 function analyzeFit(cargo: ParsedLoad, truck: TruckType): FitAnalysis {
+  // For multi-zone trailers, find the lowest deck height (most cargo clearance)
+  // This gives us the "best case" for legality - actual placement may be more restrictive
+  let effectiveDeckHeight = truck.deckHeight
+  if (truck.deckZones && truck.deckZones.length > 0) {
+    effectiveDeckHeight = Math.min(...truck.deckZones.map(z => z.deckHeight))
+  }
+
   // CRITICAL: Total height = cargo height + deck height
-  const totalHeight = cargo.height + truck.deckHeight
+  const totalHeight = cargo.height + effectiveDeckHeight
 
   // Calculate total weight (cargo + trailer tare + tractor)
   const totalWeight =
@@ -563,7 +572,7 @@ function generateReason(
  */
 function generateWarnings(
   cargo: ParsedLoad,
-  _truck: TruckType,
+  truck: TruckType,
   fit: FitAnalysis,
   permits: PermitRequired[]
 ): string[] {
@@ -597,6 +606,28 @@ function generateWarnings(
 
   if (fit.totalHeight > 14) {
     warnings.push('Height over 14\' may require route survey for bridges')
+  }
+
+  // Multi-zone trailer warnings
+  if (truck.deckZones && truck.deckZones.length > 0) {
+    // Find zones where cargo height would be illegal
+    const illegalZones = truck.deckZones.filter(zone => {
+      const totalHeightInZone = cargo.height + zone.deckHeight
+      return totalHeightInZone > LEGAL_LIMITS.HEIGHT
+    })
+
+    if (illegalZones.length > 0 && illegalZones.length < truck.deckZones.length) {
+      // Some zones are legal, some are not
+      const legalZones = truck.deckZones.filter(zone => {
+        const totalHeightInZone = cargo.height + zone.deckHeight
+        return totalHeightInZone <= LEGAL_LIMITS.HEIGHT
+      })
+      const legalZoneNames = legalZones.map(z => z.name).join(', ')
+      const illegalZoneNames = illegalZones.map(z => z.name).join(', ')
+      warnings.push(
+        `Cargo must be placed on ${legalZoneNames} deck (not ${illegalZoneNames}) to stay legal`
+      )
+    }
   }
 
   // Superload warnings

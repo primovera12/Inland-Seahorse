@@ -141,9 +141,13 @@ export const trucks: TruckType[] = [
     deckLength: 48,
     deckWidth: 8.5,
     wellLength: 37,
+    deckZones: [
+      { name: 'upper', startX: 0, endX: 11, deckHeight: 5.0, maxCargoHeight: 8.5 },
+      { name: 'lower', startX: 11, endX: 48, deckHeight: 3.5, maxCargoHeight: 10.0 },
+    ],
     maxCargoWeight: 48000,
     tareWeight: 16000,
-    maxLegalCargoHeight: 10.0, // 13.5 - 3.5
+    maxLegalCargoHeight: 10.0, // 13.5 - 3.5 (lower deck)
     maxLegalCargoWidth: 8.5,
     features: [
       "Lower deck height (3.5' vs 5')",
@@ -170,9 +174,13 @@ export const trucks: TruckType[] = [
     deckLength: 53,
     deckWidth: 8.5,
     wellLength: 42,
+    deckZones: [
+      { name: 'upper', startX: 0, endX: 11, deckHeight: 5.0, maxCargoHeight: 8.5 },
+      { name: 'lower', startX: 11, endX: 53, deckHeight: 3.5, maxCargoHeight: 10.0 },
+    ],
     maxCargoWeight: 46000,
     tareWeight: 17000,
-    maxLegalCargoHeight: 10.0,
+    maxLegalCargoHeight: 10.0, // 13.5 - 3.5 (lower deck)
     maxLegalCargoWidth: 8.5,
     features: [
       "53' overall length",
@@ -198,9 +206,13 @@ export const trucks: TruckType[] = [
     deckLength: 48,
     deckWidth: 8.5,
     wellLength: 37,
+    deckZones: [
+      { name: 'upper', startX: 0, endX: 11, deckHeight: 4.0, maxCargoHeight: 9.5 },
+      { name: 'lower', startX: 11, endX: 48, deckHeight: 2.5, maxCargoHeight: 11.0 },
+    ],
     maxCargoWeight: 44000,
     tareWeight: 17000,
-    maxLegalCargoHeight: 11.0, // 13.5 - 2.5
+    maxLegalCargoHeight: 11.0, // 13.5 - 2.5 (lower deck)
     maxLegalCargoWidth: 8.5,
     features: [
       "Extra-low deck (2.5')",
@@ -226,9 +238,13 @@ export const trucks: TruckType[] = [
     deckLength: 65,
     deckWidth: 8.5,
     wellLength: 50,
+    deckZones: [
+      { name: 'upper', startX: 0, endX: 11, deckHeight: 5.0, maxCargoHeight: 8.5 },
+      { name: 'lower', startX: 11, endX: 65, deckHeight: 3.5, maxCargoHeight: 10.0 },
+    ],
     maxCargoWeight: 43000,
     tareWeight: 19000,
-    maxLegalCargoHeight: 10.0,
+    maxLegalCargoHeight: 10.0, // 13.5 - 3.5 (lower deck)
     maxLegalCargoWidth: 8.5,
     features: [
       'Extendable deck',
@@ -259,9 +275,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 29,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'gooseneck', startX: 0, endX: 8, deckHeight: 4.0, maxCargoHeight: 9.5 },
+      { name: 'well', startX: 8, endX: 40, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 40, endX: 48, deckHeight: 3.0, maxCargoHeight: 10.5 },
+    ],
     maxCargoWeight: 42000,
     tareWeight: 20000,
-    maxLegalCargoHeight: 11.5, // 13.5 - 2.0
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       "Very low deck height (2')",
@@ -290,9 +311,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 29,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'gooseneck', startX: 0, endX: 8, deckHeight: 4.0, maxCargoHeight: 9.5 },
+      { name: 'well', startX: 8, endX: 40, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 40, endX: 48, deckHeight: 3.0, maxCargoHeight: 10.5 },
+    ],
     maxCargoWeight: 52000,
     tareWeight: 22000,
-    maxLegalCargoHeight: 11.5,
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       'Extra axle for heavier loads',
@@ -319,9 +345,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 29,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'gooseneck', startX: 0, endX: 8, deckHeight: 4.0, maxCargoHeight: 9.5 },
+      { name: 'well', startX: 8, endX: 40, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 40, endX: 48, deckHeight: 3.0, maxCargoHeight: 10.5 },
+    ],
     maxCargoWeight: 65000,
     tareWeight: 26000,
-    maxLegalCargoHeight: 11.5,
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       '4 axles for maximum weight',
@@ -348,9 +379,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 45,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'gooseneck', startX: 0, endX: 8, deckHeight: 4.0, maxCargoHeight: 9.5 },
+      { name: 'well', startX: 8, endX: 53, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 53, endX: 65, deckHeight: 3.0, maxCargoHeight: 10.5 },
+    ],
     maxCargoWeight: 48000,
     tareWeight: 24000,
-    maxLegalCargoHeight: 11.5,
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       'Extendable deck length',
@@ -531,9 +567,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 25,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'front', startX: 0, endX: 11.5, deckHeight: 4.5, maxCargoHeight: 9.0 },
+      { name: 'well', startX: 11.5, endX: 36.5, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 36.5, endX: 48, deckHeight: 4.5, maxCargoHeight: 9.0 },
+    ],
     maxCargoWeight: 45000,
     tareWeight: 18000,
-    maxLegalCargoHeight: 11.5,
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       'Low center well section',
@@ -560,9 +601,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 40,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'front', startX: 0, endX: 12.5, deckHeight: 4.5, maxCargoHeight: 9.0 },
+      { name: 'well', startX: 12.5, endX: 52.5, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 52.5, endX: 65, deckHeight: 4.5, maxCargoHeight: 9.0 },
+    ],
     maxCargoWeight: 42000,
     tareWeight: 21000,
-    maxLegalCargoHeight: 11.5,
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       'Extendable well section',
@@ -1039,9 +1085,13 @@ export const trucks: TruckType[] = [
     deckLength: 48,
     deckWidth: 8.5,
     wellLength: 37,
+    deckZones: [
+      { name: 'upper', startX: 0, endX: 11, deckHeight: 5.0, maxCargoHeight: 8.5 },
+      { name: 'lower', startX: 11, endX: 48, deckHeight: 3.5, maxCargoHeight: 10.0 },
+    ],
     maxCargoWeight: 46000,
     tareWeight: 18000,
-    maxLegalCargoHeight: 10.0,
+    maxLegalCargoHeight: 10.0, // 13.5 - 3.5 (lower deck)
     maxLegalCargoWidth: 8.5,
     features: [
       'Heavy-duty built-in ramps',
@@ -1167,9 +1217,14 @@ export const trucks: TruckType[] = [
     deckWidth: 8.5,
     wellLength: 25,
     wellHeight: 2.0,
+    deckZones: [
+      { name: 'front', startX: 0, endX: 11.5, deckHeight: 4.5, maxCargoHeight: 9.0 },
+      { name: 'well', startX: 11.5, endX: 36.5, deckHeight: 2.0, maxCargoHeight: 11.5 },
+      { name: 'rear', startX: 36.5, endX: 48, deckHeight: 4.5, maxCargoHeight: 9.0 },
+    ],
     maxCargoWeight: 43000,
     tareWeight: 19000,
-    maxLegalCargoHeight: 11.5,
+    maxLegalCargoHeight: 11.5, // 13.5 - 2.0 (well)
     maxLegalCargoWidth: 8.5,
     features: [
       'Beavertail rear ramp',

@@ -19,6 +19,7 @@ export type {
   // Truck types
   TrailerCategory,
   TruckType,
+  DeckZone,
   PermitType,
   PermitRequired,
   FitAnalysis,
@@ -119,6 +120,12 @@ export {
   generateSmartPlans,
   calculateEffectiveStackHeight,
   DEFAULT_PLANNING_OPTIONS,
+  // Deck zone helpers for multi-level trailers
+  getZoneAtPosition,
+  getDeckHeightAtPosition,
+  getMaxCargoHeightAtPosition,
+  doesItemFitInZone,
+  findBestZoneForItem,
   type PlanStrategy,
   type SmartPlanOption,
 } from './load-planner'

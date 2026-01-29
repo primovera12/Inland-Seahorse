@@ -32,6 +32,18 @@ export type TrailerCategory =
   | 'HOPPER'
   | 'SPECIALIZED'
 
+/**
+ * Deck zone for multi-level trailers (step deck, double drop, RGN)
+ * Each zone has its own deck height and therefore different legal cargo height
+ */
+export interface DeckZone {
+  name: string          // 'upper' | 'lower' | 'well' | 'front' | 'rear' | 'gooseneck'
+  startX: number        // feet from front of trailer
+  endX: number          // feet from front of trailer
+  deckHeight: number    // height from ground to deck surface (feet)
+  maxCargoHeight: number // 13.5 - deckHeight (legal cargo height in this zone)
+}
+
 export interface TruckType {
   id: string
   name: string
@@ -44,11 +56,15 @@ export interface TruckType {
   // Well dimensions for step deck, double drop, etc.
   wellLength?: number
   wellHeight?: number
+  // Deck zones for multi-level trailers (step deck, double drop, RGN)
+  // When present, placement algorithm uses zone-specific deck heights for height checks
+  // If not present, single deckHeight is used for the entire trailer
+  deckZones?: DeckZone[]
   // Capacity
   maxCargoWeight: number // in pounds
   tareWeight: number // trailer weight in pounds
   // Legal maximums this truck can handle legally (without permits)
-  maxLegalCargoHeight: number // 13.5 - deckHeight
+  maxLegalCargoHeight: number // 13.5 - deckHeight (for primary deck or lowest zone)
   maxLegalCargoWidth: number // 8.5 ft standard
   // Features
   features: string[]

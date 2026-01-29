@@ -308,8 +308,18 @@ export function findBestPosition(
 
         if (!canPlace) continue
 
-        // Check height constraint
-        const totalHeight = truck.deckHeight + floorHeight + item.height
+        // Check height constraint — use zone-specific deck height for multi-level trailers
+        let deckHeightAtPosition = truck.deckHeight
+        if (truck.deckZones && truck.deckZones.length > 0) {
+          // Find the zone this position falls in (check both start and end of item footprint)
+          const startZone = truck.deckZones.find(z => x >= z.startX && x < z.endX)
+          const endZone = truck.deckZones.find(z => (x + orientation.length - 0.1) >= z.startX && (x + orientation.length - 0.1) < z.endX)
+          // Use the higher deck height (more restrictive for cargo height)
+          const startDeckHeight = startZone?.deckHeight ?? truck.deckHeight
+          const endDeckHeight = endZone?.deckHeight ?? truck.deckHeight
+          deckHeightAtPosition = Math.max(startDeckHeight, endDeckHeight)
+        }
+        const totalHeight = deckHeightAtPosition + floorHeight + item.height
         if (totalHeight > maxHeight) continue
 
         // Fragile items must be placed on the floor — do not stack them on other items.
