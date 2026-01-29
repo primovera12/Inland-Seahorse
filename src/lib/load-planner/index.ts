@@ -117,6 +117,7 @@ export {
   planLoadsWithOptions,
   getSmartLoadPlanSummary,
   generateSmartPlans,
+  calculateEffectiveStackHeight,
   DEFAULT_PLANNING_OPTIONS,
   type PlanStrategy,
   type SmartPlanOption,

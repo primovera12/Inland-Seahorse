@@ -377,6 +377,9 @@ export interface PlannedLoad {
   width: number
   height: number
   weight: number
+  // Effective height after 3D stacking (max y + item height across all placements)
+  // This may be taller than the single-item `height` field if items are stacked
+  effectiveHeight?: number
   // Truck recommendation for this specific load
   recommendedTruck: TruckType
   truckScore: number

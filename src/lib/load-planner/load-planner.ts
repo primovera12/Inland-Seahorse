@@ -82,6 +82,9 @@ export interface PlannedLoad {
   // === SMART FEATURES (optional) ===
   // 3D placements (when 3D stacking enabled)
   placements3D?: ItemPlacement3D[]
+  // Effective height after 3D stacking (max y + item height across all placements)
+  // This may be taller than the single-item `height` field if items are stacked
+  effectiveHeight?: number
   // Weight distribution analysis
   weightDistribution?: WeightDistributionResult
   // Cost breakdown
@@ -390,6 +393,45 @@ function getLoadWeight(items: LoadItem[]): number {
 function getLoadUtilization(items: LoadItem[], truck: TruckType): number {
   const weight = getLoadWeight(items)
   return (weight / truck.maxCargoWeight) * 100
+}
+
+/**
+ * Calculate the effective stack height from 3D placements.
+ * This is the maximum (placement.y + item.height) across all placements,
+ * representing the tallest point of stacked cargo (not including deck height).
+ *
+ * Example: Two 5' items stacked on a 5' flatbed:
+ * - Single-item max height: 5'
+ * - Effective stack height: 5' (first item at y=0) + 5' (second item height) = 10'
+ * - Total height from ground: 10' + 5' (deck) = 15'
+ */
+export function calculateEffectiveStackHeight(
+  placements: ItemPlacement3D[],
+  items: LoadItem[]
+): number {
+  if (placements.length === 0) return 0
+
+  let maxHeight = 0
+  for (const placement of placements) {
+    // Skip failed placements
+    if (placement.failed) continue
+
+    // Find the item for this placement
+    // Handle expanded items (e.g., "item123_unit_0")
+    const baseItemId = placement.itemId.includes('_unit_')
+      ? placement.itemId.split('_unit_')[0]
+      : placement.itemId
+    const item = items.find(i => i.id === placement.itemId || i.id === baseItemId)
+
+    if (item) {
+      const topOfItem = placement.y + item.height
+      if (topOfItem > maxHeight) {
+        maxHeight = topOfItem
+      }
+    }
+  }
+
+  return maxHeight
 }
 
 /**
@@ -966,6 +1008,51 @@ function enhanceLoadWithSmartFeatures(
         `${stacking.unplacedItems.length} item(s) could not be placed with 3D stacking`
       )
     }
+
+    // Calculate effective stack height (accounts for vertical stacking)
+    const effectiveStackHeight = calculateEffectiveStackHeight(
+      stacking.placements,
+      load.items
+    )
+    enhanced.effectiveHeight = effectiveStackHeight
+
+    // Check if stacking creates oversize conditions not initially detected
+    const totalHeightWithStacking = effectiveStackHeight + load.recommendedTruck.deckHeight
+    const singleItemTotalHeight = load.height + load.recommendedTruck.deckHeight
+
+    // If stacking makes the load taller than single-item analysis showed
+    if (effectiveStackHeight > load.height) {
+      const heightIncrease = effectiveStackHeight - load.height
+      enhanced.warnings.push(
+        `Stacking increases effective height by ${heightIncrease.toFixed(1)}' ` +
+        `(${effectiveStackHeight.toFixed(1)}' stacked vs ${load.height.toFixed(1)}' single item)`
+      )
+
+      // Check if this creates a NEW permit requirement
+      if (totalHeightWithStacking > LEGAL_LIMITS.HEIGHT && singleItemTotalHeight <= LEGAL_LIMITS.HEIGHT) {
+        enhanced.warnings.unshift(
+          `⚠️ STACKING CREATES OVERSIZE: Total height ${totalHeightWithStacking.toFixed(1)}' exceeds ` +
+          `${LEGAL_LIMITS.HEIGHT}' legal limit - height permit now required due to stacking`
+        )
+        // Add permit if not already present
+        const hasHeightPermit = enhanced.permitsRequired.some(p =>
+          p.toLowerCase().includes('height') || p.toLowerCase().includes('oversize')
+        )
+        if (!hasHeightPermit) {
+          enhanced.permitsRequired.push(
+            `Oversize Height (stacked): ${totalHeightWithStacking.toFixed(1)}' > ${LEGAL_LIMITS.HEIGHT}'`
+          )
+          enhanced.isLegal = false
+        }
+      }
+
+      // Check if height over 14' triggers route survey (even if already oversize)
+      if (totalHeightWithStacking > 14 && singleItemTotalHeight <= 14) {
+        enhanced.warnings.push(
+          `Height over 14' (${totalHeightWithStacking.toFixed(1)}') may require route survey for bridges`
+        )
+      }
+    }
   }
 
   // Weight Distribution
@@ -992,9 +1079,11 @@ function enhanceLoadWithSmartFeatures(
 
   // Cost Optimization
   if (options.enableCostOptimization) {
+    // Use effective height (from 3D stacking) if available, otherwise single-item max height
+    const cargoHeight = enhanced.effectiveHeight ?? load.height
     const cargo = {
       width: load.width,
-      height: load.height,
+      height: cargoHeight,
       weight: load.weight,
     }
     enhanced.costBreakdown = calculateTruckCost(load.recommendedTruck, cargo, {
@@ -1023,9 +1112,11 @@ function enhanceLoadWithSmartFeatures(
 
   // Escort Calculation
   if (options.enableEscortCalculation && routeStates.length > 0) {
+    // Use effective height (from 3D stacking) if available, otherwise single-item max height
+    const cargoHeight = enhanced.effectiveHeight ?? load.height
     const cargo = {
       width: load.width,
-      height: load.height + load.recommendedTruck.deckHeight,
+      height: cargoHeight + load.recommendedTruck.deckHeight,
       length: load.length,
       weight: load.weight + load.recommendedTruck.tareWeight + load.recommendedTruck.powerUnitWeight,
     }
@@ -1152,11 +1243,12 @@ export function planLoadsWithOptions(
   if (opts.enableHOSValidation && opts.routeDistance) {
     const isOversize = enhancedLoads.some(l =>
       l.width > LEGAL_LIMITS.WIDTH ||
-      (l.height + l.recommendedTruck.deckHeight) > LEGAL_LIMITS.HEIGHT
+      ((l.effectiveHeight ?? l.height) + l.recommendedTruck.deckHeight) > LEGAL_LIMITS.HEIGHT
     )
     // Compute dimension-aware speed from worst-case cargo across all loads
+    // Use effectiveHeight (from 3D stacking) if available, otherwise single-item max height
     const maxWidth = enhancedLoads.length > 0 ? Math.max(...enhancedLoads.map(l => l.width)) : 0
-    const maxTotalHeight = enhancedLoads.length > 0 ? Math.max(...enhancedLoads.map(l => l.height + l.recommendedTruck.deckHeight)) : 0
+    const maxTotalHeight = enhancedLoads.length > 0 ? Math.max(...enhancedLoads.map(l => (l.effectiveHeight ?? l.height) + l.recommendedTruck.deckHeight)) : 0
     const maxWeight = enhancedLoads.length > 0 ? Math.max(...enhancedLoads.map(l =>
       l.items.reduce((sum, i) => sum + i.weight * (i.quantity || 1), 0) +
       l.recommendedTruck.tareWeight + l.recommendedTruck.powerUnitWeight
