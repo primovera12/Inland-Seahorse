@@ -442,6 +442,7 @@ export interface OversizePermit {
       height?: DimensionSurcharge[]
       length?: DimensionSurcharge[]
     }
+    surchargeModel?: 'cumulative' | 'tiered'  // cumulative = all applicable brackets added (default), tiered = only highest bracket
     processingTime: string
     validity: string
   }
@@ -553,6 +554,15 @@ export interface SpecialJurisdictionPermit {
   warnings: string[]
 }
 
+export interface RestrictedRoute {
+  route: string             // Highway/road name (e.g., 'NJ Turnpike (I-95)')
+  maxWidth: number          // feet — max width allowed on this route
+  maxHeight: number         // feet — max height allowed on this route
+  maxWeight?: number        // lbs — max weight if different from state limit
+  permitsAvailable: boolean // false = no oversize/overweight permits issued for this route
+  note: string              // Explanation of restriction
+}
+
 export interface StatePermitData {
   stateCode: string
   stateName: string
@@ -566,6 +576,7 @@ export interface StatePermitData {
   superloadThresholds?: SuperloadThresholds
   bridgeAnalysis?: BridgeAnalysisRequirement
   specialJurisdictions?: SpecialJurisdiction[]
+  restrictedRoutes?: RestrictedRoute[]
   notes?: string[]
 }
 

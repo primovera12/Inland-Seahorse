@@ -401,7 +401,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 60 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -493,12 +493,27 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 42, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
         baseFee: 30,
-        processingTime: 'Same day',
+        dimensionSurcharges: {
+          width: [
+            { threshold: 12, fee: 20 },
+            { threshold: 14, fee: 50 },
+            { threshold: 16, fee: 100 }
+          ],
+          height: [
+            { threshold: 15, fee: 25 },
+            { threshold: 16, fee: 75 }
+          ],
+          length: [
+            { threshold: 100, fee: 25 },
+            { threshold: 120, fee: 50 }
+          ]
+        },
+        processingTime: 'Same day (standard), 5-10 days (superload)',
         validity: '5 days'
       },
       annual: { baseFee: 600 }
@@ -523,7 +538,13 @@ export const statePermits: StatePermitData[] = [
       agency: 'Georgia DOT Permits Office',
       phone: '404-635-8022',
       website: 'http://www.dot.ga.gov/GDOT/Pages/Permits.aspx'
-    }
+    },
+    notes: [
+      'GDOT issues same-day permits for standard oversize loads',
+      'Superload permits (>16\' wide or >150,000 lbs) require 5-10 business day processing',
+      'Annual oversize permits available ($600) for loads within standard oversize limits',
+      'Weekend travel permitted for oversize loads (unlike many eastern states)'
+    ]
   },
 
   // HAWAII
@@ -535,7 +556,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 9,
       maxHeight: 14,
       maxLength: { single: 40, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -620,7 +641,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 42, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -644,7 +665,7 @@ export const statePermits: StatePermitData[] = [
       width: { oneEscort: 11, twoEscorts: 14.5 },
       height: { poleCar: 15 },
       length: { oneEscort: 85, twoEscorts: 115 },
-      policeEscort: { width: 16, fee: 250 }
+      policeEscort: { width: 16, fee: 350 }  // Updated from $250 — current IDOT rates $300-$400+
     },
     travelRestrictions: {
       noNightTravel: true,
@@ -656,7 +677,11 @@ export const statePermits: StatePermitData[] = [
       agency: 'Illinois DOT',
       phone: '217-785-1477',
       website: 'https://idot.illinois.gov/transportation-system/permits/vehicles'
-    }
+    },
+    notes: [
+      'Police escort fee is per escort vehicle — multiple vehicles may be required on certain routes',
+      'Illinois State Police escort rates have increased; actual fee may vary by district'
+    ]
   },
 
   // INDIANA
@@ -668,7 +693,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 60 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -714,7 +739,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -756,7 +781,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 85500 }
+      maxWeight: { gross: 85500, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -798,7 +823,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -839,7 +864,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -881,7 +906,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 48, combination: 74 },
-      maxWeight: { gross: 100000 }
+      maxWeight: { gross: 100000, perAxle: { single: 22000, tandem: 38000, tridem: 42000 } }  // ME Turnpike limits
     },
     oversizePermits: {
       singleTrip: {
@@ -922,7 +947,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 60 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -963,7 +988,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1005,7 +1030,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 50, combination: 65 },
-      maxWeight: { gross: 164000 }
+      maxWeight: { gross: 164000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }  // MI allows higher GVW via additional axles on state roads
     },
     oversizePermits: {
       singleTrip: {
@@ -1052,7 +1077,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 75 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1095,7 +1120,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1136,7 +1161,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1178,7 +1203,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 53, combination: 93 },
-      maxWeight: { gross: 131060 }
+      maxWeight: { gross: 131060, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1223,7 +1248,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 95000 }
+      maxWeight: { gross: 95000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1265,7 +1290,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 48, combination: 70 },
-      maxWeight: { gross: 129000 }
+      maxWeight: { gross: 129000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1307,7 +1332,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 46, combination: 68 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1348,41 +1373,122 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
         baseFee: 100,
-        processingTime: '1-3 days',
+        dimensionSurcharges: {
+          width: [
+            { threshold: 12, fee: 50 },
+            { threshold: 14, fee: 150 }
+          ],
+          height: [
+            { threshold: 14.5, fee: 50 },
+            { threshold: 15.5, fee: 200 }
+          ],
+          length: [
+            { threshold: 80, fee: 25 },
+            { threshold: 100, fee: 75 }
+          ]
+        },
+        processingTime: '3-5 days (standard), 10-15 days (superload)',
         validity: '5 days'
       }
     },
     overweightPermits: {
       singleTrip: {
         baseFee: 200,
-        perMileFee: 0.25
+        perMileFee: 0.25,
+        weightBrackets: [
+          { upTo: 100000, fee: 100 },
+          { upTo: 120000, fee: 250 },
+          { upTo: 150000, fee: 500 }
+        ]
       }
     },
     escortRules: {
-      width: { oneEscort: 10.5, twoEscorts: 14 },
+      width: { oneEscort: 10, twoEscorts: 14 },
       height: { poleCar: 14 },
-      policeEscort: { width: 14, fee: 400 }
+      length: { oneEscort: 80, twoEscorts: 100 },
+      policeEscort: { width: 12, height: 15, fee: 400 }
     },
     travelRestrictions: {
       noNightTravel: true,
+      nightDefinition: 'Sunset to sunrise',
       noWeekendTravel: true,
+      weekendDefinition: 'Friday noon to Monday 6:00 AM',
       noHolidayTravel: true,
-      peakHourRestrictions: 'Very restrictive on NJ Turnpike and Garden State Parkway'
+      peakHourRestrictions: 'No oversize travel 6-9 AM and 4-7 PM on all state highways. NJ Turnpike and Garden State Parkway have additional restrictions — see restricted routes.'
     },
+    superloadThresholds: {
+      width: 14,
+      height: 15.5,
+      length: 100,
+      weight: 120000,
+      requiresRouteSurvey: true,
+      requiresBridgeAnalysis: true
+    },
+    bridgeAnalysis: {
+      weightThreshold: 80000,
+      widthThreshold: 12,
+      estimatedCostMin: 500,
+      estimatedCostMax: 2000,
+      processingTime: '2-4 weeks',
+      notes: [
+        'NJ has numerous weight-restricted bridges, many dating to early-mid 20th century',
+        'Individual bridge analysis required for loads exceeding 80,000 lbs GVW',
+        'Loads >12\' wide may require bridge clearance review on specific routes',
+        'NJ Turnpike Authority and Port Authority bridges have separate review processes',
+        'Bridge posting data available through NJ DOT Bridge Engineering division'
+      ]
+    },
+    restrictedRoutes: [
+      {
+        route: 'Garden State Parkway',
+        maxWidth: 8.5,
+        maxHeight: 13.5,
+        permitsAvailable: false,
+        note: 'No commercial vehicles permitted. Passenger vehicles only — no oversize/overweight permits issued.'
+      },
+      {
+        route: 'NJ Turnpike (I-95)',
+        maxWidth: 12,
+        maxHeight: 14,
+        maxWeight: 80000,
+        permitsAvailable: true,
+        note: 'Limited oversize permits available. Loads >12\' wide or >14\' high must use alternate routes. NJ Turnpike Authority requires separate application. No overweight permits beyond legal limit.'
+      },
+      {
+        route: 'Palisades Interstate Parkway',
+        maxWidth: 8.5,
+        maxHeight: 13.5,
+        permitsAvailable: false,
+        note: 'No commercial vehicles permitted. Passenger vehicle parkway — no oversize/overweight permits issued.'
+      },
+      {
+        route: 'Atlantic City Expressway',
+        maxWidth: 12,
+        maxHeight: 14.5,
+        permitsAvailable: true,
+        note: 'Permits available with restrictions. Loads >12\' wide require escort coordination with South Jersey Transportation Authority.'
+      }
+    ],
     contact: {
-      agency: 'NJ DOT Special Permits',
+      agency: 'NJ DOT Bureau of Freight Services & Permits',
       phone: '609-530-3648',
       website: 'https://www.nj.gov/transportation/freight/trucking/'
     },
     notes: [
-      'New Jersey has very restrictive permit requirements',
-      'Many routes prohibited for oversize loads',
-      'Early application recommended'
+      'New Jersey has among the most restrictive oversize/overweight permit requirements in the US',
+      'Garden State Parkway and Palisades Interstate Parkway prohibit ALL commercial vehicles — no oversize permits available',
+      'NJ Turnpike (I-95) permits limited to 12\' wide × 14\' high — loads exceeding these must use alternate routes (typically US-1, US-9, or I-287)',
+      'Police escort required at 12\' wide (lower threshold than many states) on state highways',
+      'Weekend travel ban extends from Friday noon to Monday 6 AM — one of the longest in the nation',
+      'Bridge weight restrictions are common throughout the state — individual bridge analysis required for loads >80,000 lbs',
+      'NJ Turnpike Authority, Port Authority (GWB, Lincoln/Holland Tunnels), and NJ DOT each have separate permit processes',
+      'Loads >14\' wide classified as superload requiring route survey, 10-15 day processing',
+      'Early application strongly recommended — 3-5 day processing for standard, 10-15 days for superloads'
     ]
   },
 
@@ -1395,7 +1501,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 86400 }
+      maxWeight: { gross: 86400, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1437,7 +1543,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 22400, tandem: 36000, tridem: 42000 } }  // NY V&T Law §385
     },
     oversizePermits: {
       singleTrip: {
@@ -1518,7 +1624,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 65 }, // 65' on designated highways per NCDOT; some local roads restrict to 55-60'
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1559,7 +1665,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 50, combination: 75 },
-      maxWeight: { gross: 105500 }
+      maxWeight: { gross: 105500, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1602,7 +1708,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1644,7 +1750,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 90000 }
+      maxWeight: { gross: 90000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1686,7 +1792,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 45, combination: 75 },
-      maxWeight: { gross: 105500 }
+      maxWeight: { gross: 105500, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1728,7 +1834,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 60 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 22400, tandem: 36000, tridem: 42000 } }  // PennDOT Title 75 §4941
     },
     oversizePermits: {
       singleTrip: {
@@ -1782,7 +1888,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 60 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1822,7 +1928,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 40, combination: 60 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1863,7 +1969,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 50, combination: 80 },
-      maxWeight: { gross: 129000 }
+      maxWeight: { gross: 129000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -1906,7 +2012,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2017,7 +2123,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2059,7 +2165,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 46, combination: 68 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2100,7 +2206,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 48, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2141,7 +2247,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 46, combination: 75 },
-      maxWeight: { gross: 105500 }
+      maxWeight: { gross: 105500, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2183,7 +2289,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 65 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2228,7 +2334,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 13.5,
       maxLength: { single: 45, combination: 75 },
-      maxWeight: { gross: 80000 }
+      maxWeight: { gross: 80000, perAxle: { single: 20000, tandem: 34000, tridem: 42000 } }
     },
     oversizePermits: {
       singleTrip: {
@@ -2271,7 +2377,7 @@ export const statePermits: StatePermitData[] = [
       maxWidth: 8.5,
       maxHeight: 14,
       maxLength: { single: 60, combination: 85 },
-      maxWeight: { gross: 117000 }
+      maxWeight: { gross: 117000, perAxle: { single: 20000, tandem: 36000, tridem: 42000 } }  // WY allows higher tandem on designated routes
     },
     oversizePermits: {
       singleTrip: {

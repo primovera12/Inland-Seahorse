@@ -212,28 +212,38 @@ export function calculateStatePermit(
     const osPermit = state.oversizePermits.singleTrip
     estimatedFee += osPermit.baseFee
 
-    // Add dimension surcharges
+    // Add dimension surcharges (cumulative = all applicable brackets, tiered = highest only)
     if (osPermit.dimensionSurcharges) {
       const { width, height, length } = osPermit.dimensionSurcharges
+      const isTiered = osPermit.surchargeModel === 'tiered'
 
       if (width) {
-        for (const surcharge of width) {
-          if (cargo.width >= surcharge.threshold) {
-            estimatedFee += surcharge.fee
+        if (isTiered) {
+          const applicable = width.filter(s => cargo.width >= s.threshold)
+          if (applicable.length > 0) estimatedFee += applicable[applicable.length - 1].fee
+        } else {
+          for (const surcharge of width) {
+            if (cargo.width >= surcharge.threshold) estimatedFee += surcharge.fee
           }
         }
       }
       if (height) {
-        for (const surcharge of height) {
-          if (cargo.height >= surcharge.threshold) {
-            estimatedFee += surcharge.fee
+        if (isTiered) {
+          const applicable = height.filter(s => cargo.height >= s.threshold)
+          if (applicable.length > 0) estimatedFee += applicable[applicable.length - 1].fee
+        } else {
+          for (const surcharge of height) {
+            if (cargo.height >= surcharge.threshold) estimatedFee += surcharge.fee
           }
         }
       }
       if (length) {
-        for (const surcharge of length) {
-          if (cargo.length >= surcharge.threshold) {
-            estimatedFee += surcharge.fee
+        if (isTiered) {
+          const applicable = length.filter(s => cargo.length >= s.threshold)
+          if (applicable.length > 0) estimatedFee += applicable[applicable.length - 1].fee
+        } else {
+          for (const surcharge of length) {
+            if (cargo.length >= surcharge.threshold) estimatedFee += surcharge.fee
           }
         }
       }
@@ -336,6 +346,29 @@ export function calculateStatePermit(
       if (annual.maxLength) limits.push(`${annual.maxLength}' long`)
       if (annual.maxWeight) limits.push(`${annual.maxWeight.toLocaleString()} lbs`)
       continuousPermitNote = `Annual/continuous permit ($${annual.baseFee}/year) available — covers loads up to ${limits.join(', ')}`
+    }
+  }
+
+  // Check restricted routes (highways that prohibit or limit oversize/overweight)
+  if (state.restrictedRoutes && (oversizeRequired || overweightRequired)) {
+    for (const rr of state.restrictedRoutes) {
+      const cargoExceedsWidth = cargo.width > rr.maxWidth
+      const cargoExceedsHeight = cargo.height > rr.maxHeight
+      const cargoExceedsWeight = rr.maxWeight ? cargo.grossWeight > rr.maxWeight : false
+      const cargoExceedsLimits = cargoExceedsWidth || cargoExceedsHeight || cargoExceedsWeight
+      if (!rr.permitsAvailable) {
+        warnings.push(
+          `ROUTE RESTRICTION: ${rr.route} — ${rr.note} Route must be avoided for this load.`
+        )
+      } else if (cargoExceedsLimits) {
+        const exceeded: string[] = []
+        if (cargoExceedsWidth) exceeded.push(`width ${cargo.width}' > ${rr.maxWidth}' limit`)
+        if (cargoExceedsHeight) exceeded.push(`height ${cargo.height}' > ${rr.maxHeight}' limit`)
+        if (cargoExceedsWeight) exceeded.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${rr.maxWeight!.toLocaleString()} lb limit`)
+        warnings.push(
+          `ROUTE RESTRICTION: ${rr.route} — Load exceeds route limits (${exceeded.join(', ')}). ${rr.note}`
+        )
+      }
     }
   }
 
@@ -494,34 +527,68 @@ export function calculateDetailedStatePermit(
     estimatedFee += osPermit.baseFee
     calculationDetails.push(`Base oversize permit fee: $${osPermit.baseFee}`)
 
-    // Add dimension surcharges with detailed tracking
+    // Add dimension surcharges with detailed tracking (cumulative = all brackets, tiered = highest only)
     if (osPermit.dimensionSurcharges) {
       const { width, height, length } = osPermit.dimensionSurcharges
+      const isTiered = osPermit.surchargeModel === 'tiered'
+      if (isTiered) {
+        calculationDetails.push('Surcharge model: tiered (only highest applicable bracket charged)')
+      }
 
       if (width) {
-        for (const surcharge of width) {
-          if (cargo.width >= surcharge.threshold) {
-            estimatedFee += surcharge.fee
-            costBreakdown.dimensionSurcharges.width.push(surcharge)
-            calculationDetails.push(`Width surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+        if (isTiered) {
+          const applicable = width.filter(s => cargo.width >= s.threshold)
+          if (applicable.length > 0) {
+            const highest = applicable[applicable.length - 1]
+            estimatedFee += highest.fee
+            costBreakdown.dimensionSurcharges.width.push(highest)
+            calculationDetails.push(`Width surcharge (>${highest.threshold}', tiered): +$${highest.fee}`)
+          }
+        } else {
+          for (const surcharge of width) {
+            if (cargo.width >= surcharge.threshold) {
+              estimatedFee += surcharge.fee
+              costBreakdown.dimensionSurcharges.width.push(surcharge)
+              calculationDetails.push(`Width surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+            }
           }
         }
       }
       if (height) {
-        for (const surcharge of height) {
-          if (cargo.height >= surcharge.threshold) {
-            estimatedFee += surcharge.fee
-            costBreakdown.dimensionSurcharges.height.push(surcharge)
-            calculationDetails.push(`Height surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+        if (isTiered) {
+          const applicable = height.filter(s => cargo.height >= s.threshold)
+          if (applicable.length > 0) {
+            const highest = applicable[applicable.length - 1]
+            estimatedFee += highest.fee
+            costBreakdown.dimensionSurcharges.height.push(highest)
+            calculationDetails.push(`Height surcharge (>${highest.threshold}', tiered): +$${highest.fee}`)
+          }
+        } else {
+          for (const surcharge of height) {
+            if (cargo.height >= surcharge.threshold) {
+              estimatedFee += surcharge.fee
+              costBreakdown.dimensionSurcharges.height.push(surcharge)
+              calculationDetails.push(`Height surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+            }
           }
         }
       }
       if (length) {
-        for (const surcharge of length) {
-          if (cargo.length >= surcharge.threshold) {
-            estimatedFee += surcharge.fee
-            costBreakdown.dimensionSurcharges.length.push(surcharge)
-            calculationDetails.push(`Length surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+        if (isTiered) {
+          const applicable = length.filter(s => cargo.length >= s.threshold)
+          if (applicable.length > 0) {
+            const highest = applicable[applicable.length - 1]
+            estimatedFee += highest.fee
+            costBreakdown.dimensionSurcharges.length.push(highest)
+            calculationDetails.push(`Length surcharge (>${highest.threshold}', tiered): +$${highest.fee}`)
+          }
+        } else {
+          for (const surcharge of length) {
+            if (cargo.length >= surcharge.threshold) {
+              estimatedFee += surcharge.fee
+              costBreakdown.dimensionSurcharges.length.push(surcharge)
+              calculationDetails.push(`Length surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
+            }
           }
         }
       }
@@ -662,6 +729,31 @@ export function calculateDetailedStatePermit(
       calculationDetails.push(
         `Annual/continuous permit ($${annual.baseFee}/year) exists but cannot be used — bridge analysis required for this load`
       )
+    }
+  }
+
+  // Check restricted routes (highways that prohibit or limit oversize/overweight)
+  if (state.restrictedRoutes && (oversizeRequired || overweightRequired)) {
+    for (const rr of state.restrictedRoutes) {
+      const cargoExceedsWidth = cargo.width > rr.maxWidth
+      const cargoExceedsHeight = cargo.height > rr.maxHeight
+      const cargoExceedsWeight = rr.maxWeight ? cargo.grossWeight > rr.maxWeight : false
+      const cargoExceedsLimits = cargoExceedsWidth || cargoExceedsHeight || cargoExceedsWeight
+      if (!rr.permitsAvailable) {
+        warnings.push(
+          `ROUTE RESTRICTION: ${rr.route} — ${rr.note} Route must be avoided for this load.`
+        )
+        calculationDetails.push(`Restricted route: ${rr.route} — no permits available, must avoid`)
+      } else if (cargoExceedsLimits) {
+        const exceeded: string[] = []
+        if (cargoExceedsWidth) exceeded.push(`width ${cargo.width}' > ${rr.maxWidth}' limit`)
+        if (cargoExceedsHeight) exceeded.push(`height ${cargo.height}' > ${rr.maxHeight}' limit`)
+        if (cargoExceedsWeight) exceeded.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${rr.maxWeight!.toLocaleString()} lb limit`)
+        warnings.push(
+          `ROUTE RESTRICTION: ${rr.route} — Load exceeds route limits (${exceeded.join(', ')}). ${rr.note}`
+        )
+        calculationDetails.push(`Restricted route: ${rr.route} — load exceeds limits (${exceeded.join(', ')})`)
+      }
     }
   }
 

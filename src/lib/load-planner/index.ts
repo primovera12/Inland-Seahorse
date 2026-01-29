@@ -49,6 +49,7 @@ export type {
   BridgeAnalysisRequirement,
   SpecialJurisdiction,
   SpecialJurisdictionPermit,
+  RestrictedRoute,
   StatePermitData,
   PermitRequirement,
   RoutePermitSummary,
