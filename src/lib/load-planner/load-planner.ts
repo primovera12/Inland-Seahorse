@@ -329,6 +329,7 @@ function findBestTruckForItem(item: LoadItem): {
         historicalBonus: 0,
         seasonalPenalty: 0,
         bridgePenalty: 0,
+        kpraPenalty: 0,
         escortProximityWarning: false,
         finalScore: 0,
       },
@@ -345,7 +346,7 @@ function findBestTruckForItem(item: LoadItem): {
       baseScore: 100, fitPenalty: 0, heightPenalty: 0, widthPenalty: 0,
       weightPenalty: 0, overkillPenalty: 0, permitPenalty: 0, idealFitBonus: 0,
       equipmentMatchBonus: 0, historicalBonus: 0, seasonalPenalty: 0,
-      bridgePenalty: 0, escortProximityWarning: false, finalScore: best.score,
+      bridgePenalty: 0, kpraPenalty: 0, escortProximityWarning: false, finalScore: best.score,
     },
   }
 }
@@ -533,7 +534,7 @@ function findBestTruckForLoad(load: PlannedLoad): {
         baseScore: 100, fitPenalty: 50, heightPenalty: 0, widthPenalty: 0,
         weightPenalty: 0, overkillPenalty: 0, permitPenalty: 0, idealFitBonus: 0,
         equipmentMatchBonus: 0, historicalBonus: 0, seasonalPenalty: 0,
-        bridgePenalty: 0, escortProximityWarning: false, finalScore: 0,
+        bridgePenalty: 0, kpraPenalty: 0, escortProximityWarning: false, finalScore: 0,
       },
     }
   }
@@ -548,7 +549,7 @@ function findBestTruckForLoad(load: PlannedLoad): {
       baseScore: 100, fitPenalty: 0, heightPenalty: 0, widthPenalty: 0,
       weightPenalty: 0, overkillPenalty: 0, permitPenalty: 0, idealFitBonus: 0,
       equipmentMatchBonus: 0, historicalBonus: 0, seasonalPenalty: 0,
-      bridgePenalty: 0, escortProximityWarning: false, finalScore: best.score,
+      bridgePenalty: 0, kpraPenalty: 0, escortProximityWarning: false, finalScore: best.score,
     },
   }
 }
@@ -1632,6 +1633,7 @@ function generateLegalOnlyPlan(parsedLoad: ParsedLoad): LoadPlan {
           historicalBonus: 0,
           seasonalPenalty: 0,
           bridgePenalty: 0,
+          kpraPenalty: 0,
           escortProximityWarning: false,
           finalScore: bestScore,
         },
@@ -1842,7 +1844,7 @@ function generateFastestPlan(parsedLoad: ParsedLoad): LoadPlan {
           baseScore: 100, fitPenalty: 0, heightPenalty: 0, widthPenalty: 0,
           weightPenalty: 0, overkillPenalty: 0, permitPenalty: 0,
           idealFitBonus: 0, equipmentMatchBonus: 0, historicalBonus: 0,
-          seasonalPenalty: 0, bridgePenalty: 0, escortProximityWarning: false,
+          seasonalPenalty: 0, bridgePenalty: 0, kpraPenalty: 0, escortProximityWarning: false,
           finalScore: 75,
         },
         placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
@@ -1951,7 +1953,7 @@ function generateMaxSafetyPlan(parsedLoad: ParsedLoad): LoadPlan {
         heightPenalty: 0, widthPenalty: 0, weightPenalty: 0,
         overkillPenalty: 0, permitPenalty: safetyIsLegal ? 0 : 10,
         idealFitBonus: 0, equipmentMatchBonus: 0, historicalBonus: 0,
-        seasonalPenalty: 0, bridgePenalty: 0, escortProximityWarning: false,
+        seasonalPenalty: 0, bridgePenalty: 0, kpraPenalty: 0, escortProximityWarning: false,
         finalScore: safetyFinalScore,
       },
       placements: [{ itemId: item.id, x: 0, z: 0, rotated: false }],
@@ -2055,7 +2057,7 @@ function generateBestPlacementPlan(parsedLoad: ParsedLoad): LoadPlan {
         heightPenalty: 0, widthPenalty: 0, weightPenalty: 0,
         overkillPenalty: 0, permitPenalty: bestIsLegal ? 0 : 10,
         idealFitBonus: 0, equipmentMatchBonus: Math.max(0, bestScore - 50),
-        historicalBonus: 0, seasonalPenalty: 0, bridgePenalty: 0,
+        historicalBonus: 0, seasonalPenalty: 0, bridgePenalty: 0, kpraPenalty: 0,
         escortProximityWarning: false,
         finalScore: Math.min(100, Math.max(0, Math.round(bestScore))),
       },

@@ -288,6 +288,11 @@ export const statePermits: StatePermitData[] = [
       phone: '916-654-6261',
       website: 'https://dot.ca.gov/programs/traffic-operations/transportation-permits'
     },
+    kpraLimit: {
+      maxDistance: 40,
+      enforced: true,
+      notes: 'Strictly enforced at weigh stations. 48\' trailers generally compliant (~38\' KPRA); most 53\' trailers non-compliant (~43\' KPRA) unless tandems are slid forward. CVC §35400.'
+    },
     notes: [
       'California has one of the most complex permit systems in the US',
       'Annual/continuous permit ($90/year) covers loads up to 14\' wide, 15\' high, 120\' long, 110,000 lbs',
@@ -296,7 +301,8 @@ export const statePermits: StatePermitData[] = [
       'Loads >14\' wide may require bridge analysis on bridge-restricted routes',
       'Two-lane roads carry higher permit fees (~25% surcharge) and additional restrictions',
       'Special requirements for wide loads on two-lane roads (e.g., turnouts, flaggers)',
-      'Loads >16\' wide or >16.5\' high classified as superloads requiring route survey'
+      'Loads >16\' wide or >16.5\' high classified as superloads requiring route survey',
+      'KPRA (kingpin-to-rear-axle) limit of 40\' — most 53\' trailers non-compliant without sliding tandems'
     ]
   },
 
@@ -1818,6 +1824,11 @@ export const statePermits: StatePermitData[] = [
       noWeekendTravel: false,
       noHolidayTravel: true
     },
+    kpraLimit: {
+      maxDistance: 43,
+      enforced: true,
+      notes: 'Oregon enforces 43\' KPRA on state highways. Standard 53\' trailers with tandems in rearmost position (~43\' KPRA) are at the limit. ORS 818.060.'
+    },
     contact: {
       agency: 'Oregon DOT',
       phone: '503-378-6699',
@@ -2272,6 +2283,11 @@ export const statePermits: StatePermitData[] = [
       noNightTravel: true,
       noWeekendTravel: false,
       noHolidayTravel: true
+    },
+    kpraLimit: {
+      maxDistance: 43,
+      enforced: true,
+      notes: 'Washington enforces 43\' KPRA on state highways. RCW 46.44.036.'
     },
     contact: {
       agency: 'WSDOT',

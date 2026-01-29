@@ -50,6 +50,7 @@ export type {
   SpecialJurisdiction,
   SpecialJurisdictionPermit,
   RestrictedRoute,
+  KPRALimit,
   StatePermitData,
   PermitRequirement,
   RoutePermitSummary,
@@ -143,6 +144,16 @@ export {
 } from './bridge-formula'
 
 export type { AxlePosition } from './bridge-formula'
+
+// KPRA Validation (CA/OR/WA Kingpin-to-Rear-Axle limits)
+export {
+  getEffectiveKPRA,
+  validateKPRA,
+  routeHasKPRAStates,
+  getMostRestrictiveKPRALimit,
+} from './kpra-validator'
+
+export type { KPRAValidation, KPRAStateResult } from './kpra-validator'
 
 // 3D Stacking Engine
 export {

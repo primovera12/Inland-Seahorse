@@ -59,6 +59,9 @@ export interface TruckType {
   powerUnitWeight: number
   // Loading method
   loadingMethod: 'crane' | 'drive-on' | 'forklift' | 'ramp' | 'tilt' | 'pump' | 'pneumatic' | 'gravity' | 'dump'
+  // Kingpin-to-Rear-Axle distance (feet) — regulated in CA/OR/WA
+  // If not set, derived from DEFAULT_AXLE_CONFIGS and deck length
+  kingpinToRearAxle?: number
   // Image/icon
   imageUrl?: string
 }
@@ -112,6 +115,7 @@ export interface ScoreBreakdown {
   historicalBonus: number        // Bonus from historical success data
   seasonalPenalty: number        // Penalty for seasonal weight restrictions
   bridgePenalty: number          // Penalty for low-clearance bridges on route
+  kpraPenalty: number            // Penalty for KPRA violation in CA/OR/WA
   escortProximityWarning: boolean // True if cargo is near escort thresholds
   finalScore: number             // Final calculated score (0-100)
 }
@@ -563,6 +567,12 @@ export interface RestrictedRoute {
   note: string              // Explanation of restriction
 }
 
+export interface KPRALimit {
+  maxDistance: number     // feet — max kingpin-to-rear-axle distance
+  enforced: boolean       // true = actively checked at weigh stations
+  notes: string
+}
+
 export interface StatePermitData {
   stateCode: string
   stateName: string
@@ -575,6 +585,7 @@ export interface StatePermitData {
   contact: StateContact
   superloadThresholds?: SuperloadThresholds
   bridgeAnalysis?: BridgeAnalysisRequirement
+  kpraLimit?: KPRALimit
   specialJurisdictions?: SpecialJurisdiction[]
   restrictedRoutes?: RestrictedRoute[]
   notes?: string[]

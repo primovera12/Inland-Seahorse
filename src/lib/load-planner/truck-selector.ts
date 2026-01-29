@@ -31,6 +31,7 @@ import {
 } from './seasonal-restrictions'
 import { calculateAxleWeights } from './weight-distribution'
 import { validateBridgeFormula } from './bridge-formula'
+import { validateKPRA } from './kpra-validator'
 
 // =============================================================================
 // TRUCK AVAILABILITY TIERS
@@ -361,7 +362,8 @@ function calculateScore(
   fit: FitAnalysis,
   permits: PermitRequired[],
   historicalBonus: number = 0,
-  seasonalContext?: SeasonalContext
+  seasonalContext?: SeasonalContext,
+  routeStates?: string[]
 ): { score: number; breakdown: ScoreBreakdown } {
   const breakdown: ScoreBreakdown = {
     baseScore: 100,
@@ -376,6 +378,7 @@ function calculateScore(
     historicalBonus: 0,
     seasonalPenalty: 0,
     bridgePenalty: 0,
+    kpraPenalty: 0,
     escortProximityWarning: false,
     finalScore: 0,
   }
@@ -493,6 +496,17 @@ function calculateScore(
       // Near-limit: small penalty
       breakdown.bridgePenalty = 5
       score -= 5
+    }
+  }
+
+  // KPRA (Kingpin-to-Rear-Axle) penalty for CA/OR/WA routes
+  if (routeStates && routeStates.length > 0) {
+    const kpraResult = validateKPRA(truck, routeStates)
+    if (!kpraResult.passes) {
+      // Penalty: 15-25 points based on severity
+      const worstExcess = Math.max(...kpraResult.stateResults.map(r => r.excess))
+      breakdown.kpraPenalty = Math.min(25, 15 + Math.round(worstExcess * 2))
+      score -= breakdown.kpraPenalty
     }
   }
 
@@ -770,7 +784,7 @@ export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions)
     // Get historical bonus for this truck category (if available)
     const historicalBonus = historicalBonuses[truck.category] || 0
 
-    const { score, breakdown } = calculateScore(cargo, truck, fit, permits, historicalBonus, seasonalContext)
+    const { score, breakdown } = calculateScore(cargo, truck, fit, permits, historicalBonus, seasonalContext, options?.routeStates)
     const reason = generateReason(truck, fit, permits)
     let warnings = generateWarnings(cargo, truck, fit, permits)
 
@@ -780,6 +794,17 @@ export function selectTrucks(cargo: ParsedLoad, options?: TruckSelectionOptions)
         `Spring weight restrictions active in ${seasonalContext.mostRestrictiveState} - max ${(seasonalContext.adjustedMaxWeight / 1000).toFixed(0)}k lbs (${seasonalContext.reductionPercent}% reduction)`,
         ...warnings,
       ]
+    }
+
+    // Add KPRA violation warning if applicable
+    if (breakdown.kpraPenalty > 0 && options?.routeStates) {
+      const kpraResult = validateKPRA(truck, options.routeStates)
+      for (const violation of kpraResult.violations) {
+        warnings = [violation, ...warnings]
+      }
+      if (kpraResult.suggestions.length > 0) {
+        warnings = [...warnings, ...kpraResult.suggestions]
+      }
     }
 
     // Add escort proximity warning if applicable
