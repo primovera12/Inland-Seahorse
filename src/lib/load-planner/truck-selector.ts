@@ -22,7 +22,7 @@ import type {
   ItemPlacement3D,
 } from './types'
 import { trucks, LEGAL_LIMITS, SUPERLOAD_THRESHOLDS } from './trucks'
-import { DEFAULT_AXLE_CONFIGS } from './types'
+import { DEFAULT_AXLE_CONFIGS, getTransportWidth, SECUREMENT_WIDTH_ALLOWANCE } from './types'
 import {
   hasSeasonalRestrictions,
   getSeasonalRestriction,
@@ -254,18 +254,22 @@ function analyzeFit(cargo: ParsedLoad, truck: TruckType): FitAnalysis {
   const totalWeight =
     cargo.weight + truck.tareWeight + truck.powerUnitWeight
 
-  // Check against legal limits
+  // Calculate transport width (includes securement hardware allowance)
+  // This is used for permit/legal checks, NOT for physical fit on deck
+  const transportWidth = getTransportWidth(cargo.width, cargo.widthIncludesSecurement)
+
+  // Check against legal limits (use transport width for width check)
   const exceedsHeight = totalHeight > LEGAL_LIMITS.HEIGHT
-  const exceedsWidth = cargo.width > LEGAL_LIMITS.WIDTH
+  const exceedsWidth = transportWidth > LEGAL_LIMITS.WIDTH
   const exceedsWeight = totalWeight > LEGAL_LIMITS.GROSS_WEIGHT
   const exceedsLength = cargo.length > truck.deckLength
 
-  // Calculate clearances
+  // Calculate clearances (use transport width for width clearance)
   const heightClearance = LEGAL_LIMITS.HEIGHT - totalHeight
-  const widthClearance = LEGAL_LIMITS.WIDTH - cargo.width
+  const widthClearance = LEGAL_LIMITS.WIDTH - transportWidth
   const weightClearance = LEGAL_LIMITS.GROSS_WEIGHT - totalWeight
 
-  // Does it physically fit?
+  // Does it physically fit? (use raw cargo.width for deck fit check)
   const fits =
     cargo.length <= truck.deckLength &&
     cargo.width <= truck.deckWidth &&
@@ -274,6 +278,7 @@ function analyzeFit(cargo: ParsedLoad, truck: TruckType): FitAnalysis {
   return {
     fits,
     totalHeight,
+    transportWidth,
     heightClearance,
     widthClearance,
     totalWeight,
@@ -295,12 +300,12 @@ function determinePermits(
 ): PermitRequired[] {
   const permits: PermitRequired[] = []
 
-  // Check width permit
+  // Check width permit (use transport width which includes securement allowance)
   if (fit.exceedsWidth) {
-    const isSuperload = cargo.width > SUPERLOAD_THRESHOLDS.WIDTH
+    const isSuperload = fit.transportWidth > SUPERLOAD_THRESHOLDS.WIDTH
     permits.push({
       type: isSuperload ? 'SUPERLOAD' : 'OVERSIZE_WIDTH',
-      reason: `Width of ${cargo.width.toFixed(1)}' exceeds ${LEGAL_LIMITS.WIDTH}' legal limit`,
+      reason: `Transport width of ${fit.transportWidth.toFixed(1)}' (incl. securement) exceeds ${LEGAL_LIMITS.WIDTH}' legal limit`,
       estimatedCost: isSuperload ? 500 : 100,
     })
   }
@@ -408,7 +413,7 @@ function calculateScore(
   }
 
   if (fit.exceedsWidth) {
-    const excess = cargo.width - LEGAL_LIMITS.WIDTH
+    const excess = fit.transportWidth - LEGAL_LIMITS.WIDTH
     breakdown.widthPenalty = Math.min(25, Math.round(excess * 5)) // Up to 25 points
     score -= breakdown.widthPenalty
   }
@@ -520,13 +525,13 @@ function calculateScore(
   }
 
   // OPTIMIZATION #7: Escort proximity warning
-  // Flag when cargo dimensions are within 6 inches of common escort thresholds
+  // Flag when transport dimensions are within 6 inches of common escort thresholds
   // This helps users know they're close to incurring significant additional costs
   const escortWidthThresholds = [12, 14, 16] // feet - common escort requirement triggers
   const escortHeightThreshold = 14.5 // feet - height requiring route survey
 
   for (const threshold of escortWidthThresholds) {
-    if (cargo.width > threshold - 0.5 && cargo.width <= threshold) {
+    if (fit.transportWidth > threshold - 0.5 && fit.transportWidth <= threshold) {
       breakdown.escortProximityWarning = true
       break
     }
@@ -586,7 +591,7 @@ function generateWarnings(
 
   if (fit.exceedsWidth) {
     warnings.push(
-      `Width ${cargo.width.toFixed(1)}' exceeds 8.5' legal limit - oversize permit required`
+      `Transport width ${fit.transportWidth.toFixed(1)}' (incl. securement) exceeds 8.5' legal limit - oversize permit required`
     )
   }
 
@@ -596,12 +601,13 @@ function generateWarnings(
     )
   }
 
-  if (cargo.width > 12) {
-    warnings.push('Width over 12\' may require escort vehicles in most states')
+  // Use transport width for escort thresholds (securement extends on road)
+  if (fit.transportWidth > 12) {
+    warnings.push(`Transport width over 12' (${fit.transportWidth.toFixed(1)}') may require escort vehicles in most states`)
   }
 
-  if (cargo.width > 14) {
-    warnings.push('Width over 14\' typically requires multiple escorts')
+  if (fit.transportWidth > 14) {
+    warnings.push(`Transport width over 14' (${fit.transportWidth.toFixed(1)}') typically requires multiple escorts`)
   }
 
   if (fit.totalHeight > 14) {
@@ -709,23 +715,42 @@ function analyzeFitAlternatives(
   }
 
   // Check width - can we avoid permit with slight reduction?
-  if (fit.exceedsWidth && cargo.width <= LEGAL_LIMITS.WIDTH + 2) {
-    const reduction = cargo.width - LEGAL_LIMITS.WIDTH + 0.1
+  // Transport width = cargo width + securement allowance (unless widthIncludesSecurement)
+  if (fit.exceedsWidth && fit.transportWidth <= LEGAL_LIMITS.WIDTH + 2) {
     const widthPermitCost = permits.find(p => p.type === 'OVERSIZE_WIDTH' || p.type === 'SUPERLOAD')?.estimatedCost || 100
 
-    if (reduction <= 1) {
+    // If cargo width alone is legal but securement pushes it over, suggest flush tie-downs
+    if (cargo.width <= LEGAL_LIMITS.WIDTH && !cargo.widthIncludesSecurement) {
       alternatives.push({
         type: 'reduced-width',
-        modification: `Reduce width by ${(reduction * 12).toFixed(0)}" (remove mirrors, fold attachments, etc.)`,
+        modification: `Use flush-mount or recessed tie-down points to eliminate ${(SECUREMENT_WIDTH_ALLOWANCE * 12).toFixed(0)}" securement overhang`,
         dimensionChange: {
           dimension: 'width',
-          currentValue: cargo.width,
-          targetValue: cargo.width - reduction,
-          reduction,
+          currentValue: fit.transportWidth,
+          targetValue: cargo.width,
+          reduction: SECUREMENT_WIDTH_ALLOWANCE,
         },
         permitsSaved: 1,
         costSavings: widthPermitCost,
-        feasibility: reduction <= 0.5 ? 'easy' : 'moderate',
+        feasibility: 'moderate',
+      })
+    }
+
+    // Suggest reducing cargo width if that would help
+    const reductionNeeded = fit.transportWidth - LEGAL_LIMITS.WIDTH + 0.1
+    if (reductionNeeded <= 1 && reductionNeeded > 0) {
+      alternatives.push({
+        type: 'reduced-width',
+        modification: `Reduce cargo width by ${(reductionNeeded * 12).toFixed(0)}" (remove mirrors, fold attachments, etc.)`,
+        dimensionChange: {
+          dimension: 'width',
+          currentValue: cargo.width,
+          targetValue: cargo.width - reductionNeeded,
+          reduction: reductionNeeded,
+        },
+        permitsSaved: 1,
+        costSavings: widthPermitCost,
+        feasibility: reductionNeeded <= 0.5 ? 'easy' : 'moderate',
       })
     }
   }

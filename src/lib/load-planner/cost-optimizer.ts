@@ -19,6 +19,10 @@ import {
   PERMIT_BASE_COSTS_CENTS,
   HEIGHT_PERMIT_TIERS_CENTS,
   getRouteMaxMultiplier,
+  getDieselPriceForDate,
+  calculateFuelSurchargeDetailed,
+  DEFAULT_FUEL_SURCHARGE_CONFIG,
+  type FuelSurchargeConfig,
 } from './types'
 import {
   calculateAdjustedWeightLimits,
@@ -29,7 +33,7 @@ import {
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_FUEL_PRICE_CENTS = 450 // cents per gallon ($4.50)
+const DEFAULT_FUEL_PRICE_CENTS = 400 // cents per gallon ($4.00 - 2026 baseline)
 
 // ============================================================================
 // SEASONAL RESTRICTION TYPES
@@ -301,19 +305,24 @@ export function calculateTruckCost(
     tripDays?: number
     /** States the route traverses (for seasonal restriction checks) */
     routeStates?: string[]
-    /** Ship date for seasonal restriction checks (defaults to today) */
+    /** Ship date for seasonal restriction checks and fuel price lookup (defaults to today) */
     shipDate?: Date
+    /** Fuel surcharge configuration (uses industry default if not provided) */
+    fuelSurchargeConfig?: FuelSurchargeConfig
   } = {}
 ): SmartLoadCostBreakdown {
   const costData = getTruckCostData(truck)
   const {
     distanceMiles = 500,
-    fuelPrice = DEFAULT_FUEL_PRICE_CENTS,
     statesCount = 1,
     tripDays = 1,
     routeStates,
-    shipDate,
+    shipDate = new Date(),
+    fuelSurchargeConfig = DEFAULT_FUEL_SURCHARGE_CONFIG,
   } = options
+
+  // Get fuel price: use provided price, or look up by date
+  const fuelPrice = options.fuelPrice ?? getDieselPriceForDate(shipDate, DEFAULT_FUEL_PRICE_CENTS)
 
   // Base truck cost (cents)
   const truckCost = Math.round(costData.dailyCostCents * costData.specializedPremium * tripDays)
@@ -351,9 +360,23 @@ export function calculateTruckCost(
     }
   }
 
+  // Calculate fuel surcharge on linehaul costs (truckCost + permits, excluding fuel)
+  // FSC is typically applied to base freight rates, not the fuel cost itself
+  const lineHaulCost = truckCost + permitCosts.heightPermit + permitCosts.widthPermit +
+    permitCosts.weightPermit + permitCosts.escorts + seasonalCost
+  const fuelSurchargeResult = calculateFuelSurchargeDetailed(lineHaulCost, fuelPrice, fuelSurchargeConfig)
+
+  // Add fuel surcharge warning if significant
+  if (fuelSurchargeResult.surchargePercent >= 5) {
+    warnings.push(
+      `Fuel surcharge: ${fuelSurchargeResult.surchargePercent.toFixed(1)}% (+$${(fuelSurchargeResult.surchargeAmountCents / 100).toFixed(2)}) based on diesel at $${(fuelPrice / 100).toFixed(2)}/gal`
+    )
+  }
+
   const totalCost =
     truckCost +
     fuelCost +
+    fuelSurchargeResult.surchargeAmountCents +
     permitCosts.heightPermit +
     permitCosts.widthPermit +
     permitCosts.weightPermit +
@@ -363,6 +386,8 @@ export function calculateTruckCost(
   return {
     truckCost,
     fuelCost,
+    fuelSurcharge: fuelSurchargeResult.surchargeAmountCents > 0 ? fuelSurchargeResult.surchargeAmountCents : undefined,
+    fuelSurchargePercent: fuelSurchargeResult.surchargePercent > 0 ? fuelSurchargeResult.surchargePercent : undefined,
     permitCosts,
     seasonalCost: seasonalCost > 0 ? seasonalCost : undefined,
     totalCost,

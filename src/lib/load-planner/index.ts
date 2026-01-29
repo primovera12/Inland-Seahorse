@@ -68,7 +68,7 @@ export type {
 } from './types'
 
 // Constants
-export { LEGAL_LIMITS, SUPERLOAD_THRESHOLDS, OVERSIZE_SPEEDS, ESCORT_REGIONAL_MULTIPLIERS } from './types'
+export { LEGAL_LIMITS, SUPERLOAD_THRESHOLDS, OVERSIZE_SPEEDS, ESCORT_REGIONAL_MULTIPLIERS, SECUREMENT_WIDTH_ALLOWANCE } from './types'
 
 // Regional escort pricing helpers
 export {
@@ -76,6 +76,20 @@ export {
   getRouteAverageMultiplier,
   getRouteMaxMultiplier,
 } from './types'
+
+// Transport width calculation (includes securement allowance)
+export { getTransportWidth } from './types'
+
+// Fuel surcharge index (date-aware cost calculation)
+export {
+  DEFAULT_FUEL_SURCHARGE_CONFIG,
+  EIA_DIESEL_PRICES,
+  getDieselPriceForDate,
+  calculateFuelSurchargePercent,
+  calculateFuelSurchargeAmount,
+  calculateFuelSurchargeDetailed,
+} from './types'
+export type { FuelSurchargeConfig, FuelSurchargeResult } from './types'
 
 // =============================================================================
 // PARSING EXPORTS

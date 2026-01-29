@@ -15,6 +15,7 @@ import {
   getRouteAverageMultiplier,
   getRouteMaxMultiplier,
   getEscortRegionalMultiplier,
+  getTransportWidth,
 } from './types'
 import { statePermits } from './state-permits'
 
@@ -111,11 +112,15 @@ export function calculateStateEscortRequirements(
     height: number
     length: number
     weight: number
+    widthIncludesSecurement?: boolean
   },
   truck: TruckType
 ): SmartEscortRequirements {
   const rules = getStateEscortRules(stateCode)
   const travelRestrictions = getStateTravelRestrictions(stateCode)
+
+  // Calculate transport width (includes securement hardware allowance)
+  const transportWidth = getTransportWidth(cargo.width, cargo.widthIncludesSecurement)
 
   // Calculate total dimensions
   const totalHeight = truck.deckHeight + cargo.height
@@ -141,14 +146,14 @@ export function calculateStateEscortRequirements(
   const lengthThresholds = rules?.lengthThresholds || { frontPilot: 100, rearPilot: 125, police: 150 }
   const weightThresholds = rules?.weightThresholds || { frontPilot: 200000, rearPilot: 250000, police: 300000 }
 
-  // Width-based requirements
-  if (cargo.width > widthThresholds.frontPilot) {
+  // Width-based requirements (use transport width)
+  if (transportWidth > widthThresholds.frontPilot) {
     requirements.frontPilot = true
   }
-  if (cargo.width > widthThresholds.rearPilot) {
+  if (transportWidth > widthThresholds.rearPilot) {
     requirements.rearPilot = true
   }
-  if (cargo.width > widthThresholds.police) {
+  if (transportWidth > widthThresholds.police) {
     requirements.policeEscort = true
   }
 
@@ -188,13 +193,13 @@ export function calculateStateEscortRequirements(
     requirements.policeEscort = true
   }
 
-  // Signage requirements
-  if (cargo.width > WIDE_LOAD_THRESHOLD) {
+  // Signage requirements (use transport width)
+  if (transportWidth > WIDE_LOAD_THRESHOLD) {
     requirements.signage.push('WIDE LOAD')
     requirements.flags.front = true
     requirements.flags.rear = true
   }
-  if (cargo.width > OVERSIZE_LOAD_THRESHOLD || totalHeight > LEGAL_LIMITS.HEIGHT || totalLength > 75) {
+  if (transportWidth > OVERSIZE_LOAD_THRESHOLD || totalHeight > LEGAL_LIMITS.HEIGHT || totalLength > 75) {
     requirements.signage.push('OVERSIZE LOAD')
     requirements.flags.corners = true
     requirements.lights.amber = true
@@ -261,6 +266,7 @@ export function calculateEscortRequirements(
     height: number
     length: number
     weight: number
+    widthIncludesSecurement?: boolean
   },
   truck: TruckType
 ): SmartEscortRequirements {

@@ -100,16 +100,19 @@ export interface FitAnalysis {
   fits: boolean
   // Total height (cargo + deck)
   totalHeight: number
+  // Transport width including securement hardware (cargo width + SECUREMENT_WIDTH_ALLOWANCE)
+  // Used for permit/legal checks. Raw cargo width used for physical fit checks.
+  transportWidth: number
   // Clearance from legal limits
   heightClearance: number // 13.5 - totalHeight
-  widthClearance: number // 8.5 - cargoWidth
+  widthClearance: number // 8.5 - transportWidth (includes securement allowance)
   // Weight analysis
   totalWeight: number // cargo + tare + tractor (uses truck.powerUnitWeight)
   weightClearance: number // 80000 - totalWeight
   // Legal status
   isLegal: boolean
   exceedsHeight: boolean
-  exceedsWidth: boolean
+  exceedsWidth: boolean // true if transportWidth > 8.5'
   exceedsWeight: boolean
   exceedsLength: boolean
 }
@@ -184,6 +187,30 @@ export const LEGAL_LIMITS = {
   GROSS_WEIGHT: 80000, // pounds
   TRACTOR_WEIGHT: 17000, // Default for Class 8. Use truck.powerUnitWeight when available.
 } as const
+
+/**
+ * Securement width allowance (in feet)
+ * Chains, binders, straps, and ratchets extend beyond the cargo by ~4-6 inches per side.
+ * Total added width = 5" per side × 2 = 10" = 0.83 feet.
+ * This is added to cargo width when determining permit requirements.
+ * The allowance is NOT added when checking physical fit on the trailer deck.
+ */
+export const SECUREMENT_WIDTH_ALLOWANCE = 0.83 // feet (10 inches total, 5" per side)
+
+/**
+ * Calculate the effective transport width including securement hardware.
+ * Use this for permit/legal checks. Use raw width for physical fit checks.
+ *
+ * @param width - The raw cargo width in feet
+ * @param widthIncludesSecurement - If true, the width already accounts for securement hardware
+ * @returns The effective width for permit calculations
+ */
+export function getTransportWidth(width: number, widthIncludesSecurement?: boolean): number {
+  if (widthIncludesSecurement) {
+    return width // User already accounted for securement
+  }
+  return width + SECUREMENT_WIDTH_ALLOWANCE
+}
 
 // Escort & service cost constants (all values in cents, integer)
 export const ESCORT_COSTS = {
@@ -366,6 +393,9 @@ export interface LoadItem {
   length: number
   width: number
   height: number
+  // Set to true if width already includes securement hardware (chains, binders, straps)
+  // When false/undefined, SECUREMENT_WIDTH_ALLOWANCE (10") is added for permit calculations
+  widthIncludesSecurement?: boolean
   // Weight in pounds
   weight: number
   // Stacking properties
@@ -405,6 +435,9 @@ export interface ParsedLoad {
   length: number
   width: number
   height: number
+  // Set to true if width already includes securement hardware (chains, binders, straps)
+  // When false/undefined, SECUREMENT_WIDTH_ALLOWANCE (10") is added for permit calculations
+  widthIncludesSecurement?: boolean
   // Weight in pounds (heaviest single item for truck selection)
   weight: number
   // Total weight of all items (for multi-truck planning)
@@ -1058,6 +1091,8 @@ export interface SmartPermitCostEstimate {
 export interface SmartLoadCostBreakdown {
   truckCost: number      // cents - Base daily truck cost
   fuelCost: number       // cents - Fuel cost for route
+  fuelSurcharge?: number // cents - Fuel surcharge based on diesel price index
+  fuelSurchargePercent?: number // Percentage applied (e.g., 5 = 5%)
   permitCosts: SmartPermitCostEstimate  // cents
   seasonalCost?: number  // cents - Seasonal permit costs (spring thaw)
   totalCost: number      // cents
@@ -1131,6 +1166,165 @@ export const DEFAULT_COST_DATA: Record<TrailerCategory, TruckCostData> = {
   TANKER: { dailyCostCents: 40_000, fuelEfficiency: 6.0, specializedPremium: 1.1 },
   HOPPER: { dailyCostCents: 38_000, fuelEfficiency: 6.0, specializedPremium: 1.1 },
   SPECIALIZED: { dailyCostCents: 150_000, fuelEfficiency: 4.5, specializedPremium: 2.0 },
+}
+
+/**
+ * Fuel Surcharge Index Configuration
+ *
+ * The trucking industry uses a Fuel Surcharge (FSC) mechanism to adjust
+ * rates based on diesel fuel prices. The DOE/EIA publishes weekly national
+ * average diesel prices that most carriers use as their reference.
+ *
+ * How FSC works:
+ * 1. A base fuel price is established (no surcharge below this)
+ * 2. For each increment above the base, a percentage is added to linehaul
+ * 3. The increment is typically $0.05 or $0.10 per gallon
+ *
+ * Example: Base $3.00/gal, +0.5% per $0.05 above base
+ * - At $3.50/gal: 10 increments × 0.5% = 5% FSC
+ * - At $4.00/gal: 20 increments × 0.5% = 10% FSC
+ */
+export interface FuelSurchargeConfig {
+  /** Base fuel price in cents/gallon where no surcharge applies */
+  basePriceCents: number
+  /** Fuel price increment in cents (e.g., 5 = $0.05) */
+  incrementCents: number
+  /** Surcharge percentage per increment (e.g., 0.5 = 0.5%) */
+  surchargePercentPerIncrement: number
+  /** Maximum surcharge percentage cap (e.g., 30 = 30% max) */
+  maxSurchargePercent?: number
+}
+
+/**
+ * Standard FSC table used by most carriers (based on industry averages)
+ * Base: $3.00/gallon (near 2020 national average)
+ * Increment: $0.05/gallon
+ * Rate: 0.5% per increment (approx. $0.01/mile per $0.10 diesel increase at 6 MPG)
+ */
+export const DEFAULT_FUEL_SURCHARGE_CONFIG: FuelSurchargeConfig = {
+  basePriceCents: 300, // $3.00/gallon base (no surcharge below this)
+  incrementCents: 5,   // $0.05 per step
+  surchargePercentPerIncrement: 0.5, // 0.5% per $0.05 increment
+  maxSurchargePercent: 35, // Cap at 35% to prevent runaway costs
+}
+
+/**
+ * Historical weekly national average diesel prices (cents/gallon)
+ * Source: EIA (Energy Information Administration) Weekly Retail On-Highway Diesel Prices
+ * Updated monthly - represents U.S. national average
+ *
+ * Note: This is reference data for date-based cost estimation.
+ * For production quotes, consider fetching current EIA data via API.
+ */
+export const EIA_DIESEL_PRICES: Record<string, number> = {
+  // 2024 monthly averages (approximate)
+  '2024-01': 393, '2024-02': 399, '2024-03': 406, '2024-04': 414,
+  '2024-05': 409, '2024-06': 393, '2024-07': 385, '2024-08': 378,
+  '2024-09': 363, '2024-10': 358, '2024-11': 353, '2024-12': 360,
+  // 2025 monthly averages (projected/actual)
+  '2025-01': 365, '2025-02': 372, '2025-03': 385, '2025-04': 395,
+  '2025-05': 402, '2025-06': 410, '2025-07': 420, '2025-08': 415,
+  '2025-09': 405, '2025-10': 398, '2025-11': 390, '2025-12': 395,
+  // 2026 (projected)
+  '2026-01': 400, '2026-02': 410,
+}
+
+/**
+ * Get diesel price for a given date (uses monthly averages)
+ * Falls back to default price if date not found
+ */
+export function getDieselPriceForDate(date: Date, defaultCents: number = 400): number {
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  return EIA_DIESEL_PRICES[key] ?? defaultCents
+}
+
+/**
+ * Calculate fuel surcharge percentage based on current diesel price
+ *
+ * @param currentPriceCents - Current diesel price in cents/gallon
+ * @param config - FSC configuration (uses default if not provided)
+ * @returns Surcharge percentage (e.g., 5.0 = 5%)
+ */
+export function calculateFuelSurchargePercent(
+  currentPriceCents: number,
+  config: FuelSurchargeConfig = DEFAULT_FUEL_SURCHARGE_CONFIG
+): number {
+  if (currentPriceCents <= config.basePriceCents) {
+    return 0 // No surcharge below base price
+  }
+
+  const priceDiff = currentPriceCents - config.basePriceCents
+  const increments = Math.floor(priceDiff / config.incrementCents)
+  const surchargePercent = increments * config.surchargePercentPerIncrement
+
+  // Apply cap if configured
+  if (config.maxSurchargePercent && surchargePercent > config.maxSurchargePercent) {
+    return config.maxSurchargePercent
+  }
+
+  return surchargePercent
+}
+
+/**
+ * Calculate fuel surcharge amount in cents
+ *
+ * @param lineHaulCents - Base linehaul/freight cost in cents (before surcharge)
+ * @param currentPriceCents - Current diesel price in cents/gallon
+ * @param config - FSC configuration (uses default if not provided)
+ * @returns Surcharge amount in cents
+ */
+export function calculateFuelSurchargeAmount(
+  lineHaulCents: number,
+  currentPriceCents: number,
+  config: FuelSurchargeConfig = DEFAULT_FUEL_SURCHARGE_CONFIG
+): number {
+  const surchargePercent = calculateFuelSurchargePercent(currentPriceCents, config)
+  return Math.round(lineHaulCents * surchargePercent / 100)
+}
+
+/**
+ * Fuel surcharge calculation result
+ */
+export interface FuelSurchargeResult {
+  /** Current diesel price used (cents/gallon) */
+  dieselPriceCents: number
+  /** Base price from FSC config (cents/gallon) */
+  basePriceCents: number
+  /** Price above base (cents/gallon) */
+  priceAboveBaseCents: number
+  /** Surcharge percentage applied */
+  surchargePercent: number
+  /** Surcharge amount in cents */
+  surchargeAmountCents: number
+  /** Whether surcharge was capped */
+  wasCapped: boolean
+}
+
+/**
+ * Calculate detailed fuel surcharge with full breakdown
+ */
+export function calculateFuelSurchargeDetailed(
+  lineHaulCents: number,
+  currentPriceCents: number,
+  config: FuelSurchargeConfig = DEFAULT_FUEL_SURCHARGE_CONFIG
+): FuelSurchargeResult {
+  const priceAboveBase = Math.max(0, currentPriceCents - config.basePriceCents)
+  const increments = Math.floor(priceAboveBase / config.incrementCents)
+  let surchargePercent = increments * config.surchargePercentPerIncrement
+
+  const wasCapped = !!(config.maxSurchargePercent && surchargePercent > config.maxSurchargePercent)
+  if (wasCapped) {
+    surchargePercent = config.maxSurchargePercent!
+  }
+
+  return {
+    dieselPriceCents: currentPriceCents,
+    basePriceCents: config.basePriceCents,
+    priceAboveBaseCents: priceAboveBase,
+    surchargePercent,
+    surchargeAmountCents: Math.round(lineHaulCents * surchargePercent / 100),
+    wasCapped,
+  }
 }
 
 // Default Axle Configurations by Trailer Category

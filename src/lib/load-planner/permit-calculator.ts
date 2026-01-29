@@ -16,14 +16,24 @@ import type {
   SpecialJurisdiction,
   SpecialJurisdictionPermit
 } from './types'
-import { ESCORT_COSTS } from './types'
+import { ESCORT_COSTS, getTransportWidth, SECUREMENT_WIDTH_ALLOWANCE } from './types'
 import { statePermits, getStateByCode } from './state-permits'
 
 export interface CargoSpecs {
-  width: number      // feet
+  width: number      // feet (raw cargo width, not including securement)
   height: number     // feet
   length: number     // feet
   grossWeight: number // lbs (cargo + trailer + truck)
+  // Set to true if width already includes securement hardware (chains, binders, straps)
+  // When false/undefined, SECUREMENT_WIDTH_ALLOWANCE (10") is added for permit calculations
+  widthIncludesSecurement?: boolean
+}
+
+/**
+ * Get the effective transport width for a cargo (includes securement allowance)
+ */
+function getCargoTransportWidth(cargo: CargoSpecs): number {
+  return getTransportWidth(cargo.width, cargo.widthIncludesSecurement)
 }
 
 // All cost constants in cents (from shared ESCORT_COSTS)
@@ -67,7 +77,8 @@ function checkSpecialJurisdictions(
     return { permits, warnings }
   }
 
-  const oversizeRequired = cargo.width > state.legalLimits.maxWidth ||
+  const transportWidth = getCargoTransportWidth(cargo)
+  const oversizeRequired = transportWidth > state.legalLimits.maxWidth ||
     cargo.height > state.legalLimits.maxHeight ||
     cargo.length > state.legalLimits.maxLength.combination
   const overweightRequired = cargo.grossWeight > state.legalLimits.maxWeight.gross
@@ -138,15 +149,18 @@ export function calculateStatePermit(
   const restrictions: string[] = []
   const warnings: string[] = []
 
-  // Check oversize
-  const widthOver = cargo.width > limits.maxWidth
+  // Calculate transport width (includes securement hardware allowance)
+  const transportWidth = getCargoTransportWidth(cargo)
+
+  // Check oversize (use transport width for width checks)
+  const widthOver = transportWidth > limits.maxWidth
   const heightOver = cargo.height > limits.maxHeight
   const lengthOver = cargo.length > limits.maxLength.combination
 
   const oversizeRequired = widthOver || heightOver || lengthOver
 
   if (widthOver) {
-    reasons.push(`Width ${cargo.width}' exceeds ${limits.maxWidth}' limit`)
+    reasons.push(`Transport width ${transportWidth.toFixed(1)}' (incl. securement) exceeds ${limits.maxWidth}' limit`)
   }
   if (heightOver) {
     reasons.push(`Height ${cargo.height}' exceeds ${limits.maxHeight}' limit`)
@@ -161,10 +175,10 @@ export function calculateStatePermit(
     reasons.push(`Weight ${cargo.grossWeight.toLocaleString()} lbs exceeds ${limits.maxWeight.gross.toLocaleString()} lb limit`)
   }
 
-  // Check superload
+  // Check superload (use transport width)
   const superload = state.superloadThresholds
   const isSuperload: boolean = superload ? !!(
-    (superload.width && cargo.width >= superload.width) ||
+    (superload.width && transportWidth >= superload.width) ||
     (superload.height && cargo.height >= superload.height) ||
     (superload.length && cargo.length >= superload.length) ||
     (superload.weight && cargo.grossWeight >= superload.weight)
@@ -180,9 +194,9 @@ export function calculateStatePermit(
   let poleCarRequired = false
   let policeEscortRequired = false
 
-  if (cargo.width >= escortRules.width.twoEscorts) {
+  if (transportWidth >= escortRules.width.twoEscorts) {
     escortsRequired = 2
-  } else if (cargo.width >= escortRules.width.oneEscort) {
+  } else if (transportWidth >= escortRules.width.oneEscort) {
     escortsRequired = 1
   }
 
@@ -197,7 +211,7 @@ export function calculateStatePermit(
   }
 
   if (escortRules.policeEscort) {
-    if (escortRules.policeEscort.width && cargo.width >= escortRules.policeEscort.width) {
+    if (escortRules.policeEscort.width && transportWidth >= escortRules.policeEscort.width) {
       policeEscortRequired = true
     }
     if (escortRules.policeEscort.height && cargo.height >= escortRules.policeEscort.height) {
@@ -219,11 +233,11 @@ export function calculateStatePermit(
 
       if (width) {
         if (isTiered) {
-          const applicable = width.filter(s => cargo.width >= s.threshold)
+          const applicable = width.filter(s => transportWidth >= s.threshold)
           if (applicable.length > 0) estimatedFee += applicable[applicable.length - 1].fee
         } else {
           for (const surcharge of width) {
-            if (cargo.width >= surcharge.threshold) estimatedFee += surcharge.fee
+            if (transportWidth >= surcharge.threshold) estimatedFee += surcharge.fee
           }
         }
       }
@@ -313,12 +327,12 @@ export function calculateStatePermit(
   if (state.bridgeAnalysis && (oversizeRequired || overweightRequired)) {
     const ba = state.bridgeAnalysis
     const weightTriggered = cargo.grossWeight > ba.weightThreshold
-    const widthTriggered = ba.widthThreshold ? cargo.width > ba.widthThreshold : false
+    const widthTriggered = ba.widthThreshold ? transportWidth > ba.widthThreshold : false
     if (weightTriggered || widthTriggered) {
       bridgeAnalysisRequired = true
       const triggers: string[] = []
       if (weightTriggered) triggers.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${ba.weightThreshold.toLocaleString()} lb threshold`)
-      if (widthTriggered) triggers.push(`width ${cargo.width}' > ${ba.widthThreshold}' threshold`)
+      if (widthTriggered) triggers.push(`transport width ${transportWidth.toFixed(1)}' > ${ba.widthThreshold}' threshold`)
       warnings.push(
         `${state.stateName} requires bridge analysis for this load (${triggers.join(', ')}). ` +
         `Estimated cost: $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()} per bridge, ` +
@@ -334,7 +348,7 @@ export function calculateStatePermit(
   if (oversizeRequired && state.oversizePermits.annual) {
     const annual = state.oversizePermits.annual
     const fitsAnnual =
-      (!annual.maxWidth || cargo.width <= annual.maxWidth) &&
+      (!annual.maxWidth || transportWidth <= annual.maxWidth) &&
       (!annual.maxHeight || cargo.height <= annual.maxHeight) &&
       (!annual.maxLength || cargo.length <= annual.maxLength) &&
       (!annual.maxWeight || cargo.grossWeight <= annual.maxWeight)
@@ -352,7 +366,7 @@ export function calculateStatePermit(
   // Check restricted routes (highways that prohibit or limit oversize/overweight)
   if (state.restrictedRoutes && (oversizeRequired || overweightRequired)) {
     for (const rr of state.restrictedRoutes) {
-      const cargoExceedsWidth = cargo.width > rr.maxWidth
+      const cargoExceedsWidth = transportWidth > rr.maxWidth
       const cargoExceedsHeight = cargo.height > rr.maxHeight
       const cargoExceedsWeight = rr.maxWeight ? cargo.grossWeight > rr.maxWeight : false
       const cargoExceedsLimits = cargoExceedsWidth || cargoExceedsHeight || cargoExceedsWeight
@@ -362,7 +376,7 @@ export function calculateStatePermit(
         )
       } else if (cargoExceedsLimits) {
         const exceeded: string[] = []
-        if (cargoExceedsWidth) exceeded.push(`width ${cargo.width}' > ${rr.maxWidth}' limit`)
+        if (cargoExceedsWidth) exceeded.push(`transport width ${transportWidth.toFixed(1)}' > ${rr.maxWidth}' limit`)
         if (cargoExceedsHeight) exceeded.push(`height ${cargo.height}' > ${rr.maxHeight}' limit`)
         if (cargoExceedsWeight) exceeded.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${rr.maxWeight!.toLocaleString()} lb limit`)
         warnings.push(
@@ -421,6 +435,9 @@ export function calculateDetailedStatePermit(
   const restrictions: string[] = []
   const warnings: string[] = []
 
+  // Calculate transport width (includes securement hardware allowance)
+  const transportWidth = getCargoTransportWidth(cargo)
+
   // Initialize cost breakdown
   const costBreakdown: PermitCostBreakdown = {
     baseFee: 0,
@@ -430,8 +447,8 @@ export function calculateDetailedStatePermit(
     total: 0
   }
 
-  // Check oversize
-  const widthOver = cargo.width > limits.maxWidth
+  // Check oversize (use transport width for width checks)
+  const widthOver = transportWidth > limits.maxWidth
   const heightOver = cargo.height > limits.maxHeight
   const lengthOver = cargo.length > limits.maxLength.combination
 
@@ -440,11 +457,11 @@ export function calculateDetailedStatePermit(
   // Track triggering dimensions
   if (widthOver) {
     costBreakdown.triggeringDimensions.width = {
-      value: cargo.width,
+      value: transportWidth,
       limit: limits.maxWidth,
       exceeded: true
     }
-    reasons.push(`Width ${cargo.width}' exceeds ${limits.maxWidth}' limit`)
+    reasons.push(`Transport width ${transportWidth.toFixed(1)}' (incl. securement) exceeds ${limits.maxWidth}' limit`)
   }
   if (heightOver) {
     costBreakdown.triggeringDimensions.height = {
@@ -474,10 +491,10 @@ export function calculateDetailedStatePermit(
     reasons.push(`Weight ${cargo.grossWeight.toLocaleString()} lbs exceeds ${limits.maxWeight.gross.toLocaleString()} lb limit`)
   }
 
-  // Check superload
+  // Check superload (use transport width)
   const superload = state.superloadThresholds
   const isSuperload: boolean = superload ? !!(
-    (superload.width && cargo.width >= superload.width) ||
+    (superload.width && transportWidth >= superload.width) ||
     (superload.height && cargo.height >= superload.height) ||
     (superload.length && cargo.length >= superload.length) ||
     (superload.weight && cargo.grossWeight >= superload.weight)
@@ -493,9 +510,9 @@ export function calculateDetailedStatePermit(
   let poleCarRequired = false
   let policeEscortRequired = false
 
-  if (cargo.width >= escortRules.width.twoEscorts) {
+  if (transportWidth >= escortRules.width.twoEscorts) {
     escortsRequired = 2
-  } else if (cargo.width >= escortRules.width.oneEscort) {
+  } else if (transportWidth >= escortRules.width.oneEscort) {
     escortsRequired = 1
   }
 
@@ -510,7 +527,7 @@ export function calculateDetailedStatePermit(
   }
 
   if (escortRules.policeEscort) {
-    if (escortRules.policeEscort.width && cargo.width >= escortRules.policeEscort.width) {
+    if (escortRules.policeEscort.width && transportWidth >= escortRules.policeEscort.width) {
       policeEscortRequired = true
     }
     if (escortRules.policeEscort.height && cargo.height >= escortRules.policeEscort.height) {
@@ -537,7 +554,7 @@ export function calculateDetailedStatePermit(
 
       if (width) {
         if (isTiered) {
-          const applicable = width.filter(s => cargo.width >= s.threshold)
+          const applicable = width.filter(s => transportWidth >= s.threshold)
           if (applicable.length > 0) {
             const highest = applicable[applicable.length - 1]
             estimatedFee += highest.fee
@@ -546,7 +563,7 @@ export function calculateDetailedStatePermit(
           }
         } else {
           for (const surcharge of width) {
-            if (cargo.width >= surcharge.threshold) {
+            if (transportWidth >= surcharge.threshold) {
               estimatedFee += surcharge.fee
               costBreakdown.dimensionSurcharges.width.push(surcharge)
               calculationDetails.push(`Width surcharge (>${surcharge.threshold}'): +$${surcharge.fee}`)
@@ -687,12 +704,12 @@ export function calculateDetailedStatePermit(
   if (state.bridgeAnalysis && (oversizeRequired || overweightRequired)) {
     const ba = state.bridgeAnalysis
     const weightTriggered = cargo.grossWeight > ba.weightThreshold
-    const widthTriggered = ba.widthThreshold ? cargo.width > ba.widthThreshold : false
+    const widthTriggered = ba.widthThreshold ? transportWidth > ba.widthThreshold : false
     if (weightTriggered || widthTriggered) {
       bridgeAnalysisRequired = true
       const triggers: string[] = []
       if (weightTriggered) triggers.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${ba.weightThreshold.toLocaleString()} lb threshold`)
-      if (widthTriggered) triggers.push(`width ${cargo.width}' > ${ba.widthThreshold}' threshold`)
+      if (widthTriggered) triggers.push(`transport width ${transportWidth.toFixed(1)}' > ${ba.widthThreshold}' threshold`)
       warnings.push(
         `${state.stateName} requires bridge analysis for this load (${triggers.join(', ')}). ` +
         `Estimated cost: $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()} per bridge, ` +
@@ -712,7 +729,7 @@ export function calculateDetailedStatePermit(
   if (oversizeRequired && state.oversizePermits.annual) {
     const annual = state.oversizePermits.annual
     const fitsAnnual =
-      (!annual.maxWidth || cargo.width <= annual.maxWidth) &&
+      (!annual.maxWidth || transportWidth <= annual.maxWidth) &&
       (!annual.maxHeight || cargo.height <= annual.maxHeight) &&
       (!annual.maxLength || cargo.length <= annual.maxLength) &&
       (!annual.maxWeight || cargo.grossWeight <= annual.maxWeight)
@@ -735,7 +752,7 @@ export function calculateDetailedStatePermit(
   // Check restricted routes (highways that prohibit or limit oversize/overweight)
   if (state.restrictedRoutes && (oversizeRequired || overweightRequired)) {
     for (const rr of state.restrictedRoutes) {
-      const cargoExceedsWidth = cargo.width > rr.maxWidth
+      const cargoExceedsWidth = transportWidth > rr.maxWidth
       const cargoExceedsHeight = cargo.height > rr.maxHeight
       const cargoExceedsWeight = rr.maxWeight ? cargo.grossWeight > rr.maxWeight : false
       const cargoExceedsLimits = cargoExceedsWidth || cargoExceedsHeight || cargoExceedsWeight
@@ -746,7 +763,7 @@ export function calculateDetailedStatePermit(
         calculationDetails.push(`Restricted route: ${rr.route} — no permits available, must avoid`)
       } else if (cargoExceedsLimits) {
         const exceeded: string[] = []
-        if (cargoExceedsWidth) exceeded.push(`width ${cargo.width}' > ${rr.maxWidth}' limit`)
+        if (cargoExceedsWidth) exceeded.push(`transport width ${transportWidth.toFixed(1)}' > ${rr.maxWidth}' limit`)
         if (cargoExceedsHeight) exceeded.push(`height ${cargo.height}' > ${rr.maxHeight}' limit`)
         if (cargoExceedsWeight) exceeded.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${rr.maxWeight!.toLocaleString()} lb limit`)
         warnings.push(
@@ -1037,16 +1054,17 @@ export function needsPermit(cargo: CargoSpecs): {
   reasons: string[]
 } {
   const reasons: string[] = []
+  const transportWidth = getCargoTransportWidth(cargo)
 
-  // Check against standard federal limits
+  // Check against standard federal limits (use transport width)
   const oversizeNeeded =
-    cargo.width > 8.5 ||
+    transportWidth > 8.5 ||
     cargo.height > 13.5 ||
     cargo.length > 65
 
   const overweightNeeded = cargo.grossWeight > 80000
 
-  if (cargo.width > 8.5) reasons.push(`Width ${cargo.width}' > 8.5' standard`)
+  if (transportWidth > 8.5) reasons.push(`Transport width ${transportWidth.toFixed(1)}' (incl. securement) > 8.5' standard`)
   if (cargo.height > 13.5) reasons.push(`Height ${cargo.height}' > 13.5' standard`)
   if (cargo.length > 65) reasons.push(`Length ${cargo.length}' > 65' standard`)
   if (cargo.grossWeight > 80000) {
