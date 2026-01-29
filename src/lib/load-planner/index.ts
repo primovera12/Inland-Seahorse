@@ -190,6 +190,8 @@ export {
   compareLoadingOptions,
   shouldUseSpecializedTruck,
   getTruckCostData,
+  calculateSeasonalCostImpact,
+  type SeasonalCostImpact,
 } from './cost-optimizer'
 
 // Securement Planner

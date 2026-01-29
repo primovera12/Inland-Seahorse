@@ -939,7 +939,10 @@ export interface SmartLoadCostBreakdown {
   truckCost: number      // cents - Base daily truck cost
   fuelCost: number       // cents - Fuel cost for route
   permitCosts: SmartPermitCostEstimate  // cents
+  seasonalCost?: number  // cents - Seasonal permit costs (spring thaw)
   totalCost: number      // cents
+  /** Warnings about cost factors (seasonal restrictions, etc.) */
+  warnings?: string[]
 }
 
 export interface PlanningOptions {

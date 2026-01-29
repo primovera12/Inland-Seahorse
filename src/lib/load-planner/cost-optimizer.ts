@@ -19,12 +19,42 @@ import {
   PERMIT_BASE_COSTS_CENTS,
   HEIGHT_PERMIT_TIERS_CENTS,
 } from './types'
+import {
+  calculateAdjustedWeightLimits,
+  checkRouteSeasonalRestrictions,
+} from './seasonal-restrictions'
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const DEFAULT_FUEL_PRICE_CENTS = 450 // cents per gallon ($4.50)
+
+// ============================================================================
+// SEASONAL RESTRICTION TYPES
+// ============================================================================
+
+/**
+ * Result of seasonal restriction check for cost calculations
+ */
+export interface SeasonalCostImpact {
+  /** Whether any seasonal restrictions are active on the route */
+  hasRestrictions: boolean
+  /** Additional permit cost in cents if seasonal permits are available */
+  seasonalPermitCost: number
+  /** Whether load exceeds seasonal weight limits */
+  exceedsSeasonalLimit: boolean
+  /** Adjusted max weight during seasonal restrictions (lbs) */
+  adjustedMaxWeight: number
+  /** Most restrictive state on the route */
+  mostRestrictiveState: string | null
+  /** Weight reduction percentage */
+  reductionPercent: number
+  /** Warnings for the user */
+  warnings: string[]
+  /** Recommendations for handling seasonal restrictions */
+  recommendations: string[]
+}
 
 // All cost constants imported from shared ESCORT_COSTS and PERMIT_BASE_COSTS_CENTS in types.ts
 
@@ -38,6 +68,81 @@ export function calculateEscortDays(distanceMiles: number, avgSpeedMph?: number)
   const speed = avgSpeedMph ?? ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH
   const milesPerDay = speed * ESCORT_COSTS.OVERSIZE_DRIVING_HOURS_PER_DAY
   return Math.max(1, Math.ceil(distanceMiles / milesPerDay))
+}
+
+/**
+ * Calculate the cost impact of seasonal weight restrictions on a route.
+ * Spring thaw restrictions in northern states can reduce allowed weight by 20-50%.
+ */
+export function calculateSeasonalCostImpact(
+  grossWeight: number,
+  routeStates: string[],
+  shipDate?: Date
+): SeasonalCostImpact {
+  const checkDate = shipDate || new Date()
+
+  // Check for seasonal restrictions on the route
+  const routeCheck = checkRouteSeasonalRestrictions(routeStates, checkDate)
+
+  if (!routeCheck.hasRestrictions) {
+    return {
+      hasRestrictions: false,
+      seasonalPermitCost: 0,
+      exceedsSeasonalLimit: false,
+      adjustedMaxWeight: LEGAL_LIMITS.GROSS_WEIGHT,
+      mostRestrictiveState: null,
+      reductionPercent: 0,
+      warnings: [],
+      recommendations: [],
+    }
+  }
+
+  // Calculate adjusted weight limits
+  const adjustedLimits = calculateAdjustedWeightLimits(
+    routeStates,
+    LEGAL_LIMITS.GROSS_WEIGHT,
+    checkDate
+  )
+
+  const exceedsSeasonalLimit = grossWeight > adjustedLimits.adjustedMaxWeight
+  const warnings: string[] = [...routeCheck.warnings]
+  const recommendations: string[] = [...routeCheck.recommendations]
+
+  // Calculate seasonal permit costs if load exceeds limits
+  let seasonalPermitCost = 0
+
+  if (exceedsSeasonalLimit) {
+    // Check each affected state for permit availability
+    for (const restriction of routeCheck.affectedStates) {
+      if (restriction.permitAvailable && restriction.permitFee) {
+        seasonalPermitCost += restriction.permitFee * 100 // Convert to cents
+      }
+    }
+
+    // Add specific warning about weight exceedance
+    const excessLbs = grossWeight - adjustedLimits.adjustedMaxWeight
+    warnings.unshift(
+      `Gross weight ${grossWeight.toLocaleString()} lbs exceeds seasonal limit of ${adjustedLimits.adjustedMaxWeight.toLocaleString()} lbs by ${excessLbs.toLocaleString()} lbs`
+    )
+
+    // Add recommendation about splitting load if significantly over
+    if (excessLbs > 10000) {
+      recommendations.unshift(
+        'Consider splitting load across multiple trucks to comply with seasonal restrictions'
+      )
+    }
+  }
+
+  return {
+    hasRestrictions: true,
+    seasonalPermitCost,
+    exceedsSeasonalLimit,
+    adjustedMaxWeight: adjustedLimits.adjustedMaxWeight,
+    mostRestrictiveState: adjustedLimits.mostRestrictiveState,
+    reductionPercent: adjustedLimits.reductionPercent,
+    warnings,
+    recommendations,
+  }
 }
 
 // ============================================================================
@@ -185,6 +290,10 @@ export function calculateTruckCost(
     fuelPrice?: number
     statesCount?: number
     tripDays?: number
+    /** States the route traverses (for seasonal restriction checks) */
+    routeStates?: string[]
+    /** Ship date for seasonal restriction checks (defaults to today) */
+    shipDate?: Date
   } = {}
 ): SmartLoadCostBreakdown {
   const costData = getTruckCostData(truck)
@@ -193,6 +302,8 @@ export function calculateTruckCost(
     fuelPrice = DEFAULT_FUEL_PRICE_CENTS,
     statesCount = 1,
     tripDays = 1,
+    routeStates,
+    shipDate,
   } = options
 
   // Base truck cost (cents)
@@ -211,19 +322,41 @@ export function calculateTruckCost(
     distanceMiles
   )
 
+  // Check seasonal restrictions if route states are provided
+  let seasonalCost = 0
+  const warnings: string[] = []
+
+  if (routeStates && routeStates.length > 0) {
+    const grossWeight = cargo.weight + truck.tareWeight + truck.powerUnitWeight
+    const seasonalImpact = calculateSeasonalCostImpact(grossWeight, routeStates, shipDate)
+
+    if (seasonalImpact.hasRestrictions) {
+      seasonalCost = seasonalImpact.seasonalPermitCost
+      warnings.push(...seasonalImpact.warnings)
+
+      // Add recommendations as warnings for visibility
+      if (seasonalImpact.exceedsSeasonalLimit && seasonalImpact.recommendations.length > 0) {
+        warnings.push(...seasonalImpact.recommendations)
+      }
+    }
+  }
+
   const totalCost =
     truckCost +
     fuelCost +
     permitCosts.heightPermit +
     permitCosts.widthPermit +
     permitCosts.weightPermit +
-    permitCosts.escorts
+    permitCosts.escorts +
+    seasonalCost
 
   return {
     truckCost,
     fuelCost,
     permitCosts,
+    seasonalCost: seasonalCost > 0 ? seasonalCost : undefined,
     totalCost,
+    warnings: warnings.length > 0 ? warnings : undefined,
   }
 }
 
@@ -242,6 +375,8 @@ export function scoreTruckForCost(
     distanceMiles?: number
     fuelPrice?: number
     statesCount?: number
+    routeStates?: string[]
+    shipDate?: Date
   } = {}
 ): number {
   // Calculate total cost
@@ -288,6 +423,8 @@ export function compareLoadingOptions(
     distanceMiles?: number
     fuelPrice?: number
     statesCount?: number
+    routeStates?: string[]
+    shipDate?: Date
   } = {}
 ): Array<{
   truck: TruckType
@@ -338,11 +475,15 @@ export function calculateMultiTruckCost(
     fuelPrice?: number
     statesCount?: number
     tripDays?: number
+    routeStates?: string[]
+    shipDate?: Date
   } = {}
 ): {
   perTruckCosts: SmartLoadCostBreakdown[]
   totalCost: number
   averageCostPerItem: number
+  /** Aggregated warnings from all trucks */
+  warnings?: string[]
 } {
   const perTruckCosts = loads.map(load => {
     const cargo = {
@@ -359,12 +500,17 @@ export function calculateMultiTruckCost(
     0
   )
 
+  // Aggregate warnings from all trucks (deduplicated)
+  const allWarnings = perTruckCosts.flatMap(c => c.warnings || [])
+  const uniqueWarnings = [...new Set(allWarnings)]
+
   return {
     perTruckCosts,
     totalCost: Math.round(totalCost),
     averageCostPerItem: totalItems > 0
       ? Math.round(totalCost / totalItems)
       : 0,
+    warnings: uniqueWarnings.length > 0 ? uniqueWarnings : undefined,
   }
 }
 
@@ -380,6 +526,8 @@ export function shouldUseSpecializedTruck(
     distanceMiles?: number
     fuelPrice?: number
     statesCount?: number
+    routeStates?: string[]
+    shipDate?: Date
   } = {}
 ): {
   recommendation: 'standard' | 'specialized'
