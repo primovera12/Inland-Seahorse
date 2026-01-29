@@ -18,7 +18,7 @@ function getAnthropic() {
     return null
   }
   if (!anthropic) {
-    console.log('[AI Parser] Creating Anthropic client with API key:', ANTHROPIC_API_KEY.substring(0, 10) + '...')
+    console.log('[AI Parser] Creating Anthropic client with API key: [REDACTED]')
     anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
   }
   return anthropic

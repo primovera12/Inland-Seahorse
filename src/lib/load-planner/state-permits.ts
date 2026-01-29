@@ -3,7 +3,17 @@
  * Complete permit data for all 50 US states
  *
  * Data Format: All dimensions in feet, weights in pounds, fees in USD
- * Last Updated: January 2025
+ *
+ * STALENESS NOTE: This data was compiled in January 2025. State permit fees
+ * can change annually. The system tracks data age and generates warnings when
+ * data exceeds 12 months old. Individual states can have a `lastVerified` field
+ * for more granular tracking.
+ *
+ * To update: Check each state's DOT permit website for current fee schedules.
+ * Common sources: state DOT permit portals, FMCSA oversize/overweight guides.
+ *
+ * Last Comprehensive Review: January 2025
+ * Last Staleness System Added: January 2026
  */
 
 import type { StatePermitData } from './types'
@@ -2096,6 +2106,20 @@ export const statePermits: StatePermitData[] = [
       weight: 200000,
       requiresRouteSurvey: true,
       requiresBridgeAnalysis: true
+    },
+    bridgeAnalysis: {
+      weightThreshold: 120000,
+      widthThreshold: 14,
+      estimatedCostMin: 750,
+      estimatedCostMax: 3000,
+      processingTime: '2-3 weeks',
+      notes: [
+        'TxDOT Bridge Division reviews loads >120,000 lbs GVW on state-maintained highways',
+        'Loads >14\' wide may require bridge deck clearance analysis on certain routes',
+        'SuperHeavy permit (>254,300 lbs or >200\' long) requires full route engineering analysis',
+        'Texas has extensive bridge inventory with varying weight limits — rural vs urban routes differ',
+        'Bridge analysis fee included in permit cost for most standard overweight permits'
+      ]
     },
     escortRules: {
       width: { oneEscort: 12, twoEscorts: 16, front: true, rear: true },

@@ -16,7 +16,7 @@ import type {
   SpecialJurisdiction,
   SpecialJurisdictionPermit
 } from './types'
-import { ESCORT_COSTS, getTransportWidth, SECUREMENT_WIDTH_ALLOWANCE } from './types'
+import { ESCORT_COSTS, getTransportWidth, SECUREMENT_WIDTH_ALLOWANCE, checkPermitDataStaleness, shouldWarnBridgeAnalysis, DEFAULT_BRIDGE_ANALYSIS } from './types'
 import { statePermits, getStateByCode } from './state-permits'
 
 export interface CargoSpecs {
@@ -148,6 +148,12 @@ export function calculateStatePermit(
   const reasons: string[] = []
   const restrictions: string[] = []
   const warnings: string[] = []
+
+  // Check for stale permit data
+  const staleness = checkPermitDataStaleness(state.lastVerified)
+  if (staleness.isWarning && staleness.message) {
+    warnings.push(`${state.stateName}: ${staleness.message}`)
+  }
 
   // Calculate transport width (includes securement hardware allowance)
   const transportWidth = getCargoTransportWidth(cargo)
@@ -322,23 +328,29 @@ export function calculateStatePermit(
     restrictions.push(travel.weatherRestrictions)
   }
 
-  // Check bridge analysis requirements
+  // Check bridge analysis requirements (state-specific or federal defaults)
   let bridgeAnalysisRequired = false
-  if (state.bridgeAnalysis && (oversizeRequired || overweightRequired)) {
-    const ba = state.bridgeAnalysis
-    const weightTriggered = cargo.grossWeight > ba.weightThreshold
-    const widthTriggered = ba.widthThreshold ? transportWidth > ba.widthThreshold : false
-    if (weightTriggered || widthTriggered) {
-      bridgeAnalysisRequired = true
-      const triggers: string[] = []
-      if (weightTriggered) triggers.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${ba.weightThreshold.toLocaleString()} lb threshold`)
-      if (widthTriggered) triggers.push(`transport width ${transportWidth.toFixed(1)}' > ${ba.widthThreshold}' threshold`)
+  const bridgeCheck = shouldWarnBridgeAnalysis(cargo.grossWeight, transportWidth, state.bridgeAnalysis)
+  if (bridgeCheck.warn && (oversizeRequired || overweightRequired)) {
+    bridgeAnalysisRequired = true
+    if (state.bridgeAnalysis) {
+      // State has explicit bridge analysis data
+      const ba = state.bridgeAnalysis
       warnings.push(
-        `${state.stateName} requires bridge analysis for this load (${triggers.join(', ')}). ` +
+        `${state.stateName} requires bridge analysis for this load (${bridgeCheck.reason}). ` +
         `Estimated cost: $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()} per bridge, ` +
         `processing time: ${ba.processingTime}.`
       )
       reasons.push('Bridge analysis required — heavy/wide load on state highways')
+    } else {
+      // State lacks explicit data — use federal defaults and note the uncertainty
+      warnings.push(
+        `${state.stateName}: Bridge analysis may be required (${bridgeCheck.reason}). ` +
+        `${state.stateName} does not have specific bridge analysis data on file — verify with state DOT. ` +
+        `Typical cost: $${DEFAULT_BRIDGE_ANALYSIS.COST_MIN_DOLLARS.toLocaleString()}-$${DEFAULT_BRIDGE_ANALYSIS.COST_MAX_DOLLARS.toLocaleString()} per bridge, ` +
+        `processing time: ${DEFAULT_BRIDGE_ANALYSIS.PROCESSING_TIME}.`
+      )
+      reasons.push('Bridge analysis may be required — verify with state DOT')
     }
   }
 
@@ -434,6 +446,13 @@ export function calculateDetailedStatePermit(
   const reasons: string[] = []
   const restrictions: string[] = []
   const warnings: string[] = []
+
+  // Check for stale permit data
+  const staleness = checkPermitDataStaleness(state.lastVerified)
+  if (staleness.isWarning && staleness.message) {
+    warnings.push(`${state.stateName}: ${staleness.message}`)
+    calculationDetails.push(`Data staleness: ${staleness.monthsOld} months since last verification`)
+  }
 
   // Calculate transport width (includes securement hardware allowance)
   const transportWidth = getCargoTransportWidth(cargo)
@@ -699,26 +718,37 @@ export function calculateDetailedStatePermit(
     restrictions.push(travel.weatherRestrictions)
   }
 
-  // Check bridge analysis requirements
+  // Check bridge analysis requirements (state-specific or federal defaults)
   let bridgeAnalysisRequired = false
-  if (state.bridgeAnalysis && (oversizeRequired || overweightRequired)) {
-    const ba = state.bridgeAnalysis
-    const weightTriggered = cargo.grossWeight > ba.weightThreshold
-    const widthTriggered = ba.widthThreshold ? transportWidth > ba.widthThreshold : false
-    if (weightTriggered || widthTriggered) {
-      bridgeAnalysisRequired = true
-      const triggers: string[] = []
-      if (weightTriggered) triggers.push(`weight ${cargo.grossWeight.toLocaleString()} lbs > ${ba.weightThreshold.toLocaleString()} lb threshold`)
-      if (widthTriggered) triggers.push(`transport width ${transportWidth.toFixed(1)}' > ${ba.widthThreshold}' threshold`)
+  const bridgeCheck = shouldWarnBridgeAnalysis(cargo.grossWeight, transportWidth, state.bridgeAnalysis)
+  if (bridgeCheck.warn && (oversizeRequired || overweightRequired)) {
+    bridgeAnalysisRequired = true
+    if (state.bridgeAnalysis) {
+      // State has explicit bridge analysis data
+      const ba = state.bridgeAnalysis
       warnings.push(
-        `${state.stateName} requires bridge analysis for this load (${triggers.join(', ')}). ` +
+        `${state.stateName} requires bridge analysis for this load (${bridgeCheck.reason}). ` +
         `Estimated cost: $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()} per bridge, ` +
         `processing time: ${ba.processingTime}.`
       )
       reasons.push('Bridge analysis required — heavy/wide load on state highways')
       calculationDetails.push(
-        `Bridge analysis required: ${triggers.join(', ')}. ` +
+        `Bridge analysis required: ${bridgeCheck.reason}. ` +
         `Est. $${ba.estimatedCostMin.toLocaleString()}-$${ba.estimatedCostMax.toLocaleString()}/bridge (${ba.processingTime})`
+      )
+    } else {
+      // State lacks explicit data — use federal defaults and note the uncertainty
+      warnings.push(
+        `${state.stateName}: Bridge analysis may be required (${bridgeCheck.reason}). ` +
+        `${state.stateName} does not have specific bridge analysis data on file — verify with state DOT. ` +
+        `Typical cost: $${DEFAULT_BRIDGE_ANALYSIS.COST_MIN_DOLLARS.toLocaleString()}-$${DEFAULT_BRIDGE_ANALYSIS.COST_MAX_DOLLARS.toLocaleString()} per bridge, ` +
+        `processing time: ${DEFAULT_BRIDGE_ANALYSIS.PROCESSING_TIME}.`
+      )
+      reasons.push('Bridge analysis may be required — verify with state DOT')
+      calculationDetails.push(
+        `Bridge analysis may be required: ${bridgeCheck.reason}. ` +
+        `State-specific data unavailable — using federal defaults. ` +
+        `Est. $${DEFAULT_BRIDGE_ANALYSIS.COST_MIN_DOLLARS.toLocaleString()}-$${DEFAULT_BRIDGE_ANALYSIS.COST_MAX_DOLLARS.toLocaleString()}/bridge (${DEFAULT_BRIDGE_ANALYSIS.PROCESSING_TIME})`
       )
     }
   }

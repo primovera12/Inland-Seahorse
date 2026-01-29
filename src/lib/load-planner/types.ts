@@ -622,6 +622,55 @@ export interface BridgeAnalysisRequirement {
   notes?: string[]
 }
 
+/**
+ * Default bridge analysis thresholds for states without explicit data.
+ * These are conservative federal guidelines — individual states may have stricter limits.
+ * The Bridge Formula B (23 CFR 658.17) is the federal standard; states can be more restrictive.
+ */
+export const DEFAULT_BRIDGE_ANALYSIS = {
+  /** Federal limit is 80,000 lbs GVW; loads exceeding this should verify bridge capacity */
+  WEIGHT_THRESHOLD_LBS: 105000,
+  /** Width above which bridge deck clearance may be a concern */
+  WIDTH_THRESHOLD_FT: 14,
+  /** Conservative cost estimate range per bridge analysis */
+  COST_MIN_DOLLARS: 500,
+  COST_MAX_DOLLARS: 2000,
+  /** Typical processing time */
+  PROCESSING_TIME: '2-4 weeks',
+} as const
+
+/**
+ * Check if a load should trigger a bridge analysis warning.
+ * Returns true if:
+ * 1. Weight exceeds state-specific threshold (if defined), or
+ * 2. Weight exceeds federal default threshold, or
+ * 3. Width exceeds state-specific or default threshold
+ */
+export function shouldWarnBridgeAnalysis(
+  grossWeight: number,
+  width: number,
+  stateBridgeAnalysis?: BridgeAnalysisRequirement
+): { warn: boolean; reason?: string } {
+  const weightThreshold = stateBridgeAnalysis?.weightThreshold ?? DEFAULT_BRIDGE_ANALYSIS.WEIGHT_THRESHOLD_LBS
+  const widthThreshold = stateBridgeAnalysis?.widthThreshold ?? DEFAULT_BRIDGE_ANALYSIS.WIDTH_THRESHOLD_FT
+
+  if (grossWeight > weightThreshold) {
+    return {
+      warn: true,
+      reason: `Weight ${grossWeight.toLocaleString()} lbs exceeds ${weightThreshold.toLocaleString()} lb bridge analysis threshold`,
+    }
+  }
+
+  if (width > widthThreshold) {
+    return {
+      warn: true,
+      reason: `Width ${width.toFixed(1)}' exceeds ${widthThreshold}' bridge clearance threshold`,
+    }
+  }
+
+  return { warn: false }
+}
+
 export interface OverweightPermit {
   singleTrip: {
     baseFee: number
@@ -742,6 +791,50 @@ export interface StatePermitData {
   specialJurisdictions?: SpecialJurisdiction[]
   restrictedRoutes?: RestrictedRoute[]
   notes?: string[]
+  /** ISO date string (YYYY-MM-DD) when this state's data was last verified against DOT sources */
+  lastVerified?: string
+}
+
+/** Staleness thresholds for permit data (in months) */
+export const PERMIT_DATA_STALENESS = {
+  /** Data older than this generates a warning */
+  WARNING_MONTHS: 12,
+  /** Data older than this is considered potentially unreliable */
+  STALE_MONTHS: 18,
+  /** Default verification date for states without explicit lastVerified */
+  DEFAULT_DATE: '2025-01-15',
+} as const
+
+/** Check if permit data is stale and return appropriate warning */
+export function checkPermitDataStaleness(lastVerified?: string): {
+  isStale: boolean
+  isWarning: boolean
+  monthsOld: number
+  message?: string
+} {
+  const verifiedDate = lastVerified ? new Date(lastVerified) : new Date(PERMIT_DATA_STALENESS.DEFAULT_DATE)
+  const now = new Date()
+  const monthsOld = Math.floor((now.getTime() - verifiedDate.getTime()) / (1000 * 60 * 60 * 24 * 30))
+
+  if (monthsOld >= PERMIT_DATA_STALENESS.STALE_MONTHS) {
+    return {
+      isStale: true,
+      isWarning: true,
+      monthsOld,
+      message: `Permit data is ${monthsOld} months old and may be outdated. Verify current fees with state DOT.`,
+    }
+  }
+
+  if (monthsOld >= PERMIT_DATA_STALENESS.WARNING_MONTHS) {
+    return {
+      isStale: false,
+      isWarning: true,
+      monthsOld,
+      message: `Permit data is ${monthsOld} months old. Consider verifying current fees with state DOT.`,
+    }
+  }
+
+  return { isStale: false, isWarning: false, monthsOld }
 }
 
 // Permit calculation results

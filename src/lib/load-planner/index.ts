@@ -91,6 +91,12 @@ export {
 } from './types'
 export type { FuelSurchargeConfig, FuelSurchargeResult } from './types'
 
+// Permit data staleness tracking
+export { PERMIT_DATA_STALENESS, checkPermitDataStaleness } from './types'
+
+// Bridge analysis defaults and helper
+export { DEFAULT_BRIDGE_ANALYSIS, shouldWarnBridgeAnalysis } from './types'
+
 // =============================================================================
 // PARSING EXPORTS
 // =============================================================================

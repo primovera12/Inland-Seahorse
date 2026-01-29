@@ -44,6 +44,7 @@ const dimensionsSourceSchema = z.enum(['ai', 'database', 'manual'])
 
 // Cargo item input schema
 const cargoItemInputSchema = z.object({
+  id: z.string().uuid().optional(), // Existing item ID for updates
   sku: z.string().optional(),
   description: z.string().min(1),
   quantity: z.number().int().positive().default(1),
@@ -76,6 +77,7 @@ const cargoItemInputSchema = z.object({
 
 // Truck input schema
 const truckInputSchema = z.object({
+  id: z.string().uuid().optional(), // Existing truck ID for updates
   truckIndex: z.number().int().min(0),
   truckTypeId: z.string().min(1),
   truckName: z.string().optional(),
@@ -95,6 +97,7 @@ const truckInputSchema = z.object({
 
 // Service item input schema
 const serviceItemInputSchema = z.object({
+  id: z.string().uuid().optional(), // Existing item ID for updates
   serviceTypeId: z.string().uuid().optional(),
   name: z.string().min(1),
   rateCents: z.number().int().min(0),
@@ -106,6 +109,7 @@ const serviceItemInputSchema = z.object({
 
 // Accessorial input schema
 const accessorialInputSchema = z.object({
+  id: z.string().uuid().optional(), // Existing item ID for updates
   accessorialTypeId: z.string().uuid().optional(),
   name: z.string().min(1),
   billingUnit: billingUnitSchema,
@@ -118,6 +122,7 @@ const accessorialInputSchema = z.object({
 
 // Permit input schema
 const permitInputSchema = z.object({
+  id: z.string().uuid().optional(), // Existing permit ID for updates
   stateCode: z.string().length(2),
   stateName: z.string().optional(),
   calculatedPermitFeeCents: z.number().int().min(0).optional(),
@@ -252,6 +257,59 @@ function toSnakeCase(obj: Record<string, any>): Record<string, any> {
     result[snakeKey] = value
   }
   return result
+}
+
+/**
+ * Upsert related items (update existing, insert new, delete removed)
+ * This preserves IDs and created_at timestamps for existing items.
+ */
+async function upsertRelatedItems<T extends { id?: string }>(
+  supabase: any,
+  tableName: string,
+  quoteId: string,
+  items: T[] | undefined,
+  mapToDbRow: (item: T, quoteId: string, index: number) => Record<string, any>
+): Promise<void> {
+  if (items === undefined) return // Field not included in update, skip
+
+  // Get existing IDs for this quote
+  const { data: existingRows } = await supabase
+    .from(tableName)
+    .select('id')
+    .eq('quote_id', quoteId)
+
+  const existingIds = new Set<string>((existingRows || []).map((r: { id: string }) => r.id))
+  const incomingIds = new Set<string>(items.filter(i => i.id).map(i => i.id as string))
+
+  // Find IDs to delete (exist in DB but not in incoming)
+  const idsToDelete = [...existingIds].filter((id): id is string => !incomingIds.has(id))
+
+  // Separate items into updates vs inserts
+  const toUpdate = items.filter(i => i.id && existingIds.has(i.id))
+  const toInsert = items.filter(i => !i.id || !existingIds.has(i.id))
+
+  // Delete removed items
+  if (idsToDelete.length > 0) {
+    await supabase.from(tableName).delete().in('id', idsToDelete)
+  }
+
+  // Update existing items
+  for (let i = 0; i < toUpdate.length; i++) {
+    const item = toUpdate[i]
+    const dbRow = mapToDbRow(item, quoteId, i)
+    const { id, quote_id, created_at, ...updateFields } = dbRow
+    await supabase.from(tableName).update(updateFields).eq('id', item.id)
+  }
+
+  // Insert new items
+  if (toInsert.length > 0) {
+    const insertRows = toInsert.map((item, index) => {
+      const dbRow = mapToDbRow(item, quoteId, toUpdate.length + index)
+      const { id, ...insertFields } = dbRow // Remove id so DB generates one
+      return insertFields
+    })
+    await supabase.from(tableName).insert(insertRows)
+  }
 }
 
 // =============================================================================
@@ -733,140 +791,99 @@ export const loadPlannerQuotesRouter = router({
 
       checkSupabaseError(updateError, 'Load planner quote')
 
-      // Update related data (delete and re-insert strategy for simplicity)
-      const updatePromises: PromiseLike<any>[] = []
+      // Update related data using upsert pattern (preserves IDs and created_at)
+      await upsertRelatedItems(ctx.supabase, 'load_planner_cargo_items', id, cargoItems, (item, quoteId, index) => ({
+        id: item.id,
+        quote_id: quoteId,
+        sku: item.sku || null,
+        description: item.description,
+        quantity: item.quantity ?? 1,
+        length_in: item.lengthIn || null,
+        width_in: item.widthIn || null,
+        height_in: item.heightIn || null,
+        weight_lbs: item.weightLbs || null,
+        stackable: item.stackable ?? false,
+        bottom_only: item.bottomOnly ?? false,
+        max_layers: item.maxLayers || null,
+        fragile: item.fragile ?? false,
+        hazmat: item.hazmat ?? false,
+        notes: item.notes || null,
+        orientation: item.orientation ?? 1,
+        geometry: item.geometry ?? 'box',
+        equipment_make_id: item.equipmentMakeId || null,
+        equipment_model_id: item.equipmentModelId || null,
+        dimensions_source: item.dimensionsSource || null,
+        image_url: item.imageUrl || null,
+        image_url_2: item.imageUrl2 || null,
+        front_image_url: item.frontImageUrl || null,
+        side_image_url: item.sideImageUrl || null,
+        assigned_truck_index: item.assignedTruckIndex ?? null,
+        placement_x: item.placementX || null,
+        placement_y: item.placementY || null,
+        placement_z: item.placementZ || null,
+        placement_rotation: item.placementRotation || null,
+        sort_order: item.sortOrder ?? index,
+      }))
 
-      if (cargoItems !== undefined) {
-        updatePromises.push(
-          ctx.supabase.from('load_planner_cargo_items').delete().eq('quote_id', id).then(r => r)
-        )
-      }
-      if (trucks !== undefined) {
-        updatePromises.push(ctx.supabase.from('load_planner_trucks').delete().eq('quote_id', id).then(r => r))
-      }
-      if (serviceItems !== undefined) {
-        updatePromises.push(
-          ctx.supabase.from('load_planner_service_items').delete().eq('quote_id', id).then(r => r)
-        )
-      }
-      if (accessorials !== undefined) {
-        updatePromises.push(
-          ctx.supabase.from('load_planner_accessorials').delete().eq('quote_id', id).then(r => r)
-        )
-      }
-      if (permits !== undefined) {
-        updatePromises.push(ctx.supabase.from('load_planner_permits').delete().eq('quote_id', id).then(r => r))
-      }
+      await upsertRelatedItems(ctx.supabase, 'load_planner_trucks', id, trucks, (truck, quoteId) => ({
+        id: truck.id,
+        quote_id: quoteId,
+        truck_index: truck.truckIndex,
+        truck_type_id: truck.truckTypeId,
+        truck_name: truck.truckName || null,
+        truck_category: truck.truckCategory || null,
+        deck_length_ft: truck.deckLengthFt || null,
+        deck_width_ft: truck.deckWidthFt || null,
+        deck_height_ft: truck.deckHeightFt || null,
+        well_length_ft: truck.wellLengthFt || null,
+        max_cargo_weight_lbs: truck.maxCargoWeightLbs || null,
+        total_weight_lbs: truck.totalWeightLbs || null,
+        total_items: truck.totalItems || null,
+        is_legal: truck.isLegal ?? true,
+        permits_required: truck.permitsRequired || null,
+        warnings: truck.warnings || null,
+        truck_score: truck.truckScore || null,
+      }))
 
-      await Promise.all(updatePromises)
+      await upsertRelatedItems(ctx.supabase, 'load_planner_service_items', id, serviceItems, (item, quoteId, index) => ({
+        id: item.id,
+        quote_id: quoteId,
+        service_type_id: item.serviceTypeId || null,
+        name: item.name,
+        rate_cents: item.rateCents,
+        quantity: item.quantity ?? 1,
+        total_cents: item.totalCents,
+        truck_index: item.truckIndex ?? null,
+        sort_order: item.sortOrder ?? index,
+      }))
 
-      // Re-insert related data
-      const insertPromises: PromiseLike<any>[] = []
+      await upsertRelatedItems(ctx.supabase, 'load_planner_accessorials', id, accessorials, (item, quoteId, index) => ({
+        id: item.id,
+        quote_id: quoteId,
+        accessorial_type_id: item.accessorialTypeId || null,
+        name: item.name,
+        billing_unit: item.billingUnit,
+        rate_cents: item.rateCents,
+        quantity: item.quantity ?? 1,
+        total_cents: item.totalCents,
+        notes: item.notes || null,
+        sort_order: item.sortOrder ?? index,
+      }))
 
-      if (cargoItems && cargoItems.length > 0) {
-        const cargoInserts = cargoItems.map((item, index) => ({
-          quote_id: id,
-          sku: item.sku || null,
-          description: item.description,
-          quantity: item.quantity ?? 1,
-          length_in: item.lengthIn || null,
-          width_in: item.widthIn || null,
-          height_in: item.heightIn || null,
-          weight_lbs: item.weightLbs || null,
-          stackable: item.stackable ?? false,
-          bottom_only: item.bottomOnly ?? false,
-          max_layers: item.maxLayers || null,
-          fragile: item.fragile ?? false,
-          hazmat: item.hazmat ?? false,
-          notes: item.notes || null,
-          orientation: item.orientation ?? 1,
-          geometry: item.geometry ?? 'box',
-          equipment_make_id: item.equipmentMakeId || null,
-          equipment_model_id: item.equipmentModelId || null,
-          dimensions_source: item.dimensionsSource || null,
-          image_url: item.imageUrl || null,
-          image_url_2: item.imageUrl2 || null,
-          front_image_url: item.frontImageUrl || null,
-          side_image_url: item.sideImageUrl || null,
-          assigned_truck_index: item.assignedTruckIndex ?? null,
-          placement_x: item.placementX || null,
-          placement_y: item.placementY || null,
-          placement_z: item.placementZ || null,
-          placement_rotation: item.placementRotation || null,
-          sort_order: item.sortOrder ?? index,
-        }))
-        insertPromises.push(ctx.supabase.from('load_planner_cargo_items').insert(cargoInserts).then(r => r))
-      }
-
-      if (trucks && trucks.length > 0) {
-        const truckInserts = trucks.map((truck) => ({
-          quote_id: id,
-          truck_index: truck.truckIndex,
-          truck_type_id: truck.truckTypeId,
-          truck_name: truck.truckName || null,
-          truck_category: truck.truckCategory || null,
-          deck_length_ft: truck.deckLengthFt || null,
-          deck_width_ft: truck.deckWidthFt || null,
-          deck_height_ft: truck.deckHeightFt || null,
-          well_length_ft: truck.wellLengthFt || null,
-          max_cargo_weight_lbs: truck.maxCargoWeightLbs || null,
-          total_weight_lbs: truck.totalWeightLbs || null,
-          total_items: truck.totalItems || null,
-          is_legal: truck.isLegal ?? true,
-          permits_required: truck.permitsRequired || null,
-          warnings: truck.warnings || null,
-          truck_score: truck.truckScore || null,
-        }))
-        insertPromises.push(ctx.supabase.from('load_planner_trucks').insert(truckInserts).then(r => r))
-      }
-
-      if (serviceItems && serviceItems.length > 0) {
-        const serviceInserts = serviceItems.map((item, index) => ({
-          quote_id: id,
-          service_type_id: item.serviceTypeId || null,
-          name: item.name,
-          rate_cents: item.rateCents,
-          quantity: item.quantity ?? 1,
-          total_cents: item.totalCents,
-          truck_index: item.truckIndex ?? null,
-          sort_order: item.sortOrder ?? index,
-        }))
-        insertPromises.push(ctx.supabase.from('load_planner_service_items').insert(serviceInserts))
-      }
-
-      if (accessorials && accessorials.length > 0) {
-        const accessorialInserts = accessorials.map((item, index) => ({
-          quote_id: id,
-          accessorial_type_id: item.accessorialTypeId || null,
-          name: item.name,
-          billing_unit: item.billingUnit,
-          rate_cents: item.rateCents,
-          quantity: item.quantity ?? 1,
-          total_cents: item.totalCents,
-          notes: item.notes || null,
-          sort_order: item.sortOrder ?? index,
-        }))
-        insertPromises.push(ctx.supabase.from('load_planner_accessorials').insert(accessorialInserts))
-      }
-
-      if (permits && permits.length > 0) {
-        const permitInserts = permits.map((permit) => ({
-          quote_id: id,
-          state_code: permit.stateCode,
-          state_name: permit.stateName || null,
-          calculated_permit_fee_cents: permit.calculatedPermitFeeCents || null,
-          calculated_escort_cost_cents: permit.calculatedEscortCostCents || null,
-          permit_fee_cents: permit.permitFeeCents || null,
-          escort_cost_cents: permit.escortCostCents || null,
-          distance_miles: permit.distanceMiles || null,
-          escort_count: permit.escortCount || null,
-          pole_car_required: permit.poleCarRequired ?? false,
-          notes: permit.notes || null,
-        }))
-        insertPromises.push(ctx.supabase.from('load_planner_permits').insert(permitInserts).then(r => r))
-      }
-
-      await Promise.all(insertPromises)
+      await upsertRelatedItems(ctx.supabase, 'load_planner_permits', id, permits, (permit, quoteId) => ({
+        id: permit.id,
+        quote_id: quoteId,
+        state_code: permit.stateCode,
+        state_name: permit.stateName || null,
+        calculated_permit_fee_cents: permit.calculatedPermitFeeCents || null,
+        calculated_escort_cost_cents: permit.calculatedEscortCostCents || null,
+        permit_fee_cents: permit.permitFeeCents || null,
+        escort_cost_cents: permit.escortCostCents || null,
+        distance_miles: permit.distanceMiles || null,
+        escort_count: permit.escortCount || null,
+        pole_car_required: permit.poleCarRequired ?? false,
+        notes: permit.notes || null,
+      }))
 
       // Log activity
       await ctx.adminSupabase.from('activity_logs').insert({
