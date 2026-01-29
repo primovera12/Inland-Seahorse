@@ -12,6 +12,9 @@ import {
   TruckType,
   LEGAL_LIMITS,
   ESCORT_COSTS,
+  getRouteAverageMultiplier,
+  getRouteMaxMultiplier,
+  getEscortRegionalMultiplier,
 } from './types'
 import { statePermits } from './state-permits'
 
@@ -321,54 +324,67 @@ export function calculateEscortRequirements(
 
 /**
  * Estimate escort costs for a trip
+ * @param requirements - Escort requirements from calculateEscortRequirements()
+ * @param distanceMiles - Total route distance in miles
+ * @param averageSpeedMph - Average speed (default: oversize speed from constants)
+ * @param routeStates - Optional array of state codes for regional pricing
+ * @returns Estimated cost in cents
  */
 export function estimateEscortCost(
   requirements: SmartEscortRequirements,
   distanceMiles: number,
-  averageSpeedMph: number = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH
+  averageSpeedMph: number = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH,
+  routeStates?: string[]
 ): number {
   // Calculate trip hours and days
   const tripHours = distanceMiles / averageSpeedMph
   const tripDays = Math.ceil(tripHours / 10) // Max 10 driving hours per day
 
+  // Get regional cost multiplier (use max for conservative estimate)
+  // If no route states provided, use base rate (1.0)
+  const regionalMultiplier = routeStates && routeStates.length > 0
+    ? getRouteMaxMultiplier(routeStates)
+    : 1.0
+
   let cost = 0
 
-  // Pilot car costs (per day)
+  // Pilot car costs (per day) - apply regional multiplier
   if (requirements.frontPilot) {
-    cost += ESCORT_COST_PER_DAY * tripDays
+    cost += ESCORT_COST_PER_DAY * tripDays * regionalMultiplier
   }
   if (requirements.rearPilot) {
-    cost += ESCORT_COST_PER_DAY * tripDays
+    cost += ESCORT_COST_PER_DAY * tripDays * regionalMultiplier
   }
 
-  // Police escort (per hour)
+  // Police escort (per hour) - regional multiplier affects this too
   if (requirements.policeEscort) {
-    cost += POLICE_ESCORT_PER_HOUR * tripHours
+    cost += POLICE_ESCORT_PER_HOUR * tripHours * regionalMultiplier
   }
 
-  // Bucket truck (per day)
+  // Bucket truck (per day) - apply regional multiplier
   if (requirements.bucketTruck) {
-    cost += BUCKET_TRUCK_PER_DAY * tripDays
+    cost += BUCKET_TRUCK_PER_DAY * tripDays * regionalMultiplier
   }
 
   // If pole car needed for height, add cost
   if (requirements.frontPilot) {
     // Check if this is for height (pole car is more expensive)
     // This is a simplification - in practice determined by height requirements
-    cost += (POLE_CAR_COST_PER_DAY - ESCORT_COST_PER_DAY) * tripDays * 0.5
+    cost += (POLE_CAR_COST_PER_DAY - ESCORT_COST_PER_DAY) * tripDays * 0.5 * regionalMultiplier
   }
 
   return Math.round(cost)
 }
 
 /**
- * Get detailed escort cost breakdown
+ * Get detailed escort cost breakdown with regional pricing
  */
 export function getEscortCostBreakdown(
   requirements: SmartEscortRequirements,
   distanceMiles: number,
   stateDistances?: Record<string, number>,
-  averageSpeedMph: number = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH
+  averageSpeedMph: number = ESCORT_COSTS.OVERSIZE_AVG_SPEED_MPH,
+  routeStates?: string[]
 ): {
   frontPilotCost: number
   rearPilotCost: number
@@ -376,18 +392,32 @@ export function getEscortCostBreakdown(
   bucketTruckCost: number
   totalCost: number
   tripDays: number
+  regionalMultiplier: number
   notes: string[]
 } {
   const tripHours = distanceMiles / averageSpeedMph
   const tripDays = Math.ceil(tripHours / 10)
 
+  // Get regional cost multiplier
+  // If stateDistances provided, use those states; otherwise use routeStates
+  const states = stateDistances ? Object.keys(stateDistances) : routeStates
+  const regionalMultiplier = states && states.length > 0
+    ? getRouteMaxMultiplier(states)
+    : 1.0
+
+  // Calculate adjusted daily rate for display
+  const adjustedDailyRate = Math.round(ESCORT_COST_PER_DAY * regionalMultiplier)
+  const adjustedPoliceRate = Math.round(POLICE_ESCORT_PER_HOUR * regionalMultiplier)
+  const adjustedBucketRate = Math.round(BUCKET_TRUCK_PER_DAY * regionalMultiplier)
+
   const breakdown = {
-    frontPilotCost: requirements.frontPilot ? ESCORT_COST_PER_DAY * tripDays : 0,
-    rearPilotCost: requirements.rearPilot ? ESCORT_COST_PER_DAY * tripDays : 0,
-    policeCost: requirements.policeEscort ? POLICE_ESCORT_PER_HOUR * tripHours : 0,
-    bucketTruckCost: requirements.bucketTruck ? BUCKET_TRUCK_PER_DAY * tripDays : 0,
+    frontPilotCost: requirements.frontPilot ? adjustedDailyRate * tripDays : 0,
+    rearPilotCost: requirements.rearPilot ? adjustedDailyRate * tripDays : 0,
+    policeCost: requirements.policeEscort ? adjustedPoliceRate * tripHours : 0,
+    bucketTruckCost: requirements.bucketTruck ? adjustedBucketRate * tripDays : 0,
     totalCost: 0,
     tripDays,
+    regionalMultiplier,
     notes: [] as string[],
   }
 
@@ -397,18 +427,28 @@ export function getEscortCostBreakdown(
     breakdown.policeCost +
     breakdown.bucketTruckCost
 
-  // Generate notes
+  // Generate notes with regional pricing
+  if (regionalMultiplier !== 1.0) {
+    const highestState = states?.reduce((max, state) => {
+      const mult = getEscortRegionalMultiplier(state)
+      return mult > getEscortRegionalMultiplier(max) ? state : max
+    }, states[0])
+    breakdown.notes.push(
+      `Regional rate adjustment: ${(regionalMultiplier * 100).toFixed(0)}% (${highestState} rates apply)`
+    )
+  }
+
   if (requirements.frontPilot) {
-    breakdown.notes.push(`Front pilot car: $${ESCORT_COST_PER_DAY / 100}/day × ${tripDays} days`)
+    breakdown.notes.push(`Front pilot car: $${adjustedDailyRate / 100}/day × ${tripDays} days`)
   }
   if (requirements.rearPilot) {
-    breakdown.notes.push(`Rear pilot car: $${ESCORT_COST_PER_DAY / 100}/day × ${tripDays} days`)
+    breakdown.notes.push(`Rear pilot car: $${adjustedDailyRate / 100}/day × ${tripDays} days`)
   }
   if (requirements.policeEscort) {
-    breakdown.notes.push(`Police escort: $${POLICE_ESCORT_PER_HOUR / 100}/hr × ${Math.ceil(tripHours)} hours`)
+    breakdown.notes.push(`Police escort: $${adjustedPoliceRate / 100}/hr × ${Math.ceil(tripHours)} hours`)
   }
   if (requirements.bucketTruck) {
-    breakdown.notes.push(`Bucket truck: $${BUCKET_TRUCK_PER_DAY / 100}/day × ${tripDays} days`)
+    breakdown.notes.push(`Bucket truck: $${adjustedBucketRate / 100}/day × ${tripDays} days`)
   }
 
   if (requirements.travelRestrictions.dayOnly) {

@@ -203,6 +203,107 @@ export const ESCORT_COSTS = {
   OVERSIZE_DRIVING_HOURS_PER_DAY: 10,
 } as const
 
+/**
+ * Regional escort cost multipliers
+ * Escort costs vary significantly by region due to:
+ * - Labor costs and cost of living
+ * - State regulatory complexity
+ * - Escort vehicle availability/competition
+ * - Urban vs rural pricing
+ *
+ * Base rate ($800/day) is adjusted by these multipliers.
+ * Range: ~$600/day (Midwest rural) to ~$1,200/day (California urban)
+ */
+export const ESCORT_REGIONAL_MULTIPLIERS: Record<string, number> = {
+  // West Coast - highest costs due to regulations, labor costs, traffic
+  CA: 1.40,  // California: $1,120/day - strictest regulations, highest labor
+  // Pacific Northwest - moderate-high
+  WA: 1.20,  // Washington: $960/day
+  OR: 1.15,  // Oregon: $920/day
+  AK: 1.25,  // Alaska: $1,000/day - remote, limited availability
+  // Northeast - high costs due to density, regulations, tolls
+  NY: 1.35,  // New York: $1,080/day - NYC area especially
+  NJ: 1.30,  // New Jersey: $1,040/day - complex regulations
+  MA: 1.25,  // Massachusetts: $1,000/day
+  CT: 1.20,  // Connecticut: $960/day
+  PA: 1.15,  // Pennsylvania: $920/day
+  MD: 1.15,  // Maryland: $920/day
+  DE: 1.10,  // Delaware: $880/day
+  NH: 1.10,  // New Hampshire: $880/day
+  VT: 1.05,  // Vermont: $840/day
+  ME: 1.05,  // Maine: $840/day
+  RI: 1.15,  // Rhode Island: $920/day
+  DC: 1.35,  // DC: $1,080/day - urban, complex
+  // West - moderate-high
+  NV: 1.15,  // Nevada: $920/day
+  CO: 1.10,  // Colorado: $880/day
+  UT: 1.00,  // Utah: $800/day
+  HI: 1.50,  // Hawaii: $1,200/day - island logistics, limited providers
+  WY: 0.95,  // Wyoming: $760/day - rural, less demand
+  // Mountain/Northwest
+  ID: 0.95,  // Idaho: $760/day
+  MT: 0.90,  // Montana: $720/day - rural, long distances
+  // Southwest - moderate
+  AZ: 1.00,  // Arizona: $800/day
+  NM: 0.95,  // New Mexico: $760/day
+  TX: 1.05,  // Texas: $840/day - large state, variable
+  OK: 0.90,  // Oklahoma: $720/day
+  // Southeast - lower-moderate
+  FL: 1.10,  // Florida: $880/day - tourist areas higher
+  GA: 1.00,  // Georgia: $800/day
+  NC: 0.95,  // North Carolina: $760/day
+  SC: 0.90,  // South Carolina: $720/day
+  VA: 1.05,  // Virginia: $840/day - DC suburbs higher
+  WV: 0.85,  // West Virginia: $680/day
+  KY: 0.85,  // Kentucky: $680/day
+  TN: 0.90,  // Tennessee: $720/day
+  AL: 0.85,  // Alabama: $680/day
+  MS: 0.80,  // Mississippi: $640/day - lowest costs
+  LA: 0.90,  // Louisiana: $720/day
+  AR: 0.85,  // Arkansas: $680/day
+  // Midwest - lower costs, competitive market
+  IL: 1.00,  // Illinois: $800/day - Chicago area higher
+  IN: 0.90,  // Indiana: $720/day
+  OH: 0.95,  // Ohio: $760/day
+  MI: 0.95,  // Michigan: $760/day
+  WI: 0.90,  // Wisconsin: $720/day
+  MN: 0.90,  // Minnesota: $720/day
+  IA: 0.85,  // Iowa: $680/day
+  MO: 0.90,  // Missouri: $720/day
+  KS: 0.85,  // Kansas: $680/day
+  NE: 0.80,  // Nebraska: $640/day
+  SD: 0.80,  // South Dakota: $640/day
+  ND: 0.80,  // North Dakota: $640/day
+} as const
+
+/**
+ * Get the regional cost multiplier for a state
+ * Returns 1.0 (base rate) if state not found
+ */
+export function getEscortRegionalMultiplier(stateCode: string): number {
+  return ESCORT_REGIONAL_MULTIPLIERS[stateCode.toUpperCase()] ?? 1.0
+}
+
+/**
+ * Get the average regional multiplier for a route
+ * Weighted by number of states (simple average)
+ * For more accurate estimates, use per-state distance weighting
+ */
+export function getRouteAverageMultiplier(routeStates: string[]): number {
+  if (routeStates.length === 0) return 1.0
+  const sum = routeStates.reduce((acc, state) => acc + getEscortRegionalMultiplier(state), 0)
+  return sum / routeStates.length
+}
+
+/**
+ * Get the highest regional multiplier along a route
+ * Use this for conservative cost estimates
+ */
+export function getRouteMaxMultiplier(routeStates: string[]): number {
+  if (routeStates.length === 0) return 1.0
+  return Math.max(...routeStates.map(state => getEscortRegionalMultiplier(state)))
+}
+
 // Permit base fee constants (all values in cents, integer)
 export const PERMIT_BASE_COSTS_CENTS = {
   HEIGHT: 7_500,   // $75 base overheight permit

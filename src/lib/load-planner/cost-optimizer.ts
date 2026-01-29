@@ -18,6 +18,7 @@ import {
   ESCORT_COSTS,
   PERMIT_BASE_COSTS_CENTS,
   HEIGHT_PERMIT_TIERS_CENTS,
+  getRouteMaxMultiplier,
 } from './types'
 import {
   calculateAdjustedWeightLimits,
@@ -166,6 +167,7 @@ export function getTruckCostData(truck: TruckType): TruckCostData {
 
 /**
  * Calculate estimated permit costs based on cargo dimensions
+ * @param routeStates - Optional array of state codes for regional escort pricing
  */
 export function calculatePermitCosts(
   cargoHeight: number,
@@ -173,7 +175,8 @@ export function calculatePermitCosts(
   cargoWeight: number,
   truck: TruckType,
   statesCount: number = 1,
-  distanceMiles: number = 0
+  distanceMiles: number = 0,
+  routeStates?: string[]
 ): SmartPermitCostEstimate {
   const costs: SmartPermitCostEstimate = {
     heightPermit: 0,
@@ -184,6 +187,11 @@ export function calculatePermitCosts(
 
   const totalHeight = truck.deckHeight + cargoHeight
   const escortDays = calculateEscortDays(distanceMiles)
+
+  // Get regional escort cost multiplier (1.0 if no states provided)
+  const escortMultiplier = routeStates && routeStates.length > 0
+    ? getRouteMaxMultiplier(routeStates)
+    : 1.0
 
   // Height permit (over 13.5 ft) — severity tiers based on real-world permit costs
   // Costs escalate dramatically with height due to route surveys, bridge clearance
@@ -219,24 +227,25 @@ export function calculatePermitCosts(
     // Additional surcharge for extreme overwidth
     if (cargoWidth > 12) {
       costs.widthPermit += 5_000 * statesCount  // $50
-      // Escort required — scales with trip duration
-      costs.escorts += ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS * escortDays
+      // Escort required — scales with trip duration and regional rates
+      costs.escorts += Math.round(ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS * escortDays * escortMultiplier)
       escortVehicles++
     }
     if (cargoWidth > 14) {
       costs.widthPermit += 10_000 * statesCount  // $100
-      // Second escort required — scales with trip duration
-      costs.escorts += ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS * escortDays
+      // Second escort required — scales with trip duration and regional rates
+      costs.escorts += Math.round(ESCORT_COSTS.PILOT_CAR_PER_DAY_CENTS * escortDays * escortMultiplier)
       escortVehicles++
     }
     if (cargoWidth > 16) {
       // Police escort may be required — 8-hour shifts per day
-      costs.escorts += ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS * 8 * escortDays
+      costs.escorts += Math.round(ESCORT_COSTS.POLICE_ESCORT_PER_HOUR_CENTS * 8 * escortDays * escortMultiplier)
       escortVehicles++
     }
   }
 
   // Mobilization/demobilization fee per escort vehicle (one-time)
+  // Mobilization fees are less variable by region, use base rate
   if (escortVehicles > 0) {
     costs.escorts += ESCORT_COSTS.MOBILIZATION_PER_VEHICLE_CENTS * escortVehicles
   }
@@ -312,14 +321,15 @@ export function calculateTruckCost(
   // Fuel cost (cents)
   const fuelCost = calculateFuelCost(truck, distanceMiles, fuelPrice)
 
-  // Permit costs (cents) — includes distance-scaled escort costs
+  // Permit costs (cents) — includes distance-scaled escort costs with regional pricing
   const permitCosts = calculatePermitCosts(
     cargo.height,
     cargo.width,
     cargo.weight,
     truck,
     statesCount,
-    distanceMiles
+    distanceMiles,
+    routeStates
   )
 
   // Check seasonal restrictions if route states are provided

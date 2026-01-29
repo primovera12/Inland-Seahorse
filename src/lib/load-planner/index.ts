@@ -68,7 +68,14 @@ export type {
 } from './types'
 
 // Constants
-export { LEGAL_LIMITS, SUPERLOAD_THRESHOLDS, OVERSIZE_SPEEDS } from './types'
+export { LEGAL_LIMITS, SUPERLOAD_THRESHOLDS, OVERSIZE_SPEEDS, ESCORT_REGIONAL_MULTIPLIERS } from './types'
+
+// Regional escort pricing helpers
+export {
+  getEscortRegionalMultiplier,
+  getRouteAverageMultiplier,
+  getRouteMaxMultiplier,
+} from './types'
 
 // =============================================================================
 // PARSING EXPORTS
