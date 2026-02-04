@@ -351,7 +351,7 @@ export default function EditInlandQuotePage() {
       miscFeesTotal: 0,
       inlandTotal: subtotal,
       grandTotal: total,
-      notes: quoteNotes || undefined,
+      customerNotes: quoteNotes || undefined,
       termsAndConditions: settings.terms_inland || undefined,
     }
   }, [settings, quoteNumber, customerName, customerCompany, customerEmail, customerPhone, destinationBlocks, subtotal, total, quoteNotes])
