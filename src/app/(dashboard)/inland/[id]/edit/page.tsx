@@ -298,6 +298,7 @@ export default function EditInlandQuotePage() {
             accessorial_charges: loadBlock.accessorial_charges,
             subtotal: loadBlock.subtotal,
             accessorials_total: loadBlock.accessorial_charges.reduce((sum, a) => sum + a.total, 0),
+            notes: loadBlock.notes,
           }))
         ),
         // Calculate total distance across all destinations

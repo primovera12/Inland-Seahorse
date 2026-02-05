@@ -200,6 +200,7 @@ export interface InlandLoadBlock {
   accessorial_charges: InlandAccessorialCharge[]
   subtotal: number // cents - services only
   accessorials_total: number // cents - accessorials (if applicable)
+  notes?: string
   // Load plan diagram data
   placements?: CargoPlacement[] // Placement of items on trailer
   truck_specs?: TruckSpecs // Truck dimensions for diagram rendering

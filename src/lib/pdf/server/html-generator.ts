@@ -1150,6 +1150,12 @@ function renderInlandTransportServices(data: UnifiedPDFData, primaryColor: strin
         ${cargoItemsHtml}
         ${serviceItemsHtml}
         ${accessorialsHtml}
+        ${block.notes ? `
+          <div style="margin-top: 16px; background: #f0f9ff; padding: 12px; border-left: 3px solid #0ea5e9; border-radius: 4px;">
+            <h4 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #0369a1; margin-bottom: 4px;">Notes</h4>
+            <p style="font-size: 11px; color: #334155; line-height: 1.6; margin: 0;">${block.notes}</p>
+          </div>
+        ` : ''}
       </div>
     `
   })

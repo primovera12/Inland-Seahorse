@@ -947,6 +947,18 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
           </table>
         </div>
       )}
+
+      {/* Load Block Notes */}
+      {block.notes && (
+        <div className="mt-4 bg-sky-50 p-3 border-l-[3px] border-sky-500 rounded">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-sky-700 mb-1">
+            Notes
+          </h4>
+          <p className="text-[11px] text-slate-700 leading-relaxed">
+            {block.notes}
+          </p>
+        </div>
+      )}
     </div>
   )
 
@@ -1052,6 +1064,7 @@ function InlandTransportServicesSection({ data }: { data: UnifiedPDFData }) {
                     warnings: loadBlock.warnings,
                     permits_required: loadBlock.permits_required,
                     is_legal: loadBlock.is_legal,
+                    notes: loadBlock.notes,
                   }
                   return renderLoadBlock(formattedBlock, loadIndex, dest.load_blocks.length > 1)
                 })}
