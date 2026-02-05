@@ -1259,6 +1259,7 @@ function renderFooter(data: UnifiedPDFData): string {
     <div class="footer">
       <p>&copy; ${year} ${data.company.name}. All rights reserved. This document is a confidential price quotation.</p>
       <p>Quote ID: ${data.quoteNumber}</p>
+      <p style="color: red; font-size: 8px;">DEBUG: customerNotes=${data.customerNotes ? `"${data.customerNotes.substring(0, 50)}"` : 'EMPTY'}</p>
     </div>
   `
 }
