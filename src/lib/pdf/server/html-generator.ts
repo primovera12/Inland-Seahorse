@@ -1211,11 +1211,11 @@ function renderPricingSummary(
           <p class="terms-text">${data.termsAndConditions}</p>
         ` : ''}
         ${data.customerNotes ? `
-          <div style="margin-top: 16px;">
-            <h4 class="terms-title">Notes</h4>
-            <p class="terms-text">${data.customerNotes}</p>
+          <div style="margin-top: 16px; background: #fffde7; padding: 12px; border: 2px solid #fbc02d; border-radius: 8px;">
+            <h4 class="terms-title" style="color: #f57f17;">Notes</h4>
+            <p class="terms-text" style="color: #333;">${data.customerNotes}</p>
           </div>
-        ` : ''}
+        ` : '<p style="color: red;">NO CUSTOMER NOTES IN RENDER</p>'}
       </div>
       <div class="totals-block">
         <div class="total-row">
