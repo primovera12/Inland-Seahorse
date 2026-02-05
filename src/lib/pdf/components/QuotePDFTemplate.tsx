@@ -1687,11 +1687,11 @@ function PricingSummarySection({ data, lineItems }: {
             </>
           )}
           {data.customerNotes && (
-            <div className="mt-4">
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-900 mb-2">
+            <div className={`${data.termsAndConditions ? 'mt-4' : ''} bg-sky-50 p-3 border-l-[3px] border-sky-500 rounded`}>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-sky-700 mb-2">
                 Notes
               </h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-700 leading-relaxed">
                 {data.customerNotes}
               </p>
             </div>

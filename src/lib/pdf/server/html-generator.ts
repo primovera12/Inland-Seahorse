@@ -1211,11 +1211,11 @@ function renderPricingSummary(
           <p class="terms-text">${data.termsAndConditions}</p>
         ` : ''}
         ${data.customerNotes ? `
-          <div style="margin-top: 16px; background: #fffde7; padding: 12px; border: 2px solid #fbc02d; border-radius: 8px;">
-            <h4 class="terms-title" style="color: #f57f17;">Notes</h4>
-            <p class="terms-text" style="color: #333;">${data.customerNotes}</p>
+          <div style="margin-top: ${data.termsAndConditions ? '16px' : '0'}; background: #f0f9ff; padding: 12px; border-left: 3px solid #0ea5e9; border-radius: 4px;">
+            <h4 class="terms-title" style="color: #0369a1; margin-bottom: 8px;">Notes</h4>
+            <p class="terms-text" style="color: #334155;">${data.customerNotes}</p>
           </div>
-        ` : '<p style="color: red;">NO CUSTOMER NOTES IN RENDER</p>'}
+        ` : ''}
       </div>
       <div class="totals-block">
         <div class="total-row">
@@ -1259,7 +1259,6 @@ function renderFooter(data: UnifiedPDFData): string {
     <div class="footer">
       <p>&copy; ${year} ${data.company.name}. All rights reserved. This document is a confidential price quotation.</p>
       <p>Quote ID: ${data.quoteNumber}</p>
-      <p style="color: red; font-size: 8px;">DEBUG: customerNotes=${data.customerNotes ? `"${data.customerNotes.substring(0, 50)}"` : 'EMPTY'}</p>
     </div>
   `
 }
